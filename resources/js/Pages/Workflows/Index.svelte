@@ -1,8 +1,8 @@
 <script>
-    import { useForm, router } from '@inertiajs/svelte';
+    import { router } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
 
-    let { workflows = [] } = $props();
+    let { workflows = [], errors = {} } = $props();
 
     let selectedWorkflowId = $state(null);
     let selectedWorkflow = $derived(
@@ -12,21 +12,38 @@
     let showCreateStageModal = $state(false);
     let editingStage = $state(null);
 
-    // Formulario para nuevo flujo
-    const workflowForm = useForm({
+    let workflowProcessing = $state(false);
+    let stageProcessing = $state(false);
+
+    // Formulario para nuevo flujo en Svelte 5 Rune
+    let workflowForm = $state({
         name: '',
         description: '',
         is_default: false,
     });
 
-    // Formulario para nueva etapa
-    const stageForm = useForm({
+    function resetWorkflowForm() {
+        workflowForm.name = '';
+        workflowForm.description = '';
+        workflowForm.is_default = false;
+    }
+
+    // Formulario para nueva etapa en Svelte 5 Rune
+    let stageForm = $state({
         name: '',
         color: '#38bdf8',
         position: 1,
         stage_category: 'in_progress',
         wip_limit: '',
     });
+
+    function resetStageForm() {
+        stageForm.name = '';
+        stageForm.color = '#38bdf8';
+        stageForm.position = 1;
+        stageForm.stage_category = 'in_progress';
+        stageForm.wip_limit = '';
+    }
 
     const categoryDescriptions = {
         pending: 'En Espera (Sin iniciar)',
@@ -37,10 +54,13 @@
 
     function submitWorkflow(e) {
         e.preventDefault();
-        $workflowForm.post('/workflows', {
+        router.post('/workflows', workflowForm, {
+            preserveScroll: true,
+            onStart: () => { workflowProcessing = true; },
+            onFinish: () => { workflowProcessing = false; },
             onSuccess: () => {
                 showCreateWorkflowModal = false;
-                $workflowForm.reset();
+                resetWorkflowForm();
             },
         });
     }
@@ -48,11 +68,11 @@
     function openCreateStage(wf) {
         selectedWorkflowId = wf.id;
         const nextPos = (wf.stages?.length ?? 0) + 1;
-        $stageForm.name = '';
-        $stageForm.color = '#38bdf8';
-        $stageForm.position = nextPos;
-        $stageForm.stage_category = 'in_progress';
-        $stageForm.wip_limit = '';
+        stageForm.name = '';
+        stageForm.color = '#38bdf8';
+        stageForm.position = nextPos;
+        stageForm.stage_category = 'in_progress';
+        stageForm.wip_limit = '';
         editingStage = null;
         showCreateStageModal = true;
     }
@@ -60,29 +80,35 @@
     function openEditStage(stage, wf) {
         selectedWorkflowId = wf.id;
         editingStage = stage;
-        $stageForm.name = stage.name;
-        $stageForm.color = stage.color;
-        $stageForm.position = stage.position;
-        $stageForm.stage_category = stage.stage_category;
-        $stageForm.wip_limit = stage.wip_limit ?? '';
+        stageForm.name = stage.name;
+        stageForm.color = stage.color;
+        stageForm.position = stage.position;
+        stageForm.stage_category = stage.stage_category;
+        stageForm.wip_limit = stage.wip_limit ?? '';
         showCreateStageModal = true;
     }
 
     function submitStage(e) {
         e.preventDefault();
         if (editingStage) {
-            $stageForm.patch(`/workflows/stages/${editingStage.id}`, {
+            router.patch(`/workflows/stages/${editingStage.id}`, stageForm, {
+                preserveScroll: true,
+                onStart: () => { stageProcessing = true; },
+                onFinish: () => { stageProcessing = false; },
                 onSuccess: () => {
                     showCreateStageModal = false;
                     editingStage = null;
-                    $stageForm.reset();
+                    resetStageForm();
                 },
             });
         } else {
-            $stageForm.post(`/workflows/${selectedWorkflow.id}/stages`, {
+            router.post(`/workflows/${selectedWorkflow.id}/stages`, stageForm, {
+                preserveScroll: true,
+                onStart: () => { stageProcessing = true; },
+                onFinish: () => { stageProcessing = false; },
                 onSuccess: () => {
                     showCreateStageModal = false;
-                    $stageForm.reset();
+                    resetStageForm();
                 },
             });
         }
@@ -245,18 +271,21 @@
                     <input
                         id="wf-name"
                         type="text"
-                        bind:value={$workflowForm.name}
+                        bind:value={workflowForm.name}
                         placeholder="Ej. Confección de Vestidos"
                         required
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
                     />
+                    {#if errors.name}
+                        <p class="text-[10px] text-rose-400 mt-1">{errors.name}</p>
+                    {/if}
                 </div>
 
                 <div>
                     <label for="wf-desc" class="block font-semibold text-slate-300 mb-1">Descripción</label>
                     <textarea
                         id="wf-desc"
-                        bind:value={$workflowForm.description}
+                        bind:value={workflowForm.description}
                         placeholder="Detalles del proceso para el taller..."
                         rows="2"
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
@@ -267,7 +296,7 @@
                     <input
                         type="checkbox"
                         id="is_default"
-                        bind:checked={$workflowForm.is_default}
+                        bind:checked={workflowForm.is_default}
                         class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-emerald-500"
                     />
                     <label for="is_default" class="text-slate-300 font-medium">Establecer como flujo predeterminado del taller</label>
@@ -283,7 +312,7 @@
                     </button>
                     <button
                         type="submit"
-                        disabled={$workflowForm.processing}
+                        disabled={workflowProcessing}
                         class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
                     >
                         Guardar Flujo
@@ -311,11 +340,14 @@
                     <input
                         id="stage-name"
                         type="text"
-                        bind:value={$stageForm.name}
+                        bind:value={stageForm.name}
                         placeholder="Ej. Sublimación Térmica"
                         required
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
                     />
+                    {#if errors.name}
+                        <p class="text-[10px] text-rose-400 mt-1">{errors.name}</p>
+                    {/if}
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
@@ -325,7 +357,7 @@
                             id="stage-pos"
                             type="number"
                             min="1"
-                            bind:value={$stageForm.position}
+                            bind:value={stageForm.position}
                             required
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
                         />
@@ -336,12 +368,12 @@
                             <input
                                 id="stage-color"
                                 type="color"
-                                bind:value={$stageForm.color}
+                                bind:value={stageForm.color}
                                 class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
                             />
                             <input
                                 type="text"
-                                bind:value={$stageForm.color}
+                                bind:value={stageForm.color}
                                 class="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-white text-xs font-mono"
                             />
                         </div>
@@ -352,7 +384,7 @@
                     <label for="stage-cat" class="block font-semibold text-slate-300 mb-1">Categoría Interna de Estado *</label>
                     <select
                         id="stage-cat"
-                        bind:value={$stageForm.stage_category}
+                        bind:value={stageForm.stage_category}
                         required
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
                     >
@@ -362,7 +394,7 @@
                         <option value="done">done — Terminado / Listo</option>
                     </select>
                     <p class="text-[10px] text-slate-500 mt-1">
-                        {categoryDescriptions[$stageForm.stage_category] ?? ''}
+                        {categoryDescriptions[stageForm.stage_category] ?? ''}
                     </p>
                 </div>
 
@@ -372,7 +404,7 @@
                         id="stage-wip"
                         type="number"
                         min="1"
-                        bind:value={$stageForm.wip_limit}
+                        bind:value={stageForm.wip_limit}
                         placeholder="Ej. 4 tareas máximas simultáneas"
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
                     />
@@ -388,7 +420,7 @@
                     </button>
                     <button
                         type="submit"
-                        disabled={$stageForm.processing}
+                        disabled={stageProcessing}
                         class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
                     >
                         {editingStage ? 'Actualizar Etapa' : 'Guardar Etapa'}

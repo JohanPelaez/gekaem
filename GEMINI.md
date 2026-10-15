@@ -30,7 +30,9 @@
    - Valores calculados: `let totalMinutes = $derived(...);` (PROHIBIDO usar `$: total = ...`).
 2. **Eventos nativos de Svelte 5:** Usa `onclick={...}`, `onsubmit={...}`, `oninput={...}` (PROHIBIDO usar `on:click` o `createEventDispatcher`).
 3. **Snippets en lugar de Slots:** Usa `{#snippet ...}` y `{@render children?.()}` en lugar de `<slot />`.
-4. **Mutaciones con Inertia:** Usa `useForm` de `@inertiajs/svelte` para formularios CRUD y `router.patch()` con actualización optimista de `$state` para arrastrar tarjetas en el tablero Kanban[cite: 1].
+4. **Formularios y Mutaciones en Svelte 5 (PROHIBIDO usar prefijo `$` de Stores):**
+   - En Svelte 5, NUNCA uses el prefijo de store `$` sobre variables de formulario (ESTÁ PROHIBIDO escribir `$form`, `$productForm`, `$materialForm` o `$workflowForm`).
+   - Define el estado de los formularios directamente con Runes nativos de Svelte 5 (`let form = $state({ ... })`) y envíalos con `router.post()`, `router.put()`, `router.patch()` o `router.delete()` de `@inertiajs/svelte` (o si usas `useForm`, accede a sus propiedades directamente como `form.campo` sin el signo `$` adelante).
 
 ### 3.2. Directivas para Laravel (Arquitectura Limpia)
 1. **Controladores Delgados:** Los controladores en `app/Http/Controllers/` no deben superar las 25 líneas por método. Solo validan mediante `FormRequest`, ejecutan un `Action` y retornan `Inertia::render()` o `redirect()->back()`.

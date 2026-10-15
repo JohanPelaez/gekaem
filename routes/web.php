@@ -2,7 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\KanbanController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\RawMaterialController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\WorkflowController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -25,33 +29,47 @@ Route::prefix('workflows')->name('workflows.')->group(function (): void {
     Route::delete('/stages/{stage}', [WorkflowController::class, 'destroyStage'])->name('stages.destroy');
 });
 
-// Rutas placeholder para los demás módulos del MVP (Fase 4)
+// Módulo 3: Clientes (Nota 5: Todo pedido requiere cliente)
+Route::prefix('customers')->name('customers.')->group(function (): void {
+    Route::get('/', [CustomerController::class, 'index'])->name('index');
+    Route::post('/', [CustomerController::class, 'store'])->name('store');
+    Route::patch('/{customer}', [CustomerController::class, 'update'])->name('update');
+    Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
+});
+
+// Módulo 4: Proveedores y Lead Time
+Route::prefix('suppliers')->name('suppliers.')->group(function (): void {
+    Route::get('/', [SupplierController::class, 'index'])->name('index');
+    Route::post('/', [SupplierController::class, 'store'])->name('store');
+    Route::patch('/{supplier}', [SupplierController::class, 'update'])->name('update');
+    Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->name('destroy');
+});
+
+// Módulo 6: Materia Prima e Inventario (Nota 4: 0, 1 o múltiples proveedores)
+Route::prefix('raw-materials')->name('raw-materials.')->group(function (): void {
+    Route::get('/', [RawMaterialController::class, 'index'])->name('index');
+    Route::post('/', [RawMaterialController::class, 'store'])->name('store');
+    Route::patch('/{rawMaterial}', [RawMaterialController::class, 'update'])->name('update');
+    Route::delete('/{rawMaterial}', [RawMaterialController::class, 'destroy'])->name('destroy');
+    Route::post('/{rawMaterial}/movements', [RawMaterialController::class, 'adjustStock'])->name('movements.store');
+});
+
+// Módulo 2: Productos, Recetas BOM y Variantes Ortogonales (Notas 7, 8, 9)
+Route::prefix('products')->name('products.')->group(function (): void {
+    Route::get('/', [ProductController::class, 'index'])->name('index');
+    Route::post('/', [ProductController::class, 'store'])->name('store');
+    Route::patch('/{product}', [ProductController::class, 'update'])->name('update');
+    Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
+});
+
+// Rutas auxiliares para Tipos de Producto y Ejes Ortogonales
+Route::post('/product-types', [ProductController::class, 'storeType'])->name('product-types.store');
+Route::post('/orthogonal-attributes', [ProductController::class, 'storeAttribute'])->name('orthogonal-attributes.store');
+Route::post('/orthogonal-attributes/{orthogonalAttribute}/options', [ProductController::class, 'storeOption'])->name('orthogonal-attributes.options.store');
+
+// Placeholder para Módulo 1 (Pedidos - Próxima Fase)
 Route::get('/orders', fn () => Inertia::render('Placeholder', [
     'moduleName' => 'Pedidos y Predicción de Entrega',
     'moduleCode' => 'Módulo 1',
     'description' => 'Registro de pedidos con tiempos calculados, tiempos de holgura y fechas predichas de entrega.',
 ]))->name('orders.index');
-
-Route::get('/products', fn () => Inertia::render('Placeholder', [
-    'moduleName' => 'Productos, Variantes Ortogonales y Recetas BOM',
-    'moduleCode' => 'Módulo 2',
-    'description' => 'Administración de catálogo maestro, combinaciones cartesianas y consumo de materiales.',
-]))->name('products.index');
-
-Route::get('/raw-materials', fn () => Inertia::render('Placeholder', [
-    'moduleName' => 'Materia Prima e Inventario',
-    'moduleCode' => 'Módulo 6',
-    'description' => 'Control de stock físico, stock reservado, alertas mínimas y movimientos Kardex.',
-]))->name('raw-materials.index');
-
-Route::get('/customers', fn () => Inertia::render('Placeholder', [
-    'moduleName' => 'Gestión de Clientes',
-    'moduleCode' => 'Módulo 3',
-    'description' => 'Administración de clientes vinculados obligatoriamente a los pedidos.',
-]))->name('customers.index');
-
-Route::get('/suppliers', fn () => Inertia::render('Placeholder', [
-    'moduleName' => 'Gestión de Proveedores',
-    'moduleCode' => 'Módulo 4',
-    'description' => 'Registro de proveedores de materia prima y tiempos de espera de reposición (lead time).',
-]))->name('suppliers.index');
