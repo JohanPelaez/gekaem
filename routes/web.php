@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\KanbanController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RawMaterialController;
 use App\Http\Controllers\SupplierController;
@@ -67,9 +68,10 @@ Route::post('/product-types', [ProductController::class, 'storeType'])->name('pr
 Route::post('/orthogonal-attributes', [ProductController::class, 'storeAttribute'])->name('orthogonal-attributes.store');
 Route::post('/orthogonal-attributes/{orthogonalAttribute}/options', [ProductController::class, 'storeOption'])->name('orthogonal-attributes.options.store');
 
-// Placeholder para Módulo 1 (Pedidos - Próxima Fase)
-Route::get('/orders', fn () => Inertia::render('Placeholder', [
-    'moduleName' => 'Pedidos y Predicción de Entrega',
-    'moduleCode' => 'Módulo 1',
-    'description' => 'Registro de pedidos con tiempos calculados, tiempos de holgura y fechas predichas de entrega.',
-]))->name('orders.index');
+// Módulo 1: Pedidos, Calculadora Predictiva de Entrega y Cierre Kanban
+Route::prefix('orders')->name('orders.')->group(function (): void {
+    Route::get('/', [OrderController::class, 'index'])->name('index');
+    Route::post('/', [OrderController::class, 'store'])->name('store');
+    Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
+    Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
+});
