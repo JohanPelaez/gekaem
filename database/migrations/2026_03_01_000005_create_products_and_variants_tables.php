@@ -30,6 +30,7 @@ return new class extends Migration
             $table->unsignedInteger('base_production_minutes');
             $table->unsignedTinyInteger('buffer_percentage')->default(20);
             $table->decimal('base_price', 15, 2);
+            $table->enum('production_time_unit', ['minutes', 'hours', 'days'])->default('minutes');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 

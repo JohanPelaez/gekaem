@@ -35,6 +35,15 @@ class Order extends Model
     ];
 
     /**
+     * The accessors to append to the model's array form.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'formatted_time',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -51,6 +60,19 @@ class Order extends Model
             'kanban_swimlane_position' => 'integer',
             'total_amount' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Get the human formatted production time.
+     */
+    protected function formattedTime(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn (): string => \App\Support\ProductionTimeConverter::formatHuman(
+                (int) ($this->total_production_minutes + $this->buffer_minutes),
+                $this->tenant?->daily_productive_minutes ?? 480
+            )
+        );
     }
 
     /**

@@ -36,6 +36,15 @@ class ProductionTask extends Model
     ];
 
     /**
+     * The accessors to append to the model's array form.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'formatted_time',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -51,6 +60,19 @@ class ProductionTask extends Model
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Get the human formatted estimated production time.
+     */
+    protected function formattedTime(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn (): string => \App\Support\ProductionTimeConverter::formatHuman(
+                (int) $this->estimated_minutes,
+                $this->tenant?->daily_productive_minutes ?? 480
+            )
+        );
     }
 
     /**

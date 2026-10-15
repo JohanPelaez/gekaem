@@ -26,9 +26,19 @@ class Product extends Model
         'name',
         'barcode',
         'base_production_minutes',
+        'production_time_unit',
         'buffer_percentage',
         'base_price',
         'is_active',
+    ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'formatted_time',
     ];
 
     /**
@@ -44,6 +54,19 @@ class Product extends Model
             'base_price' => 'decimal:2',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Get the human formatted production time.
+     */
+    protected function formattedTime(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn (): string => \App\Support\ProductionTimeConverter::formatHuman(
+                (int) $this->base_production_minutes,
+                $this->tenant?->daily_productive_minutes ?? 480
+            )
+        );
     }
 
     /**
