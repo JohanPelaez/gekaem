@@ -144,3 +144,14 @@ gekaem/
 ├── routes/
 │   └── web.php               # Único archivo de rutas de la aplicación
 └── vite.config.js            # PROTEGIDO (No modificar)
+```
+---
+
+## 7. AUTENTICACIÓN, ROLES SIMPLES Y CONFIGURACIÓN DEL TENANT (FASE SAAS)
+1. **Tres Tipos de Usuario (Sin paquetes RBAC complejos):**
+   - **Admin (`users.is_super_admin = true`):** Administradores de la plataforma Gekaem. Tienen acceso exclusivo a `/admin` para crear Tenants, crear usuarios (`Admin`, `Dueño`, `Trabajador`) y cambiar de Tenant activo (`current_tenant_id`).
+   - **Dueño (`tenant_user.role = 'owner'`):** Emprendedor dueño del negocio. Tiene acceso a los 7 módulos del MVP, a la configuración de su Tenant (`/settings`) y a la creación de cuentas de `Trabajador` para su propio taller.
+   - **Trabajador (`tenant_user.role = 'worker'`):** Ayudante operativo del taller. Tiene acceso a los módulos operativos (Kanban, Pedidos, Productos, Materia Prima), pero NO tiene acceso a `/admin` ni a `/settings`.
+2. **Configuración del Tenant (`/settings`):**
+   - El Dueño ingresa la jornada diaria en **horas** (ej. `8` horas) y el backend lo convierte a `daily_productive_minutes` (`horas * 60`).
+   - El campo JSON `tenants.settings` almacena `parallel_workers` (capacidad simultánea de trabajadores, default 1), `workdays` (arreglo de días laborales, default `[1,2,3,4,5,6]`) y `currency` (default `'COP'`).
