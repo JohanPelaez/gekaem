@@ -1,0 +1,18 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. SEGURIDAD: Bloquear acceso directo a archivos sensibles de la raíz
+    RewriteRule ^(\.env|\.git|composer\.(json|lock)|package(-lock)?\.json|vite\.config\.js|artisan|GEMINI\.md) - [F,L,NC]
+    RewriteRule ^(app|bootstrap|config|database|resources|routes|storage|tests|vendor)/ - [F,L,NC]
+
+    # 2. Si alguien entra manualmente escribiendo /public en la URL, limpiarlo hacia la raíz
+    RewriteCond %{THE_REQUEST} \s/+public/([^\s?]*) [NC]
+    RewriteRule ^ /%1 [R=301,L,NE]
+
+    # 3. Enviar internamente todo el tráfico y los assets (/build) hacia la carpeta public/
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>
+
+# Evitar listado de directorios
+Options -Indexes
