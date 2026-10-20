@@ -116,4 +116,94 @@ class OrderManagementTest extends TestCase
         $this->assertSame('delivered', $order->derived_status);
         $this->assertNotNull($order->delivered_at);
     }
+
+    public function test_create_order_with_initial_deposit_and_voucher(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $user = User::first();
+        $this->actingAs($user);
+
+        $customer = Customer::firstOrFail();
+        $variant = ProductVariant::firstOrFail();
+
+        $file = \Illuminate\Http\UploadedFile::fake()->image('comprobante_inicial.jpg');
+
+        $response = $this->post('/orders', [
+            'customer_id' => $customer->id,
+            'items' => [
+                [
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 2,
+                ],
+            ],
+            'committed_delivery_at' => now()->addDays(3)->toDateTimeString(),
+            'notes' => 'Pedido con abono inicial',
+            'initial_deposit' => 50.0,
+            'payment_method' => 'transfer',
+            'voucher' => $file,
+        ]);
+
+        $response->assertRedirect('/orders');
+
+        $order = Order::where('notes', 'Pedido con abono inicial')->firstOrFail();
+        $this->assertCount(1, $order->payments);
+
+        $payment = $order->payments->first();
+        $this->assertSame(50.0, (float) $payment->amount);
+        $this->assertSame('transfer', $payment->payment_method);
+        $this->assertNotNull($payment->voucher_path);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($payment->voucher_path);
+
+        $this->assertSame(50.0, (float) $order->paid_amount);
+        $this->assertGreaterThanOrEqual(0, (float) $order->pending_balance);
+    }
+
+    public function test_record_additional_payment_for_order(): void
+    {
+        $user = User::first();
+        $this->actingAs($user);
+
+        $order = Order::firstOrFail();
+        $order->update(['total_amount' => 1000.0]);
+        $order->refresh();
+
+        $previousPaid = (float) $order->paid_amount;
+        $advance = 50.0;
+
+        $response = $this->post("/orders/{$order->id}/payments", [
+            'amount' => $advance,
+            'payment_date' => now()->toDateString(),
+            'payment_method' => 'cash',
+            'notes' => 'Abono en efectivo en taller',
+        ]);
+
+        $response->assertRedirect();
+        $order->refresh();
+
+        $this->assertSame($previousPaid + $advance, (float) $order->paid_amount);
+    }
+
+    public function test_owner_can_void_payment(): void
+    {
+        $owner = User::where('is_super_admin', true)->first() ?? User::first();
+        $this->actingAs($owner);
+
+        $order = Order::firstOrFail();
+        $payment = \App\Models\OrderPayment::create([
+            'tenant_id' => $order->tenant_id,
+            'order_id' => $order->id,
+            'amount' => 15000,
+            'payment_date' => now()->toDateString(),
+            'payment_method' => 'cash',
+            'created_by' => $owner->id,
+        ]);
+
+        $this->assertDatabaseHas('order_payments', ['id' => $payment->id]);
+
+        $response = $this->delete("/payments/{$payment->id}");
+        $response->assertRedirect();
+
+        $this->assertDatabaseMissing('order_payments', ['id' => $payment->id]);
+    }
 }

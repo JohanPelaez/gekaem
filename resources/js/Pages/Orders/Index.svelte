@@ -22,19 +22,32 @@
 
     let showCreateModal = $state(false);
     let processing = $state(false);
-    let predicting = $state(false);
 
-    // Formulario de Pedido en Svelte 5 Rune (Sin prefijo $)
+    // Modal de Abonos
+    let showPaymentModal = $state(false);
+    let selectedOrderForPayment = $state(null);
+    let paymentProcessing = $state(false);
+
+    // Formulario de Abono
+    let paymentForm = $state({
+        amount: '',
+        payment_date: '',
+        payment_method: 'transfer',
+        notes: '',
+        voucher: null,
+    });
+
+    // Formulario de Creación de Pedido (Simplificado)
     let orderForm = $state({
         customer_id: '',
-        custom_buffer_percent: 20,
         committed_delivery_at: '',
         notes: '',
         items: [],
+        has_initial_deposit: false,
+        initial_deposit: '',
+        payment_method: 'transfer',
+        voucher: null,
     });
-
-    // Resultado de la predicción en tiempo real
-    let predictionResult = $state(null);
 
     let searchTimeout;
     function handleSearchInput() {
@@ -57,13 +70,22 @@
         applyFilters();
     }
 
+    function getTomorrowDateTimeLocal() {
+        const d = new Date();
+        d.setDate(d.getDate() + 2);
+        d.setHours(17, 0, 0, 0);
+        return d.toISOString().slice(0, 16);
+    }
+
     function resetOrderForm() {
         orderForm.customer_id = customers[0]?.id ?? '';
-        orderForm.custom_buffer_percent = defaultBufferPercent ?? 20;
-        orderForm.committed_delivery_at = '';
+        orderForm.committed_delivery_at = getTomorrowDateTimeLocal();
         orderForm.notes = '';
         orderForm.items = [];
-        predictionResult = null;
+        orderForm.has_initial_deposit = false;
+        orderForm.initial_deposit = '';
+        orderForm.payment_method = 'transfer';
+        orderForm.voucher = null;
     }
 
     function openCreate() {
@@ -87,75 +109,29 @@
                 quantity: 1,
             },
         ];
-        triggerPredictionDebounced();
     }
 
     function removeItem(index) {
         orderForm.items = orderForm.items.filter((_, i) => i !== index);
-        triggerPredictionDebounced();
     }
 
     function onProductChange(item, productId) {
         item.product_id = Number(productId);
         const prod = products.find((p) => p.id === Number(productId));
         item.product_variant_id = prod?.variants?.[0]?.id ?? '';
-        triggerPredictionDebounced();
     }
 
-    let predictTimeout;
-    function triggerPredictionDebounced() {
-        clearTimeout(predictTimeout);
-        predictTimeout = setTimeout(() => {
-            fetchPrediction();
-        }, 350);
+    function onInitialVoucherChange(e) {
+        const file = e.target.files?.[0] ?? null;
+        orderForm.voucher = file;
     }
 
-    async function fetchPrediction() {
-        const validItems = orderForm.items
-            .filter((i) => i.product_variant_id && Number(i.quantity) > 0)
-            .map((i) => ({
-                product_variant_id: Number(i.product_variant_id),
-                quantity: Number(i.quantity),
-            }));
-
-        if (validItems.length === 0) {
-            predictionResult = null;
-            return;
-        }
-
-        predicting = true;
-        try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
-            const res = await fetch('/orders/predict', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    Accept: 'application/json',
-                },
-                body: JSON.stringify({
-                    items: validItems,
-                    buffer_percent: Number(orderForm.custom_buffer_percent ?? defaultBufferPercent),
-                }),
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                predictionResult = data;
-                // Prellenar fecha comprometida sugerida si aún no se ha digitado
-                if (!orderForm.committed_delivery_at && data.predicted_delivery_at) {
-                    const dt = new Date(data.predicted_delivery_at);
-                    orderForm.committed_delivery_at = dt.toISOString().slice(0, 16);
-                }
-            }
-        } catch (e) {
-            console.error('Error al calcular predicción:', e);
-        } finally {
-            predicting = false;
-        }
+    function onPaymentVoucherChange(e) {
+        const file = e.target.files?.[0] ?? null;
+        paymentForm.voucher = file;
     }
 
-    // Cálculos instantáneos con Runes de Svelte 5
+    // Cálculos reactivos con Runes de Svelte 5
     let totalOrderMinutes = $derived.by(() => {
         let total = 0;
         for (const item of orderForm.items) {
@@ -186,12 +162,13 @@
         return sum;
     });
 
-    let calculatedBufferMinutes = $derived.by(() => {
-        const base = wipQueueMinutes + totalOrderMinutes;
-        const pct = Number(orderForm.custom_buffer_percent ?? defaultBufferPercent);
-        const withBuffer = Math.ceil(base * (1 + pct / 100));
-        return Math.max(0, withBuffer - base);
-    });
+    let initialDepositNumeric = $derived(
+        orderForm.has_initial_deposit ? Number(orderForm.initial_deposit || 0) : 0
+    );
+
+    let initialPendingBalance = $derived(
+        Math.max(0, totalAmount - initialDepositNumeric)
+    );
 
     function formatMinutes(mins) {
         if (!mins || mins <= 0) return '0 min';
@@ -219,6 +196,16 @@
         });
     }
 
+    function formatDateShort(dateStr) {
+        if (!dateStr) return 'Sin fecha';
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('es-CO', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+        });
+    }
+
     function getDerivedStatusBadge(status) {
         switch (status) {
             case 'pending':
@@ -236,6 +223,16 @@
         }
     }
 
+    function getPaymentMethodLabel(method) {
+        switch (method) {
+            case 'cash': return 'Efectivo';
+            case 'transfer': return 'Transferencia / Nequi / Daviplata';
+            case 'card': return 'Tarjeta';
+            case 'other': return 'Otro medio';
+            default: return method;
+        }
+    }
+
     function submitOrder(e) {
         e.preventDefault();
         const validItems = orderForm.items.filter((i) => i.product_variant_id && Number(i.quantity) > 0);
@@ -244,8 +241,10 @@
             return;
         }
 
+        processing = true;
         router.post('/orders', orderForm, {
             preserveScroll: true,
+            forceFormData: true,
             onStart: () => { processing = true; },
             onFinish: () => { processing = false; },
             onSuccess: () => {
@@ -253,6 +252,45 @@
                 resetOrderForm();
             },
         });
+    }
+
+    function openPaymentModal(order) {
+        selectedOrderForPayment = order;
+        paymentForm = {
+            amount: Number(order.pending_balance) > 0 ? Number(order.pending_balance) : '',
+            payment_date: new Date().toISOString().slice(0, 10),
+            payment_method: 'transfer',
+            notes: '',
+            voucher: null,
+        };
+        showPaymentModal = true;
+    }
+
+    function submitPayment(e) {
+        e.preventDefault();
+        if (!selectedOrderForPayment) return;
+
+        paymentProcessing = true;
+        router.post(`/orders/${selectedOrderForPayment.id}/payments`, paymentForm, {
+            preserveScroll: true,
+            forceFormData: true,
+            onStart: () => { paymentProcessing = true; },
+            onFinish: () => { paymentProcessing = false; },
+            onSuccess: () => {
+                showPaymentModal = false;
+            },
+        });
+    }
+
+    function deletePayment(payment) {
+        if (confirm(`¿Anular el abono de $${Number(payment.amount).toFixed(2)}?`)) {
+            router.delete(`/payments/${payment.id}`, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    showPaymentModal = false;
+                },
+            });
+        }
     }
 
     function markDelivered(order) {
@@ -264,25 +302,25 @@
     }
 </script>
 
-<AppLayout title="Gestión de Pedidos">
+<AppLayout title="Gestión de Pedidos y Finanzas">
     <div class="space-y-6">
         <!-- ENCABEZADO Y ACCIONES -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                        Módulo 1
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        Finanzas & Producción
                     </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-white">Gestión de Pedidos y Entrega Predictiva</h1>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">Pedidos, Abonos y Entregas</h1>
                 </div>
                 <p class="text-xs text-slate-400 mt-1">
-                    Predice fechas de entrega con tiempos de holgura en tiempo real (Nota 3), orquestando cada pedido como "US" en el Tablero Kanban.
+                    Controla pedidos con fecha de entrega, registro de abonos y saldo pendiente en tiempo real.
                 </p>
             </div>
             <div class="flex items-center gap-2 shrink-0 self-start sm:self-auto">
                 <Link
                     href="/kanban"
-                    class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors border border-slate-700 flex items-center gap-1.5"
+                    class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors border border-slate-700 flex items-center gap-1.5"
                 >
                     <span>Tablero Kanban</span>
                     <span>→</span>
@@ -301,7 +339,7 @@
         <!-- KPI SUMMARY CARDS -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
-                <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">Cola WIP Activa</span>
+                <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">Cola en Producción</span>
                 <div class="text-xl font-mono font-bold text-amber-300 mt-1">
                     ⏱ {formatMinutes(wipQueueMinutes)}
                 </div>
@@ -317,11 +355,11 @@
             </div>
 
             <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
-                <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">Holgura Base</span>
+                <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider block">Control de Holgura</span>
                 <div class="text-xl font-mono font-bold text-emerald-400 mt-1">
                     +{defaultBufferPercent}%
                 </div>
-                <span class="text-[10px] text-slate-500 mt-0.5 block">Margen de imprevistos</span>
+                <span class="text-[10px] text-slate-500 mt-0.5 block">Margen del taller</span>
             </div>
 
             <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
@@ -329,7 +367,7 @@
                 <div class="text-xl font-mono font-bold text-sky-400 mt-1">
                     {customers.length}
                 </div>
-                <span class="text-[10px] text-slate-500 mt-0.5 block">Directorio vinculado</span>
+                <span class="text-[10px] text-slate-500 mt-0.5 block">Directorio registrado</span>
             </div>
         </div>
 
@@ -370,7 +408,7 @@
                     onclick={() => setStatus('ready')}
                     class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'ready' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
                 >
-                    Listos para Entrega
+                    Listos
                 </button>
                 <button
                     type="button"
@@ -404,18 +442,17 @@
                 {@const tasksTotal = order.tasks_count ?? 0}
                 {@const tasksCompleted = order.completed_tasks_count ?? 0}
                 {@const progressPercent = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : 0}
-                {@const isOverdue = order.committed_delivery_at && order.predicted_delivery_at && new Date(order.predicted_delivery_at) > new Date(order.committed_delivery_at)}
 
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md hover:border-slate-700 transition-colors">
+                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-md hover:border-slate-700 transition-colors space-y-4">
                     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <!-- Identificación del Pedido -->
                         <div class="space-y-1.5">
                             <div class="flex flex-wrap items-center gap-2.5">
-                                <span class="px-2.5 py-1 rounded-lg bg-slate-950 font-mono font-bold text-sm text-emerald-400 border border-slate-800">
+                                <span class="px-2.5 py-1 rounded-xl bg-slate-950 font-mono font-bold text-sm text-emerald-400 border border-slate-800">
                                     #{order.order_number}
                                 </span>
                                 <h3 class="font-bold text-white text-base">
-                                    {order.customer?.name ?? 'Cliente Desconocido'}
+                                    {order.customer?.name ?? 'Cliente'}
                                 </h3>
                                 <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border {badge.color}">
                                     {badge.label}
@@ -428,42 +465,66 @@
                                 {#if order.notes}
                                     <span class="italic max-w-sm truncate text-slate-500">"{order.notes}"</span>
                                 {/if}
-                                <span class="font-mono text-emerald-400 font-semibold">
+                                <span class="font-mono text-white font-bold">
                                     Total: ${Number(order.total_amount).toFixed(2)}
                                 </span>
                             </div>
                         </div>
 
-                        <!-- Barra de Progreso de Tareas de Producción -->
-                        <div class="w-full lg:w-56 space-y-1.5">
-                            <div class="flex justify-between items-center text-[11px]">
-                                <span class="text-slate-400 font-medium">Progreso en Taller:</span>
-                                <span class="font-mono text-white font-bold">{tasksCompleted} / {tasksTotal}</span>
-                            </div>
-                            <div class="w-full h-2 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
-                                <div
-                                    class="h-full rounded-full transition-all duration-500 {progressPercent === 100 ? 'bg-emerald-500' : 'bg-sky-500'}"
-                                    style="width: {progressPercent}%"
-                                ></div>
-                            </div>
-                            <span class="text-[10px] text-slate-500 block text-right font-mono">{progressPercent}% completado</span>
-                        </div>
+                        <!-- BADGES DE ESTADO FINANCIERO (PUNTOS 12 Y 13) -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            {#if order.payment_status === 'paid'}
+                                <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
+                                    <span>✓</span>
+                                    <span>Pagado Completo (${Number(order.total_amount).toFixed(2)})</span>
+                                </span>
+                            {:else if order.payment_status === 'partial'}
+                                <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
+                                    <span>⏳</span>
+                                    <span>Abonado: ${Number(order.paid_amount).toFixed(2)} / Saldo: ${Number(order.pending_balance).toFixed(2)}</span>
+                                </span>
+                            {:else}
+                                <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1.5">
+                                    <span>⚠️</span>
+                                    <span>Sin Abono (Saldo: ${Number(order.total_amount).toFixed(2)})</span>
+                                </span>
+                            {/if}
 
-                        <!-- Métricas de Tiempos y Fechas Predictivas -->
-                        <div class="grid grid-cols-2 gap-3 text-xs p-3 bg-slate-950/70 rounded-xl border border-slate-800/80 w-full lg:w-72">
-                            <div>
-                                <span class="text-[10px] text-slate-500 uppercase font-bold block">Tiempo Fabricación</span>
-                                <span class="font-mono text-amber-300 font-semibold">⏱ {order.formatted_time}</span>
-                                <span class="text-[9px] text-slate-500 block">+{order.buffer_minutes}m holgura</span>
-                            </div>
-                            <div>
-                                <span class="text-[10px] text-slate-500 uppercase font-bold block">Entrega Predicha</span>
-                                <span class="font-mono text-white text-[11px] block">{formatDate(order.predicted_delivery_at)}</span>
-                                {#if order.committed_delivery_at}
-                                    <span class="text-[10px] font-mono {isOverdue ? 'text-rose-400 font-bold' : 'text-slate-400'}">
-                                        Compromiso: {formatDate(order.committed_delivery_at)}
+                            <button
+                                type="button"
+                                onclick={() => openPaymentModal(order)}
+                                class="px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-emerald-400 font-semibold text-xs border border-emerald-500/30 flex items-center gap-1.5 transition-colors"
+                            >
+                                <span>💳</span>
+                                <span>{order.pending_balance > 0 ? 'Registrar Abono' : 'Ver Abonos'}</span>
+                                {#if order.payments && order.payments.length > 0}
+                                    <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
+                                        {order.payments.length}
                                     </span>
                                 {/if}
+                            </button>
+                        </div>
+
+                        <!-- Fecha de Entrega y Progreso -->
+                        <div class="flex flex-col sm:flex-row lg:flex-col gap-2 w-full lg:w-60">
+                            <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+                                <span class="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">Entrega Comprometida</span>
+                                <span class="font-mono font-bold text-white text-xs block">
+                                    📅 {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
+                                </span>
+                            </div>
+
+                            <div class="space-y-1">
+                                <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                                    <span>Taller: {tasksCompleted}/{tasksTotal} tareas</span>
+                                    <span>{progressPercent}%</span>
+                                </div>
+                                <div class="w-full h-1.5 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+                                    <div
+                                        class="h-full rounded-full transition-all duration-500 {progressPercent === 100 ? 'bg-emerald-500' : 'bg-sky-500'}"
+                                        style="width: {progressPercent}%"
+                                    ></div>
+                                </div>
                             </div>
                         </div>
 
@@ -471,19 +532,19 @@
                         <div class="flex items-center gap-2 self-end lg:self-center shrink-0">
                             <Link
                                 href="/kanban"
-                                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+                                class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
                             >
-                                Ver en Kanban
+                                Kanban ➔
                             </Link>
 
                             {#if order.derived_status === 'ready'}
                                 <button
                                     type="button"
                                     onclick={() => markDelivered(order)}
-                                    class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1"
+                                    class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1"
                                 >
                                     <span>✓</span>
-                                    <span>Marcar Entregado</span>
+                                    <span>Entregar</span>
                                 </button>
                             {/if}
                         </div>
@@ -491,8 +552,8 @@
 
                     <!-- Desglose de Productos / Tareas del Pedido -->
                     {#if order.production_tasks && order.production_tasks.length > 0}
-                        <div class="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap gap-2 items-center">
-                            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Productos (Tareas):</span>
+                        <div class="pt-3 border-t border-slate-800 flex flex-wrap gap-2 items-center">
+                            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Productos:</span>
                             {#each order.production_tasks as task}
                                 <span class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 font-mono">
                                     <span class="font-bold text-white">{task.quantity}x</span>
@@ -508,7 +569,7 @@
                     {/if}
                 </div>
             {:else}
-                <div class="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-500 text-xs">
+                <div class="p-12 text-center bg-slate-900 border border-slate-800 rounded-3xl text-slate-500 text-xs">
                     No se encontraron pedidos registrados con los filtros seleccionados.
                 </div>
             {/each}
@@ -516,7 +577,7 @@
 
         <!-- PAGINACIÓN -->
         {#if orders.links && orders.links.length > 3}
-            <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-400">
+            <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between text-xs text-slate-400">
                 <div>Mostrando {orders.from ?? 0} a {orders.to ?? 0} de {orders.total} pedidos</div>
                 <div class="flex items-center gap-1">
                     {#each orders.links as link}
@@ -535,23 +596,23 @@
     </div>
 </AppLayout>
 
-<!-- MODAL CREAR PEDIDO CON CALCULADORA PREDICTIVA EN TIEMPO REAL -->
+<!-- MODAL CREAR PEDIDO (SIMPLIFICADO - PUNTO 14) -->
 {#if showCreateModal}
     <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div>
-                    <h3 class="text-base font-bold text-white">Registrar Nuevo Pedido y Generar Tareas en Kanban</h3>
-                    <p class="text-[11px] text-slate-400">Predicción automática considerando la cola del taller y recetas BOM.</p>
+                    <h3 class="text-base font-bold text-white">Registrar Nuevo Pedido</h3>
+                    <p class="text-[11px] text-slate-400">Genera las tarjetas de producción en el Tablero Kanban.</p>
                 </div>
                 <button type="button" onclick={() => showCreateModal = false} class="text-slate-400 hover:text-white">✕</button>
             </div>
 
             <form onsubmit={submitOrder} class="space-y-4 text-xs">
-                <!-- CLIENTE OBLIGATORIO (NOTA 5) -->
+                <!-- CLIENTE Y FECHA DE ENTREGA COMPROMETIDA DIRECTA -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label for="ord-customer" class="block font-semibold text-slate-300 mb-1">Cliente Vinculado (Nota 5) *</label>
+                        <label for="ord-customer" class="block font-semibold text-slate-300 mb-1">Cliente *</label>
                         <select
                             id="ord-customer"
                             bind:value={orderForm.customer_id}
@@ -569,30 +630,25 @@
                     </div>
 
                     <div>
-                        <label for="ord-buffer" class="block font-semibold text-slate-300 mb-1">
-                            Margen de Holgura (%) — Taller por defecto: {defaultBufferPercent}%
+                        <label for="ord-committed" class="block font-semibold text-slate-300 mb-1">
+                            Fecha y Hora de Entrega Comprometida *
                         </label>
-                        <div class="flex items-center gap-2">
-                            <input
-                                id="ord-buffer"
-                                type="number"
-                                min="0"
-                                max="100"
-                                bind:value={orderForm.custom_buffer_percent}
-                                oninput={triggerPredictionDebounced}
-                                class="w-24 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-amber-300 font-mono font-bold text-xs"
-                            />
-                            <span class="text-slate-500 text-[11px]">Protección contra cuellos de botella e imprevistos.</span>
-                        </div>
+                        <input
+                            id="ord-committed"
+                            type="datetime-local"
+                            bind:value={orderForm.committed_delivery_at}
+                            required
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono font-bold"
+                        />
                     </div>
                 </div>
 
-                <!-- RENGLONES DE PRODUCTOS / TAREAS (NOTA 1, 2) -->
+                <!-- RENGLONES DE PRODUCTOS -->
                 <div class="space-y-3 pt-2 border-t border-slate-800">
                     <div class="flex items-center justify-between">
                         <div>
-                            <span class="font-bold text-white text-xs">Productos a Fabricar (Tareas de Kanban)</span>
-                            <p class="text-[11px] text-slate-500">Cada producto creará una tarjeta independiente en el flujo Kanban asignado.</p>
+                            <span class="font-bold text-white text-xs">Productos del Pedido</span>
+                            <p class="text-[11px] text-slate-500">Agrega las variantes y cantidades solicitadas.</p>
                         </div>
                         <button
                             type="button"
@@ -607,7 +663,7 @@
 
                     {#if orderForm.items.length === 0}
                         <div class="p-6 text-center border-2 border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
-                            Agrega al menos un producto para calcular los tiempos y fecha de entrega.
+                            Agrega al menos un producto al pedido.
                         </div>
                     {:else}
                         <div class="space-y-2">
@@ -625,18 +681,17 @@
                                             class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
                                         >
                                             {#each products as p}
-                                                <option value={p.id}>{p.name} ({p.workflow?.name ?? 'Sin flujo'})</option>
+                                                <option value={p.id}>{p.name}</option>
                                             {/each}
                                         </select>
                                     </div>
 
-                                    <!-- Selector de Variante Ortogonal -->
+                                    <!-- Selector de Variante -->
                                     <div class="flex-1">
-                                        <label for="var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Variante Ortogonal</label>
+                                        <label for="var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Variante</label>
                                         <select
                                             id="var-sel-{idx}"
                                             bind:value={item.product_variant_id}
-                                            onchange={triggerPredictionDebounced}
                                             class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono"
                                         >
                                             {#each selectedProd?.variants ?? [] as v}
@@ -656,18 +711,9 @@
                                             step="0.01"
                                             min="0.01"
                                             bind:value={item.quantity}
-                                            oninput={triggerPredictionDebounced}
                                             required
                                             class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono font-bold"
                                         />
-                                    </div>
-
-                                    <!-- Tiempo unitario estimado -->
-                                    <div class="w-28 text-right hidden sm:block">
-                                        <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Tiempo Unitario</span>
-                                        <span class="text-amber-300 font-mono text-xs font-semibold">
-                                            ⏱ {selectedProd ? (Number(selectedProd.base_production_minutes) + Number(selectedVariant?.production_minutes_delta ?? 0)) : 0} min
-                                        </span>
                                     </div>
 
                                     <!-- Botón Eliminar Renglón -->
@@ -685,111 +731,89 @@
                     {/if}
                 </div>
 
-                <!-- PANEL PREDICTIVO EN TIEMPO REAL (MÓDULO 1 & NOTA 3) -->
-                <div class="p-4 bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border border-emerald-500/30 space-y-3">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full {predicting ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}"></span>
-                            <span class="font-bold text-white text-xs uppercase tracking-wider">
-                                Predicción de Entrega en Vivo (Nota 3)
-                            </span>
-                        </div>
-                        {#if predicting}
-                            <span class="text-[10px] text-amber-300 animate-pulse">Calculando calendario...</span>
-                        {/if}
-                    </div>
+                <!-- NOTAS -->
+                <div>
+                    <label for="ord-notes" class="block font-semibold text-slate-300 mb-1">Notas / Instrucciones Especiales</label>
+                    <input
+                        id="ord-notes"
+                        type="text"
+                        bind:value={orderForm.notes}
+                        placeholder="Ej. Entregar en portería, medidas especiales..."
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    />
+                </div>
 
-                    <!-- Métricas del Desglose Predictivo -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-                        <div class="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800">
-                            <span class="text-[10px] text-slate-400 uppercase font-bold block">Cola WIP Activa</span>
-                            <span class="font-mono text-amber-300 font-bold text-sm">{formatMinutes(wipQueueMinutes)}</span>
-                        </div>
-                        <div class="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800">
-                            <span class="text-[10px] text-slate-400 uppercase font-bold block">Producción Pedido</span>
-                            <span class="font-mono text-white font-bold text-sm">{formatMinutes(totalOrderMinutes)}</span>
-                        </div>
-                        <div class="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800">
-                            <span class="text-[10px] text-slate-400 uppercase font-bold block">Holgura Calculada</span>
-                            <span class="font-mono text-emerald-400 font-bold text-sm">+{formatMinutes(calculatedBufferMinutes)}</span>
-                        </div>
-                        <div class="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800">
-                            <span class="text-[10px] text-slate-400 uppercase font-bold block">Total con Holgura</span>
-                            <span class="font-mono text-amber-300 font-extrabold text-sm">
-                                {formatMinutes(wipQueueMinutes + totalOrderMinutes + calculatedBufferMinutes)}
-                            </span>
-                        </div>
-                    </div>
+                <!-- SECCIÓN DE ABONO INICIAL (CHECKBOX COLAPSABLE - PUNTO 14) -->
+                <div class="pt-3 border-t border-slate-800 space-y-3">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            bind:checked={orderForm.has_initial_deposit}
+                            class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0"
+                        />
+                        <span class="font-bold text-white text-xs">Registrar Abono Inicial en este Pedido</span>
+                    </label>
 
-                    <!-- Fecha Predicha Sugerida -->
-                    <div class="p-3 bg-emerald-950/20 border border-emerald-500/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                            <span class="text-[10px] text-emerald-400 uppercase font-extrabold tracking-wider block">
-                                Fecha y Hora Sugerida de Entrega
-                            </span>
-                            <span class="text-sm font-mono font-bold text-white">
-                                {predictionResult?.predicted_delivery_at ? formatDate(predictionResult.predicted_delivery_at) : 'Calculando...'}
-                            </span>
-                        </div>
-                        <div class="text-right">
-                            <span class="text-[10px] text-slate-400 block">Jornadas hábiles (8:00 AM - 5:00 PM)</span>
-                            <span class="text-[10px] text-slate-500 block">Excluye fines de semana automáticamente</span>
-                        </div>
-                    </div>
+                    {#if orderForm.has_initial_deposit}
+                        <div class="p-4 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label for="ord-deposit" class="block font-semibold text-slate-300 mb-1">Monto del Abono ($) *</label>
+                                    <input
+                                        id="ord-deposit"
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        max={totalAmount}
+                                        bind:value={orderForm.initial_deposit}
+                                        required
+                                        placeholder="0.00"
+                                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-emerald-400 font-mono font-bold text-sm focus:outline-none focus:border-emerald-500"
+                                    />
+                                </div>
 
-                    <!-- ALERTA DE MATERIA PRIMA (MRP DE ESCASEZ) -->
-                    {#if predictionResult?.material_shortages && predictionResult.material_shortages.length > 0}
-                        <div class="p-3 bg-rose-950/40 border border-rose-500/50 rounded-xl space-y-1.5">
-                            <div class="flex items-center gap-1.5 text-rose-300 font-bold text-xs">
-                                <span>⚠</span>
-                                <span>Alerta de Inventario (Escasez detectada según Receta BOM):</span>
+                                <div>
+                                    <label for="ord-method" class="block font-semibold text-slate-300 mb-1">Método de Pago *</label>
+                                    <select
+                                        id="ord-method"
+                                        bind:value={orderForm.payment_method}
+                                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                    >
+                                        <option value="transfer">Transferencia / Nequi / Daviplata</option>
+                                        <option value="cash">Efectivo</option>
+                                        <option value="card">Tarjeta</option>
+                                        <option value="other">Otro medio</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="space-y-1">
-                                {#each predictionResult.material_shortages as shortage}
-                                    <div class="flex items-center justify-between text-[11px] text-rose-200 bg-rose-900/20 p-1.5 rounded-lg">
-                                        <span>• {shortage.name}: Faltan <strong>{shortage.shortage} {shortage.unit}</strong> (Disponible: {shortage.available})</span>
-                                        {#if shortage.lead_time_days !== null}
-                                            <span class="font-mono text-[10px] text-amber-300">
-                                                Proveedor tarda {shortage.lead_time_days} {shortage.lead_time_days === 1 ? 'día' : 'días'}
-                                            </span>
-                                        {/if}
-                                    </div>
-                                {/each}
+
+                            <div>
+                                <label for="ord-voucher" class="block font-semibold text-slate-300 mb-1">
+                                    Comprobante o Foto del Pago (Opcional, máx 5MB)
+                                </label>
+                                <input
+                                    id="ord-voucher"
+                                    type="file"
+                                    accept="image/*,.pdf"
+                                    onchange={onInitialVoucherChange}
+                                    class="w-full text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
+                                />
+                            </div>
+
+                            <!-- Saldo calculado -->
+                            <div class="flex items-center justify-between text-xs pt-1 text-slate-400">
+                                <span>Saldo pendiente estimado:</span>
+                                <span class="font-mono font-bold text-amber-300">${initialPendingBalance.toFixed(2)}</span>
                             </div>
                         </div>
                     {/if}
                 </div>
 
-                <!-- FECHA COMPROMETIDA Y NOTAS -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
-                    <div>
-                        <label for="ord-committed" class="block font-semibold text-slate-300 mb-1">
-                            Fecha Comprometida con el Cliente (Opcional)
-                        </label>
-                        <input
-                            id="ord-committed"
-                            type="datetime-local"
-                            bind:value={orderForm.committed_delivery_at}
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
-                        />
-                    </div>
-                    <div>
-                        <label for="ord-notes" class="block font-semibold text-slate-300 mb-1">Notas / Instrucciones Especiales</label>
-                        <input
-                            id="ord-notes"
-                            type="text"
-                            bind:value={orderForm.notes}
-                            placeholder="Ej. Empaque individual, entrega en recepción..."
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
-                        />
-                    </div>
-                </div>
-
-                <!-- BOTONES DE ACCIÓN -->
+                <!-- TOTAL Y BOTONES -->
                 <div class="flex items-center justify-between pt-3 border-t border-slate-800">
                     <div class="text-xs">
-                        <span class="text-slate-400">Total a Facturar: </span>
-                        <span class="font-mono font-bold text-emerald-400 text-sm">${totalAmount.toFixed(2)}</span>
+                        <span class="text-slate-400">Total del Pedido: </span>
+                        <span class="font-mono font-bold text-emerald-400 text-base">${totalAmount.toFixed(2)}</span>
                     </div>
 
                     <div class="flex items-center gap-2">
@@ -805,11 +829,205 @@
                             disabled={processing}
                             class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
                         >
-                            Crear Pedido y Tareas Kanban
+                            {processing ? 'Guardando...' : 'Crear Pedido'}
                         </button>
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+{/if}
+
+<!-- MODAL REGISTRAR ABONO Y VER HISTORIAL DE PAGOS (PUNTOS 12 Y 13) -->
+{#if showPaymentModal && selectedOrderForPayment}
+    <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+            <!-- Encabezado con métricas financieras del pedido -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-950 text-emerald-400 border border-slate-800">
+                            #{selectedOrderForPayment.order_number}
+                        </span>
+                        <h3 class="text-base font-bold text-white">
+                            Gestión de Abonos
+                        </h3>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-0.5">
+                        Cliente: {selectedOrderForPayment.customer?.name}
+                    </p>
+                </div>
+                <button type="button" onclick={() => showPaymentModal = false} class="text-slate-400 hover:text-white text-base">✕</button>
+            </div>
+
+            <!-- Resumen Financiero -->
+            <div class="grid grid-cols-3 gap-2.5 p-3.5 bg-slate-950 rounded-2xl border border-slate-800 text-center">
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Total Pedido</span>
+                    <span class="font-mono font-bold text-white text-sm">
+                        ${Number(selectedOrderForPayment.total_amount).toFixed(2)}
+                    </span>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Abonado</span>
+                    <span class="font-mono font-bold text-emerald-400 text-sm">
+                        ${Number(selectedOrderForPayment.paid_amount).toFixed(2)}
+                    </span>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold block">Saldo Pendiente</span>
+                    <span class="font-mono font-bold text-amber-300 text-sm">
+                        ${Number(selectedOrderForPayment.pending_balance).toFixed(2)}
+                    </span>
+                </div>
+            </div>
+
+            <!-- FORMULARIO DE NUEVO ABONO (SI HAY SALDO PENDIENTE) -->
+            {#if Number(selectedOrderForPayment.pending_balance) > 0}
+                <form onsubmit={submitPayment} class="space-y-3.5 text-xs p-4 bg-slate-950/60 rounded-2xl border border-emerald-500/30">
+                    <span class="font-bold text-white text-xs block">Registrar Nuevo Abono</span>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="pay-amount" class="block font-semibold text-slate-300 mb-1">Monto del Abono ($) *</label>
+                            <input
+                                id="pay-amount"
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                max={Number(selectedOrderForPayment.pending_balance)}
+                                bind:value={paymentForm.amount}
+                                required
+                                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-emerald-400 font-mono font-bold text-sm focus:outline-none focus:border-emerald-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="pay-date" class="block font-semibold text-slate-300 mb-1">Fecha de Pago *</label>
+                            <input
+                                id="pay-date"
+                                type="date"
+                                bind:value={paymentForm.payment_date}
+                                required
+                                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="pay-method" class="block font-semibold text-slate-300 mb-1">Método de Pago *</label>
+                            <select
+                                id="pay-method"
+                                bind:value={paymentForm.payment_method}
+                                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                            >
+                                <option value="transfer">Transferencia / Nequi / Daviplata</option>
+                                <option value="cash">Efectivo</option>
+                                <option value="card">Tarjeta</option>
+                                <option value="other">Otro medio</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label for="pay-notes" class="block font-semibold text-slate-300 mb-1">Notas / Referencia</label>
+                            <input
+                                id="pay-notes"
+                                type="text"
+                                bind:value={paymentForm.notes}
+                                placeholder="Ej. Aprobación #1234..."
+                                class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="pay-voucher" class="block font-semibold text-slate-300 mb-1">Comprobante de Pago (Foto o PDF, máx 5MB)</label>
+                        <input
+                            id="pay-voucher"
+                            type="file"
+                            accept="image/*,.pdf"
+                            onchange={onPaymentVoucherChange}
+                            class="w-full text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
+                        />
+                    </div>
+
+                    <div class="flex justify-end pt-1">
+                        <button
+                            type="submit"
+                            disabled={paymentProcessing}
+                            class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/25 transition-all disabled:opacity-50"
+                        >
+                            {paymentProcessing ? 'Guardando...' : 'Guardar Abono'}
+                        </button>
+                    </div>
+                </form>
+            {:else}
+                <div class="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl text-center text-xs text-emerald-300 font-bold">
+                    ✓ Este pedido ya se encuentra pagado en su totalidad.
+                </div>
+            {/if}
+
+            <!-- HISTORIAL DE ABONOS REGISTRADOS -->
+            <div class="space-y-2 pt-2 border-t border-slate-800">
+                <span class="font-bold text-white text-xs block">Historial de Abonos Recibidos</span>
+
+                {#if selectedOrderForPayment.payments && selectedOrderForPayment.payments.length > 0}
+                    <div class="space-y-2 max-h-56 overflow-y-auto">
+                        {#each selectedOrderForPayment.payments as pay (pay.id)}
+                            <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                                <div class="space-y-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-mono font-bold text-emerald-400 text-sm">
+                                            ${Number(pay.amount).toFixed(2)}
+                                        </span>
+                                        <span class="text-[10px] text-slate-400 font-mono">
+                                            {formatDateShort(pay.payment_date)}
+                                        </span>
+                                        <span class="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider bg-slate-800 text-slate-300">
+                                            {getPaymentMethodLabel(pay.payment_method)}
+                                        </span>
+                                    </div>
+                                    {#if pay.notes}
+                                        <p class="text-[11px] text-slate-400 italic">"{pay.notes}"</p>
+                                    {/if}
+                                    {#if pay.creator}
+                                        <span class="text-[10px] text-slate-500 block">Registrado por: {pay.creator.name}</span>
+                                    {/if}
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    {#if pay.voucher_url}
+                                        <a
+                                            href={pay.voucher_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold flex items-center gap-1 border border-slate-700"
+                                            title="Ver Comprobante adjunto"
+                                        >
+                                            <span>📎</span>
+                                            <span>Ver</span>
+                                        </a>
+                                    {/if}
+
+                                    <button
+                                        type="button"
+                                        onclick={() => deletePayment(pay)}
+                                        class="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-rose-950/20"
+                                        title="Anular abono"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {:else}
+                    <div class="p-6 text-center bg-slate-950 rounded-xl border border-slate-800 text-slate-500 text-xs">
+                        No se han registrado abonos para este pedido.
+                    </div>
+                {/if}
+            </div>
         </div>
     </div>
 {/if}

@@ -7,6 +7,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\KanbanController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderPaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RawMaterialController;
@@ -38,7 +39,10 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/', [OrderController::class, 'store'])->name('store');
         Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
         Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
+        Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');
     });
+
+    Route::delete('/payments/{payment}', [OrderPaymentController::class, 'destroy'])->name('payments.destroy');
 
     // Módulo 2: Productos, Recetas BOM y Variantes Ortogonales (Notas 7, 8, 9)
     Route::prefix('products')->name('products.')->group(function (): void {

@@ -41,6 +41,9 @@ class Order extends Model
      */
     protected $appends = [
         'formatted_time',
+        'paid_amount',
+        'pending_balance',
+        'payment_status',
     ];
 
     /**
@@ -73,6 +76,65 @@ class Order extends Model
                 $this->tenant?->daily_productive_minutes ?? 480
             )
         );
+    }
+
+    /**
+     * Get the total amount paid in advances for this order.
+     */
+    protected function paidAmount(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: function (): float {
+                return (float) ($this->relationLoaded('payments')
+                    ? $this->payments->sum('amount')
+                    : $this->payments()->sum('amount'));
+            }
+        );
+    }
+
+    /**
+     * Get the pending balance to be collected for this order.
+     */
+    protected function pendingBalance(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: function (): float {
+                $total = (float) $this->total_amount;
+                $paid = (float) $this->paid_amount;
+                return max(0.0, round($total - $paid, 2));
+            }
+        );
+    }
+
+    /**
+     * Get the payment status ('unpaid', 'partial', 'paid').
+     */
+    protected function paymentStatus(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: function (): string {
+                $paid = (float) $this->paid_amount;
+                $total = (float) $this->total_amount;
+
+                if ($paid <= 0) {
+                    return 'unpaid';
+                }
+                if ($paid >= $total) {
+                    return 'paid';
+                }
+                return 'partial';
+            }
+        );
+    }
+
+    /**
+     * Get the payments/advances recorded for this order.
+     *
+     * @return HasMany<OrderPayment>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(OrderPayment::class)->orderBy('payment_date', 'desc')->orderBy('id', 'desc');
     }
 
     /**

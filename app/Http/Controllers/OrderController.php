@@ -9,12 +9,14 @@ use App\Actions\Orders\MarkOrderDeliveredAction;
 use App\Actions\Orders\PredictDeliveryDateAction;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\OrderPayment;
 use App\Models\Product;
 use App\Models\ProductionTask;
 use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -41,7 +43,7 @@ class OrderController extends Controller
                 $q->where('order_number', 'like', "%{$search}%")
                     ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', "%{$search}%"));
             })
-            ->with(['customer', 'productionTasks.productVariant.product', 'productionTasks.currentStage'])
+            ->with(['customer', 'productionTasks.productVariant.product', 'productionTasks.currentStage', 'payments.creator'])
             ->withCount([
                 'tasks',
                 'tasks as completed_tasks_count' => fn ($q) => $q->whereHas('currentStage', fn ($s) => $s->where('stage_category', 'done')),
@@ -95,9 +97,35 @@ class OrderController extends Controller
             'custom_buffer_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'committed_delivery_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'initial_deposit' => ['nullable', 'numeric', 'min:0'],
+            'payment_method' => ['nullable', 'string', 'in:cash,transfer,card,other'],
+            'voucher' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ]);
 
-        $order = $this->createOrderAction->execute($this->resolveTenant(), $validated);
+        $order = DB::transaction(function () use ($validated, $request): Order {
+            $order = $this->createOrderAction->execute($this->resolveTenant(), $validated);
+
+            $depositAmount = isset($validated['initial_deposit']) ? (float) $validated['initial_deposit'] : 0.0;
+            if ($depositAmount > 0) {
+                $voucherPath = null;
+                if ($request->hasFile('voucher')) {
+                    $voucherPath = $request->file('voucher')->store('vouchers', 'public');
+                }
+
+                OrderPayment::create([
+                    'tenant_id' => $order->tenant_id,
+                    'order_id' => $order->id,
+                    'amount' => $depositAmount,
+                    'payment_date' => now()->toDateString(),
+                    'payment_method' => $validated['payment_method'] ?? 'cash',
+                    'voucher_path' => $voucherPath,
+                    'notes' => 'Abono inicial al registrar el pedido',
+                    'created_by' => auth()->id(),
+                ]);
+            }
+
+            return $order;
+        });
 
         return redirect()->route('orders.index')->with('success', "Pedido #{$order->order_number} registrado y tareas Kanban generadas.");
     }
