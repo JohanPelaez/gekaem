@@ -179,17 +179,62 @@ class SaaSRolesAndSettingsTest extends TestCase
             ->component('Settings/Index')
             ->has('tenant')
             ->has('teamMembers')
+            ->where('canManageTenant', true)
         );
     }
 
-    public function test_worker_cannot_access_settings(): void
+    public function test_worker_can_access_profile_settings_but_cannot_manage_tenant(): void
     {
         $worker = User::where('email', 'trabajador@gekaem.test')->firstOrFail();
         $this->actingAs($worker);
 
         $response = $this->get('/settings');
 
-        $response->assertStatus(403);
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Settings/Index')
+            ->where('canManageTenant', false)
+        );
+
+        // Worker cannot update tenant
+        $patchResponse = $this->patch('/settings/tenant', [
+            'name' => 'Intento No Autorizado',
+            'daily_hours' => 8,
+            'default_buffer_percent' => 20,
+        ]);
+        $patchResponse->assertStatus(403);
+    }
+
+    public function test_user_can_update_profile_info(): void
+    {
+        $user = User::where('email', 'trabajador@gekaem.test')->firstOrFail();
+        $this->actingAs($user);
+
+        $response = $this->patch('/profile', [
+            'name' => 'Trabajador Renombrado',
+            'email' => 'trabajador.nuevo@gekaem.test',
+        ]);
+
+        $response->assertRedirect();
+        $user->refresh();
+        $this->assertSame('Trabajador Renombrado', $user->name);
+        $this->assertSame('trabajador.nuevo@gekaem.test', $user->email);
+    }
+
+    public function test_user_can_update_password(): void
+    {
+        $user = User::where('email', 'dueno@gekaem.test')->firstOrFail();
+        $this->actingAs($user);
+
+        $response = $this->put('/profile/password', [
+            'current_password' => 'password',
+            'password' => 'newpassword123',
+            'password_confirmation' => 'newpassword123',
+        ]);
+
+        $response->assertRedirect();
+        $user->refresh();
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('newpassword123', $user->password));
     }
 
     public function test_owner_can_update_settings_and_hours_convert_to_minutes(): void
@@ -199,7 +244,7 @@ class SaaSRolesAndSettingsTest extends TestCase
 
         $tenant = $dueno->currentTenant();
 
-        $response = $this->patch('/settings', [
+        $response = $this->patch('/settings/tenant', [
             'name' => 'Taller Creativo Renovado',
             'daily_hours' => 9.5,
             'default_buffer_percent' => 25,

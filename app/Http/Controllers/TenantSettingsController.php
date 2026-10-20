@@ -20,23 +20,7 @@ class TenantSettingsController extends Controller
      */
     public function index(Request $request): Response
     {
-        abort_if(auth()->user()?->currentRole() === 'worker', 403);
-
-        $tenant = $this->resolveTenant();
-        $teamMembers = $tenant->users()->withPivot('role')->get();
-
-        return Inertia::render('Settings/Index', [
-            'tenant' => [
-                'id' => $tenant->id,
-                'name' => $tenant->name,
-                'slug' => $tenant->slug,
-                'daily_productive_minutes' => (int) $tenant->daily_productive_minutes,
-                'daily_hours' => round(((int) $tenant->daily_productive_minutes) / 60, 1),
-                'default_buffer_percent' => (int) $tenant->default_buffer_percent,
-                'settings' => $tenant->settings ?? [],
-            ],
-            'teamMembers' => $teamMembers,
-        ]);
+        return app(ProfileController::class)->edit($request);
     }
 
     /**
@@ -52,6 +36,7 @@ class TenantSettingsController extends Controller
             'default_buffer_percent' => ['required', 'integer', 'min:0', 'max:100'],
             'parallel_workers' => ['nullable', 'integer', 'min:1', 'max:50'],
             'workdays' => ['nullable', 'array'],
+            'workdays.*' => ['integer', 'between:1,7'],
             'currency' => ['nullable', 'string', 'max:10'],
         ]);
 

@@ -66,14 +66,22 @@
             },
         ];
 
-        // Módulo de Configuración para Dueños y Admins
+        // Módulo de Configuración para Dueños y Admins o Perfil para Trabajadores
         if (auth?.user?.is_super_admin || auth?.user?.role === 'owner') {
             items.push({
                 name: 'Configuración y Equipo',
                 href: '/settings',
                 badge: null,
                 icon: 'settings',
-                subtitle: 'Ajustes del Taller',
+                subtitle: 'Ajustes del Taller y Perfil',
+            });
+        } else {
+            items.push({
+                name: 'Mi Perfil',
+                href: '/profile',
+                badge: null,
+                icon: 'settings',
+                subtitle: 'Ajustes de mi cuenta',
             });
         }
 
@@ -202,13 +210,13 @@
 
         <!-- Usuario Conectado y Cerrar Sesión -->
         <div class="p-3.5 border-t border-slate-800 bg-slate-900/60 flex items-center justify-between">
-            <div class="flex items-center gap-2.5 min-w-0">
-                <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-200">
+            <Link href="/profile" class="flex items-center gap-2.5 min-w-0 group hover:opacity-90 transition-opacity" title="Ver mi perfil">
+                <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-200 group-hover:border-emerald-500 transition-colors">
                     {auth?.user?.name ? auth.user.name.slice(0, 2).toUpperCase() : 'GK'}
                 </div>
                 <div class="truncate">
                     <div class="flex items-center gap-1.5">
-                        <p class="text-xs font-semibold text-slate-200 truncate">{auth?.user?.name ?? 'Usuario'}</p>
+                        <p class="text-xs font-semibold text-slate-200 truncate group-hover:text-emerald-400 transition-colors">{auth?.user?.name ?? 'Usuario'}</p>
                     </div>
                     <div class="flex items-center gap-1.5">
                         {#if auth?.user?.is_super_admin}
@@ -220,7 +228,7 @@
                         {/if}
                     </div>
                 </div>
-            </div>
+            </Link>
 
             <!-- Botón Salir / Logout -->
             <button

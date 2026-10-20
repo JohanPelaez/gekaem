@@ -8,6 +8,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\KanbanController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RawMaterialController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TenantSettingsController;
@@ -86,9 +87,15 @@ Route::middleware(['auth'])->group(function (): void {
         Route::delete('/stages/{stage}', [WorkflowController::class, 'destroyStage'])->name('stages.destroy');
     });
 
+    // Perfil de Usuario y Ajustes
+    Route::get('/settings', [ProfileController::class, 'edit'])->name('settings.index');
+    Route::get('/profile', fn () => redirect()->route('settings.index', ['tab' => 'profile']))->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'updateProfile'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password.update');
+
     // Configuración del Taller y Equipo (Solo Dueño o Admin)
     Route::prefix('settings')->name('settings.')->group(function (): void {
-        Route::get('/', [TenantSettingsController::class, 'index'])->name('index');
+        Route::patch('/tenant', [TenantSettingsController::class, 'update'])->name('tenant.update');
         Route::patch('/', [TenantSettingsController::class, 'update'])->name('update');
         Route::post('/members', [TenantSettingsController::class, 'addMember'])->name('members.store');
         Route::delete('/members/{user}', [TenantSettingsController::class, 'removeMember'])->name('members.destroy');
