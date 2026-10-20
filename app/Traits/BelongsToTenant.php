@@ -39,21 +39,24 @@ trait BelongsToTenant
      */
     public static function resolveCurrentTenantId(): ?int
     {
+        if (auth()->check()) {
+            $user = auth()->user();
+            if ($user?->current_tenant_id) {
+                return (int) $user->current_tenant_id;
+            }
+
+            if (method_exists($user, 'currentTenant')) {
+                $tenant = $user->currentTenant();
+                if ($tenant !== null) {
+                    return (int) $tenant->id;
+                }
+            }
+        }
+
         if (session()?->has('tenant_id')) {
             $sessionTenantId = session('tenant_id');
             if ($sessionTenantId !== null && is_numeric($sessionTenantId)) {
                 return (int) $sessionTenantId;
-            }
-        }
-
-        if (auth()->check()) {
-            $user = auth()->user();
-            if (method_exists($user, 'currentTenant')) {
-                return $user->currentTenant()?->id;
-            }
-
-            if (isset($user->tenant_id) && is_numeric($user->tenant_id)) {
-                return (int) $user->tenant_id;
             }
         }
 

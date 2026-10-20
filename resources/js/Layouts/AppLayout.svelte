@@ -1,5 +1,5 @@
 <script>
-    import { page, Link } from '@inertiajs/svelte';
+    import { page, Link, router } from '@inertiajs/svelte';
 
     let { title = 'Gekaem', children } = $props();
 
@@ -11,65 +11,101 @@
     let counts = $derived(page.props.counts);
     let currentUrl = $derived(page.url);
 
-    let navItems = $derived([
-        {
-            name: 'Tablero Kanban',
-            href: '/kanban',
-            badge: null,
-            icon: 'kanban',
-            subtitle: 'Módulo 5',
-        },
-        {
-            name: 'Pedidos (US)',
-            href: '/orders',
-            badge: counts?.active_orders ? `${counts.active_orders} activos` : null,
-            badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-            icon: 'orders',
-            subtitle: 'Módulo 1',
-        },
-        {
-            name: 'Productos y Variantes',
-            href: '/products',
-            badge: null,
-            icon: 'products',
-            subtitle: 'Módulo 2',
-        },
-        {
-            name: 'Materia Prima',
-            href: '/raw-materials',
-            badge: counts?.raw_material_alerts > 0 ? `${counts.raw_material_alerts} alerta` : null,
-            badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
-            icon: 'materials',
-            subtitle: 'Módulo 6',
-        },
-        {
-            name: 'Tipos de Flujos',
-            href: '/workflows',
-            badge: null,
-            icon: 'workflows',
-            subtitle: 'Módulo 7',
-        },
-        {
-            name: 'Clientes',
-            href: '/customers',
-            badge: null,
-            icon: 'customers',
-            subtitle: 'Módulo 3',
-        },
-        {
-            name: 'Proveedores',
-            href: '/suppliers',
-            badge: null,
-            icon: 'suppliers',
-            subtitle: 'Módulo 4',
-        },
-    ]);
+    let navItems = $derived.by(() => {
+        const items = [
+            {
+                name: 'Tablero Kanban',
+                href: '/kanban',
+                badge: null,
+                icon: 'kanban',
+                subtitle: 'Módulo 5',
+            },
+            {
+                name: 'Pedidos (US)',
+                href: '/orders',
+                badge: counts?.active_orders ? `${counts.active_orders} activos` : null,
+                badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+                icon: 'orders',
+                subtitle: 'Módulo 1',
+            },
+            {
+                name: 'Productos y Variantes',
+                href: '/products',
+                badge: null,
+                icon: 'products',
+                subtitle: 'Módulo 2',
+            },
+            {
+                name: 'Materia Prima',
+                href: '/raw-materials',
+                badge: counts?.raw_material_alerts > 0 ? `${counts.raw_material_alerts} alerta` : null,
+                badgeColor: 'bg-rose-500/20 text-rose-300 border border-rose-500/30',
+                icon: 'materials',
+                subtitle: 'Módulo 6',
+            },
+            {
+                name: 'Tipos de Flujos',
+                href: '/workflows',
+                badge: null,
+                icon: 'workflows',
+                subtitle: 'Módulo 7',
+            },
+            {
+                name: 'Clientes',
+                href: '/customers',
+                badge: null,
+                icon: 'customers',
+                subtitle: 'Módulo 3',
+            },
+            {
+                name: 'Proveedores',
+                href: '/suppliers',
+                badge: null,
+                icon: 'suppliers',
+                subtitle: 'Módulo 4',
+            },
+        ];
+
+        // Módulo de Configuración para Dueños y Admins
+        if (auth?.user?.is_super_admin || auth?.user?.role === 'owner') {
+            items.push({
+                name: 'Configuración y Equipo',
+                href: '/settings',
+                badge: null,
+                icon: 'settings',
+                subtitle: 'Ajustes del Taller',
+            });
+        }
+
+        // Módulo SuperAdmin para Administradores de la Plataforma
+        if (auth?.user?.is_super_admin) {
+            items.push({
+                name: 'Panel Admin SaaS',
+                href: '/admin',
+                badge: 'Beta',
+                badgeColor: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
+                icon: 'admin',
+                subtitle: 'Plataforma Global',
+            });
+        }
+
+        return items;
+    });
 
     function isCurrent(href) {
         if (href === '/kanban' && (currentUrl === '/' || currentUrl.startsWith('/kanban'))) {
             return true;
         }
         return currentUrl.startsWith(href);
+    }
+
+    function switchTenant(tenantId) {
+        if (!tenantId) return;
+        router.post(`/admin/switch-tenant/${tenantId}`);
+    }
+
+    function logout() {
+        router.post('/logout');
     }
 </script>
 
@@ -98,24 +134,46 @@
 
         <!-- Tenant Activo (Taller del Emprendedor) -->
         <div class="p-4 mx-3 my-3 bg-slate-950/60 rounded-xl border border-slate-800/60">
-            <div class="flex items-center gap-2 text-xs text-slate-400 mb-1">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="uppercase tracking-wider font-semibold text-[10px]">Taller Activo</span>
+            <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="uppercase tracking-wider font-semibold text-[10px]">Taller Activo</span>
+                </div>
+                {#if auth?.user?.is_super_admin}
+                    <span class="text-[9px] uppercase font-extrabold text-purple-400 font-mono">SuperAdmin</span>
+                {/if}
             </div>
             <h2 class="font-semibold text-sm text-slate-200 truncate" title={auth?.tenant?.name}>
                 {auth?.tenant?.name ?? 'Taller Creativo'}
             </h2>
             <div class="mt-2 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
                 <span>Capacidad diaria:</span>
-                <span class="font-mono text-emerald-400 font-semibold">{auth?.tenant?.daily_productive_minutes ? (auth.tenant.daily_productive_minutes / 60) : 8}h / día</span>
+                <span class="font-mono text-emerald-400 font-semibold">{auth?.tenant?.daily_hours ?? 8}h / día</span>
             </div>
             <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1">
                 <span>Holgura base:</span>
                 <span class="font-mono text-amber-400 font-semibold">{auth?.tenant?.default_buffer_percent ?? 20}%</span>
             </div>
+
+            <!-- Selector de Taller para SuperAdmin -->
+            {#if auth?.user?.is_super_admin && auth?.all_tenants && auth?.all_tenants.length > 0}
+                <div class="mt-2.5 pt-2 border-t border-slate-800">
+                    <label for="sw-taller" class="text-[9px] uppercase font-bold text-purple-400 block mb-1">👑 Cambiar Taller:</label>
+                    <select
+                        id="sw-taller"
+                        value={auth.tenant?.id}
+                        onchange={(e) => switchTenant(e.target.value)}
+                        class="w-full bg-slate-900 border border-purple-500/40 rounded-lg px-2 py-1 text-white text-[11px]"
+                    >
+                        {#each auth.all_tenants as at}
+                            <option value={at.id}>{at.name}</option>
+                        {/each}
+                    </select>
+                </div>
+            {/if}
         </div>
 
-        <!-- Menú de Navegación (7 Módulos del MVP) -->
+        <!-- Menú de Navegación -->
         <nav class="flex-1 px-3 space-y-1 overflow-y-auto py-2">
             <div class="px-3 pb-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                 Módulos del Sistema
@@ -142,17 +200,37 @@
             {/each}
         </nav>
 
-        <!-- Usuario Conectado -->
-        <div class="p-4 border-t border-slate-800 bg-slate-900/60 flex items-center justify-between">
-            <div class="flex items-center gap-3 min-w-0">
-                <div class="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-200">
+        <!-- Usuario Conectado y Cerrar Sesión -->
+        <div class="p-3.5 border-t border-slate-800 bg-slate-900/60 flex items-center justify-between">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-200">
                     {auth?.user?.name ? auth.user.name.slice(0, 2).toUpperCase() : 'GK'}
                 </div>
                 <div class="truncate">
-                    <p class="text-xs font-semibold text-slate-200 truncate">{auth?.user?.name ?? 'Admin'}</p>
-                    <p class="text-[11px] text-slate-400 truncate">{auth?.user?.email ?? 'admin@gekaem.test'}</p>
+                    <div class="flex items-center gap-1.5">
+                        <p class="text-xs font-semibold text-slate-200 truncate">{auth?.user?.name ?? 'Usuario'}</p>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        {#if auth?.user?.is_super_admin}
+                            <span class="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">Admin Gekaem</span>
+                        {:else if auth?.user?.role === 'owner'}
+                            <span class="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Dueño</span>
+                        {:else}
+                            <span class="text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/30">Trabajador</span>
+                        {/if}
+                    </div>
                 </div>
             </div>
+
+            <!-- Botón Salir / Logout -->
+            <button
+                type="button"
+                onclick={logout}
+                class="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                title="Cerrar Sesión"
+            >
+                <span class="text-xs font-bold font-mono">Salir ➔</span>
+            </button>
         </div>
     </aside>
 
@@ -184,7 +262,7 @@
     {#if mobileMenuOpen}
         <div class="md:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col">
             <div class="bg-slate-900 border-b border-slate-800 p-4 flex items-center justify-between">
-                <span class="font-bold text-white text-base">Menú de Módulos</span>
+                <span class="font-bold text-white text-base">Menú de Navegación</span>
                 <button
                     type="button"
                     onclick={() => mobileMenuOpen = false}
@@ -212,6 +290,14 @@
                         {/if}
                     </Link>
                 {/each}
+
+                <button
+                    type="button"
+                    onclick={logout}
+                    class="w-full mt-4 p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 font-semibold text-xs text-center"
+                >
+                    Cerrar Sesión
+                </button>
             </nav>
         </div>
     {/if}

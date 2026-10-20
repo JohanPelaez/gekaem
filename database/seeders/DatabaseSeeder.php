@@ -33,16 +33,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Usuario Demo y Tenant Principal
-        $user = User::firstOrCreate(
-            ['email' => 'admin@gekaem.test'],
-            [
-                'name' => 'Admin Gekaem',
-                'password' => Hash::make('password'),
-                'email_verified_at' => now(),
-            ]
-        );
-
+        // 1. Tenant Principal: Taller Creativo Gekaem
         $tenant = Tenant::firstOrCreate(
             ['slug' => 'taller-creativo-gekaem'],
             [
@@ -51,18 +42,90 @@ class DatabaseSeeder extends Seeder
                 'default_buffer_percent' => 20,
                 'settings' => [
                     'currency' => 'COP',
-                    'workshop_hours' => '08:00 - 17:00',
+                    'parallel_workers' => 2,
+                    'workdays' => [1, 2, 3, 4, 5, 6],
                     'timezone' => 'America/Bogota',
                 ],
             ]
         );
 
-        // Asociar usuario al Tenant con rol 'owner'
-        if (!$user->tenants()->where('tenants.id', $tenant->id)->exists()) {
-            $user->tenants()->attach($tenant->id, ['role' => 'owner']);
+        // 2. Usuarios de Demostración (Admin, Dueño, Trabajador)
+        // a) SuperAdmin Gekaem
+        $adminUser = User::updateOrCreate(
+            ['email' => 'admin@gekaem.test'],
+            [
+                'name' => 'SuperAdmin Gekaem',
+                'password' => Hash::make('password'),
+                'is_super_admin' => true,
+                'current_tenant_id' => $tenant->id,
+                'email_verified_at' => now(),
+            ]
+        );
+        if (!$adminUser->tenants()->where('tenants.id', $tenant->id)->exists()) {
+            $adminUser->tenants()->attach($tenant->id, ['role' => 'owner']);
         }
 
-        // Establecer tenant en sesión para consistencia con BelongsToTenant
+        // b) Dueño del Taller
+        $ownerUser = User::updateOrCreate(
+            ['email' => 'dueno@gekaem.test'],
+            [
+                'name' => 'Dueño Creativo',
+                'password' => Hash::make('password'),
+                'is_super_admin' => false,
+                'current_tenant_id' => $tenant->id,
+                'email_verified_at' => now(),
+            ]
+        );
+        if (!$ownerUser->tenants()->where('tenants.id', $tenant->id)->exists()) {
+            $ownerUser->tenants()->attach($tenant->id, ['role' => 'owner']);
+        }
+
+        // c) Trabajador Operativo del Taller
+        $workerUser = User::updateOrCreate(
+            ['email' => 'trabajador@gekaem.test'],
+            [
+                'name' => 'Trabajador Operativo',
+                'password' => Hash::make('password'),
+                'is_super_admin' => false,
+                'current_tenant_id' => $tenant->id,
+                'email_verified_at' => now(),
+            ]
+        );
+        if (!$workerUser->tenants()->where('tenants.id', $tenant->id)->exists()) {
+            $workerUser->tenants()->attach($tenant->id, ['role' => 'worker']);
+        }
+
+        // d) Segundo Tenant para pruebas de cambio de Taller (Carpintería Artesanal Roble)
+        $tenant2 = Tenant::firstOrCreate(
+            ['slug' => 'carpinteria-artesanal-roble'],
+            [
+                'name' => 'Carpintería Artesanal Roble',
+                'daily_productive_minutes' => 480,
+                'default_buffer_percent' => 25,
+                'settings' => [
+                    'currency' => 'COP',
+                    'parallel_workers' => 1,
+                    'workdays' => [1, 2, 3, 4, 5],
+                    'timezone' => 'America/Bogota',
+                ],
+            ]
+        );
+
+        $owner2 = User::updateOrCreate(
+            ['email' => 'roble@gekaem.test'],
+            [
+                'name' => 'Maestro Don Roble',
+                'password' => Hash::make('password'),
+                'is_super_admin' => false,
+                'current_tenant_id' => $tenant2->id,
+                'email_verified_at' => now(),
+            ]
+        );
+        if (!$owner2->tenants()->where('tenants.id', $tenant2->id)->exists()) {
+            $owner2->tenants()->attach($tenant2->id, ['role' => 'owner']);
+        }
+
+        // Establecer tenant en sesión para consistencia
         session(['tenant_id' => $tenant->id]);
 
         // 2. Proveedores (Suppliers)

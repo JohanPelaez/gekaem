@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Order;
 use App\Models\RawMaterial;
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -40,14 +41,17 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        // En entorno local, autologuear con el primer usuario si no hay sesión activa
+        // En entorno local, autologuear solo si no está en rutas de autenticación
         if (!auth()->check() && app()->environment('local')) {
-            $firstUser = User::first();
-            if ($firstUser !== null) {
-                auth()->login($firstUser);
+            if (!$request->is('login') && !$request->is('logout') && !$request->is('demo-login')) {
+                $firstUser = User::first();
+                if ($firstUser !== null) {
+                    auth()->login($firstUser);
+                }
             }
         }
 
+        /** @var User|null $user */
         $user = auth()->user();
         $tenant = $user?->currentTenant();
 
@@ -72,13 +76,22 @@ class HandleInertiaRequests extends Middleware
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'is_super_admin' => $user->isSuperAdmin(),
+                    'role' => $user->currentRole(),
+                    'current_tenant_id' => $user->current_tenant_id,
                 ] : null,
                 'tenant' => $tenant ? [
                     'id' => $tenant->id,
                     'name' => $tenant->name,
+                    'slug' => $tenant->slug,
                     'daily_productive_minutes' => (int) $tenant->daily_productive_minutes,
+                    'daily_hours' => round(((int) $tenant->daily_productive_minutes) / 60, 1),
                     'default_buffer_percent' => (int) $tenant->default_buffer_percent,
+                    'settings' => $tenant->settings ?? [],
                 ] : null,
+                'all_tenants' => ($user !== null && $user->isSuperAdmin())
+                    ? Tenant::orderBy('name')->get(['id', 'name', 'slug'])
+                    : [],
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

@@ -17,6 +17,9 @@ class KanbanTest extends TestCase
     protected bool $seed = true;
     public function test_kanban_board_loads_successfully(): void
     {
+        $user = User::first();
+        $this->actingAs($user);
+
         $response = $this->get('/kanban');
 
         $response->assertStatus(200);
@@ -30,6 +33,9 @@ class KanbanTest extends TestCase
 
     public function test_workflows_page_loads_successfully(): void
     {
+        $user = User::first();
+        $this->actingAs($user);
+
         $response = $this->get('/workflows');
 
         $response->assertStatus(200);
