@@ -1,11 +1,12 @@
 <script>
-    import { router, Link } from '@inertiajs/svelte';
+    import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import ViewToggle from '../../Components/ViewToggle.svelte';
     import BarcodeViewer from '../../Components/BarcodeViewer.svelte';
     import CurrencyInput from '../../Components/CurrencyInput.svelte';
     import QuickCreateModal from '../../Components/QuickCreateModal.svelte';
     import { csrfFetch } from '../../Utils/csrfFetch.js';
+    import { canViewPrices } from '../../Utils/permissions.js';
     import {
         BARCODE_FORMATS,
         generateSequentialBarcode,
@@ -20,13 +21,21 @@
         rawMaterials = [],
         orthogonalAttributes = [],
         unitsOfMeasure = [],
-        filters = { search: '' },
+        filters = { search: '', product_type_id: '', workflow_id: '' },
         errors = {},
     } = $props();
 
+    let authUser = $derived(page.props.auth?.user);
+    let hasFinancialAccess = $derived(canViewPrices(authUser));
+
     let search = $state('');
+    let productTypeFilter = $state('');
+    let workflowFilter = $state('');
+
     $effect(() => {
         search = filters.search ?? '';
+        productTypeFilter = filters.product_type_id ? String(filters.product_type_id) : '';
+        workflowFilter = filters.workflow_id ? String(filters.workflow_id) : '';
     });
 
     let viewMode = $state('table'); // 'table' | 'cards'
@@ -186,12 +195,27 @@
     function handleSearchInput() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
-            router.get(
-                '/products',
-                { search },
-                { preserveState: true, preserveScroll: true, replace: true },
-            );
+            applyFilters();
         }, 300);
+    }
+
+    function applyFilters() {
+        router.get(
+            '/products',
+            {
+                search,
+                product_type_id: productTypeFilter,
+                workflow_id: workflowFilter,
+            },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    }
+
+    function clearFilters() {
+        search = '';
+        productTypeFilter = '';
+        workflowFilter = '';
+        applyFilters();
     }
 
     function toggleRow(id) {
@@ -502,16 +526,56 @@
 
         <!-- PESTAÑA 1: CATÁLOGO DE PRODUCTOS -->
         {#if activeTab === 'products'}
-            <!-- BUSCADOR -->
-            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-3">
-                <span class="text-slate-400 text-sm">🔍</span>
-                <input
-                    type="text"
-                    bind:value={search}
-                    oninput={handleSearchInput}
-                    placeholder="Buscar producto por nombre o código de barras..."
-                    class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
-                />
+            <!-- BUSCADOR Y FILTROS COMBINADOS -->
+            <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <div class="flex-1 bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl flex items-center gap-2">
+                    <span class="text-slate-500 text-xs">🔍</span>
+                    <input
+                        type="text"
+                        bind:value={search}
+                        oninput={handleSearchInput}
+                        placeholder="Buscar producto por nombre o código de barras..."
+                        class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
+                    />
+                    {#if search}
+                        <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-500 text-xs hover:text-white">✕</button>
+                    {/if}
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <select
+                        bind:value={productTypeFilter}
+                        onchange={applyFilters}
+                        class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                    >
+                        <option value="">Todos los Tipos</option>
+                        {#each localProductTypes as pt}
+                            <option value={String(pt.id)}>{pt.name}</option>
+                        {/each}
+                    </select>
+
+                    <select
+                        bind:value={workflowFilter}
+                        onchange={applyFilters}
+                        class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                    >
+                        <option value="">Todos los Flujos</option>
+                        {#each localWorkflows as wf}
+                            <option value={String(wf.id)}>{wf.name}</option>
+                        {/each}
+                    </select>
+
+                    {#if search || productTypeFilter || workflowFilter}
+                        <button
+                            type="button"
+                            onclick={clearFilters}
+                            class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs transition-colors font-medium"
+                            title="Limpiar filtros"
+                        >
+                            Limpiar
+                        </button>
+                    {/if}
+                </div>
             </div>
 
             <!-- VISTA TABLA EXPANDIBLE (DEFAULT) -->
@@ -527,7 +591,9 @@
                                     <th class="p-3.5">Tipo</th>
                                     <th class="p-3.5">Flujo Kanban</th>
                                     <th class="p-3.5">Tiempo Fabr.</th>
-                                    <th class="p-3.5 text-right">Precio Base</th>
+                                    {#if hasFinancialAccess}
+                                        <th class="p-3.5 text-right">Precio Base</th>
+                                    {/if}
                                     <th class="p-3.5 text-center">Variantes</th>
                                     <th class="p-3.5 text-right">Acciones</th>
                                 </tr>
@@ -596,9 +662,11 @@
                                             ⏱ {prod.formatted_time}
                                         </td>
                                         <!-- Precio Base -->
-                                        <td class="p-3.5 text-right font-mono font-bold text-emerald-400 text-sm">
-                                            {formatCurrency(prod.base_price)}
-                                        </td>
+                                        {#if hasFinancialAccess}
+                                            <td class="p-3.5 text-right font-mono font-bold text-emerald-400 text-sm">
+                                                {formatCurrency(prod.base_price)}
+                                            </td>
+                                        {/if}
                                         <!-- Variantes -->
                                         <td class="p-3.5 text-center">
                                             <span class="px-2 py-0.5 rounded-full font-mono font-bold text-[11px] {prod.variants?.length > 1 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'}">
@@ -700,10 +768,12 @@
                                                                         {/if}
                                                                     </div>
                                                                     <div class="text-right">
-                                                                        {#if variant.price_override}
-                                                                            <span class="font-mono font-bold text-emerald-400 block">{formatCurrency(variant.price_override)}</span>
-                                                                        {:else}
-                                                                            <span class="font-mono text-slate-400 block">{formatCurrency(prod.base_price)}</span>
+                                                                        {#if hasFinancialAccess}
+                                                                            {#if variant.price_override}
+                                                                                <span class="font-mono font-bold text-emerald-400 block">{formatCurrency(variant.price_override)}</span>
+                                                                            {:else}
+                                                                                <span class="font-mono text-slate-400 block">{formatCurrency(prod.base_price)}</span>
+                                                                            {/if}
                                                                         {/if}
                                                                         {#if variant.production_minutes_delta}
                                                                             <span class="font-mono text-[10px] text-amber-300">
@@ -746,9 +816,11 @@
                                     <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
                                         {prod.product_type?.name ?? 'Sin tipo'}
                                     </span>
-                                    <span class="font-mono text-emerald-400 font-extrabold text-base">
-                                        {formatCurrency(prod.base_price)}
-                                    </span>
+                                    {#if hasFinancialAccess}
+                                        <span class="font-mono text-emerald-400 font-extrabold text-base">
+                                            {formatCurrency(prod.base_price)}
+                                        </span>
+                                    {/if}
                                 </div>
 
                                 <h3 class="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">{prod.name}</h3>
@@ -805,7 +877,7 @@
                                         {#each prod.variants ?? [] as variant}
                                             <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-mono">
                                                 {variant.name_label}
-                                                {#if variant.price_override}
+                                                {#if hasFinancialAccess && variant.price_override}
                                                     <strong class="text-emerald-400 font-sans">({formatCurrency(variant.price_override)})</strong>
                                                 {/if}
                                             </span>
@@ -996,10 +1068,12 @@
                             {/each}
                         </select>
                     </div>
-                    <div>
-                        <label for="p-price" class="block font-semibold text-slate-300 mb-1">Precio Base ($) *</label>
-                        <CurrencyInput bind:value={productForm.base_price} id="p-price" required />
-                    </div>
+                    {#if hasFinancialAccess}
+                        <div>
+                            <label for="p-price" class="block font-semibold text-slate-300 mb-1">Precio Base ($) *</label>
+                            <CurrencyInput bind:value={productForm.base_price} id="p-price" required />
+                        </div>
+                    {/if}
                 </div>
 
                 <!-- CÓDIGO DE BARRAS INTELIGENTE CON PREVISUALIZACIÓN SVG -->
@@ -1313,12 +1387,14 @@
                                             title="Delta de minutos respecto al producto base"
                                         />
                                     </div>
-                                    <div class="w-36">
-                                        <CurrencyInput
-                                            bind:value={vRow.price_override}
-                                            placeholder="Sobrescribir precio"
-                                        />
-                                    </div>
+                                    {#if hasFinancialAccess}
+                                        <div class="w-36">
+                                            <CurrencyInput
+                                                bind:value={vRow.price_override}
+                                                placeholder="Sobrescribir precio"
+                                            />
+                                        </div>
+                                    {/if}
                                 </div>
                             {/each}
                         </div>

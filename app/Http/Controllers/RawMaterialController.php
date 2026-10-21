@@ -23,15 +23,17 @@ class RawMaterialController extends Controller
     public function index(Request $request): Response
     {
         $search = $request->string('search')->trim()->value();
+        $unit = $request->string('unit_of_measure')->trim()->value();
+        $supplierId = $request->input('supplier_id');
+        $lowStock = $request->boolean('low_stock');
 
         $rawMaterials = RawMaterial::query()
             ->when(!empty($search), function ($query) use ($search): void {
-                $query->where(function ($sub) use ($search): void {
-                    $sub->where('name', 'like', "%{$search}%")
-                        ->orWhere('sku', 'like', "%{$search}%")
-                        ->orWhere('unit_of_measure', 'like', "%{$search}%");
-                });
+                $query->where(fn ($sub) => $sub->where('name', 'like', "%{$search}%")->orWhere('sku', 'like', "%{$search}%"));
             })
+            ->when(!empty($unit), fn ($q) => $q->where('unit_of_measure', $unit))
+            ->when(!empty($supplierId), fn ($q) => $q->whereHas('suppliers', fn ($s) => $s->where('suppliers.id', (int) $supplierId)))
+            ->when($lowStock, fn ($q) => $q->whereColumn('current_stock', '<=', 'min_stock_alert'))
             ->with(['suppliers' => fn ($q) => $q->withPivot('purchase_price', 'is_preferred')])
             ->orderBy('name')
             ->paginate(15)
@@ -43,7 +45,12 @@ class RawMaterialController extends Controller
             'rawMaterials' => $rawMaterials,
             'allSuppliers' => $allSuppliers,
             'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
-            'filters' => ['search' => $search],
+            'filters' => [
+                'search' => $search,
+                'unit_of_measure' => $unit,
+                'supplier_id' => $supplierId ? (int) $supplierId : '',
+                'low_stock' => $lowStock,
+            ],
         ]);
     }
 

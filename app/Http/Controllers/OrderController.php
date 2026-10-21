@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\Orders\CreateOrderAction;
+use App\Actions\Orders\GetOrdersListAction;
 use App\Actions\Orders\MarkOrderDeliveredAction;
 use App\Actions\Orders\PredictDeliveryDateAction;
 use App\Models\Customer;
@@ -31,35 +32,18 @@ class OrderController extends Controller
     /**
      * Display a listing of orders with predictive metrics and filters.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, GetOrdersListAction $getOrdersListAction): Response
     {
         $tenant = $this->resolveTenant();
-        $status = $request->string('status')->trim()->value();
-        $search = $request->string('search')->trim()->value();
-
-        $orders = Order::query()
-            ->when(!empty($status), fn ($q) => $q->where('derived_status', $status))
-            ->when(!empty($search), function ($q) use ($search): void {
-                $q->where('order_number', 'like', "%{$search}%")
-                    ->orWhereHas('customer', fn ($c) => $c->where('name', 'like', "%{$search}%"));
-            })
-            ->with(['customer', 'productionTasks.productVariant.product', 'productionTasks.currentStage', 'payments.creator'])
-            ->withCount([
-                'tasks',
-                'tasks as completed_tasks_count' => fn ($q) => $q->whereHas('currentStage', fn ($s) => $s->where('stage_category', 'done')),
-            ])
-            ->orderByDesc('id')
-            ->paginate(10)
-            ->withQueryString();
+        $listData = $getOrdersListAction->execute($request);
 
         return Inertia::render('Orders/Index', [
-            'orders' => $orders,
+            ...$listData,
             'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone']),
             'products' => Product::where('is_active', true)->with(['variants', 'workflow', 'materialRequirements.rawMaterial'])->get(),
             'wipQueueMinutes' => (int) ProductionTask::whereHas('currentStage', fn ($q) => $q->whereIn('stage_category', ['pending', 'in_progress']))->sum('estimated_minutes'),
             'dailyProductiveMinutes' => $tenant->daily_productive_minutes ?? 480,
             'defaultBufferPercent' => $tenant->default_buffer_percent ?? 20,
-            'filters' => ['search' => $search, 'status' => $status],
         ]);
     }
 

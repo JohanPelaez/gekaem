@@ -1,7 +1,8 @@
 <script>
-    import { router, Link } from '@inertiajs/svelte';
+    import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import { csrfFetch } from '../../Utils/csrfFetch';
+    import { canViewPrices } from '../../Utils/permissions';
 
     let {
         workflows = [],
@@ -11,6 +12,9 @@
         productTypes = [],
         selectedOrderId = null,
     } = $props();
+
+    let authUser = $derived(page.props.auth?.user);
+    let hasFinancialAccess = $derived(canViewPrices(authUser));
 
     // Copia local de pedidos para optimismo reactivo
     let localOrders = $state([]);
@@ -787,9 +791,11 @@
                                                     </h4>
                                                 </div>
 
-                                                <span class="font-mono text-xs font-extrabold text-emerald-400 shrink-0">
-                                                    {formatCurrency(order.total_amount)}
-                                                </span>
+                                                {#if hasFinancialAccess}
+                                                    <span class="font-mono text-xs font-extrabold text-emerald-400 shrink-0">
+                                                        {formatCurrency(order.total_amount)}
+                                                    </span>
+                                                {/if}
                                             </div>
 
                                             <!-- Fechas y Alertas de Entrega -->
@@ -1002,14 +1008,16 @@
                             <h2 class="text-xl font-bold text-white">
                                 Pedido #{activeOrder.order_number} — {activeOrder.customer?.name ?? 'Cliente'}
                             </h2>
-                            <span class="font-mono text-sm font-bold text-emerald-400 bg-emerald-950/50 px-2.5 py-0.5 rounded-lg border border-emerald-800/40">
-                                {formatCurrency(activeOrder.total_amount)}
-                            </span>
+                            {#if hasFinancialAccess}
+                                <span class="font-mono text-sm font-bold text-emerald-400 bg-emerald-950/50 px-2.5 py-0.5 rounded-lg border border-emerald-800/40">
+                                    {formatCurrency(activeOrder.total_amount)}
+                                </span>
+                            {/if}
                         </div>
                         <div class="flex items-center gap-4 text-xs text-slate-400 mt-1 flex-wrap">
                             <span>📅 Entrega Comprometida: <strong class="text-slate-200">{formatDate(activeOrder.committed_delivery_at)}</strong></span>
                             <span>⏱ Tiempo Total: <strong class="text-amber-300 font-mono">{activeOrder.formatted_time}</strong></span>
-                            {#if activeOrder.pending_balance > 0}
+                            {#if hasFinancialAccess && activeOrder.pending_balance > 0}
                                 <span>Saldo Pendiente: <strong class="text-rose-400 font-mono">{formatCurrency(activeOrder.pending_balance)}</strong></span>
                             {/if}
                         </div>

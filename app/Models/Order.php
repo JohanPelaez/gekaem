@@ -44,6 +44,7 @@ class Order extends Model
         'paid_amount',
         'pending_balance',
         'payment_status',
+        'delivery_date_key',
     ];
 
     /**
@@ -125,6 +126,18 @@ class Order extends Model
                 return 'partial';
             }
         );
+    }
+
+    /**
+     * Get the pure YYYY-MM-DD date key without UTC timezone offset.
+     */
+    public function getDeliveryDateKeyAttribute(): ?string
+    {
+        $raw = $this->getRawOriginal('committed_delivery_at') ?: $this->getRawOriginal('predicted_delivery_at');
+        if (!$raw) {
+            return null;
+        }
+        return substr(trim((string) $raw), 0, 10);
     }
 
     /**

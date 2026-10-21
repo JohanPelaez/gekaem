@@ -1,22 +1,33 @@
 <script>
-    import { router, Link } from '@inertiajs/svelte';
+    import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import ViewToggle from '../../Components/ViewToggle.svelte';
     import CurrencyInput from '../../Components/CurrencyInput.svelte';
     import QuickCreateModal from '../../Components/QuickCreateModal.svelte';
     import { csrfFetch } from '../../Utils/csrfFetch.js';
+    import { canViewPrices } from '../../Utils/permissions.js';
 
     let {
         rawMaterials,
         allSuppliers = [],
         unitsOfMeasure = [],
-        filters = { search: '' },
+        filters = { search: '', unit_of_measure: '', supplier_id: '', low_stock: false },
         errors = {},
     } = $props();
 
+    let authUser = $derived(page.props.auth?.user);
+    let hasFinancialAccess = $derived(canViewPrices(authUser));
+
     let search = $state('');
+    let unitFilter = $state('');
+    let supplierFilter = $state('');
+    let lowStockFilter = $state(false);
+
     $effect(() => {
         search = filters.search ?? '';
+        unitFilter = filters.unit_of_measure ?? '';
+        supplierFilter = filters.supplier_id ? String(filters.supplier_id) : '';
+        lowStockFilter = Boolean(filters.low_stock);
     });
 
     let viewMode = $state('table'); // 'table' | 'cards'
@@ -193,12 +204,29 @@
     function handleSearchInput() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
-            router.get(
-                '/raw-materials',
-                { search },
-                { preserveState: true, preserveScroll: true, replace: true },
-            );
+            applyFilters();
         }, 300);
+    }
+
+    function applyFilters() {
+        router.get(
+            '/raw-materials',
+            {
+                search,
+                unit_of_measure: unitFilter,
+                supplier_id: supplierFilter,
+                low_stock: lowStockFilter ? '1' : '',
+            },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    }
+
+    function clearFilters() {
+        search = '';
+        unitFilter = '';
+        supplierFilter = '';
+        lowStockFilter = false;
+        applyFilters();
     }
 
     function toggleRow(id) {
@@ -367,25 +395,69 @@
             </div>
         </div>
 
-        <!-- BUSCADOR -->
-        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-3">
-            <span class="text-slate-400 text-sm">🔍</span>
-            <input
-                type="text"
-                bind:value={search}
-                oninput={handleSearchInput}
-                placeholder="Buscar materia prima por nombre, código SKU o unidad de medida..."
-                class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
-            />
-            {#if search}
+        <!-- BUSCADOR Y FILTROS COMBINADOS -->
+        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div class="flex-1 bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl flex items-center gap-2">
+                <span class="text-slate-500 text-xs">🔍</span>
+                <input
+                    type="text"
+                    bind:value={search}
+                    oninput={handleSearchInput}
+                    placeholder="Buscar materia prima por nombre o SKU..."
+                    class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
+                />
+                {#if search}
+                    <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-500 text-xs hover:text-white">✕</button>
+                {/if}
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+                <!-- Filtro Unidad de Medida -->
+                <select
+                    bind:value={unitFilter}
+                    onchange={applyFilters}
+                    class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                >
+                    <option value="">Todas las Unidades</option>
+                    {#each localUnitsOfMeasure as uom}
+                        <option value={uom.abbreviation || uom.name}>{uom.name} ({uom.abbreviation || uom.name})</option>
+                    {/each}
+                </select>
+
+                <!-- Filtro Proveedor -->
+                <select
+                    bind:value={supplierFilter}
+                    onchange={applyFilters}
+                    class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                >
+                    <option value="">Todos los Proveedores</option>
+                    {#each localSuppliers as sup}
+                        <option value={String(sup.id)}>{sup.name}</option>
+                    {/each}
+                </select>
+
+                <!-- Toggle Rápido Stock Bajo / Crítico -->
                 <button
                     type="button"
-                    onclick={() => { search = ''; handleSearchInput(); }}
-                    class="text-xs text-slate-500 hover:text-white"
+                    onclick={() => { lowStockFilter = !lowStockFilter; applyFilters(); }}
+                    class="px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors {lowStockFilter ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'}"
+                    title="Filtrar solo insumos con stock por debajo o igual al umbral mínimo"
                 >
-                    Limpiar
+                    <span>⚠</span>
+                    <span>Solo Stock Bajo</span>
                 </button>
-            {/if}
+
+                {#if search || unitFilter || supplierFilter || lowStockFilter}
+                    <button
+                        type="button"
+                        onclick={clearFilters}
+                        class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs transition-colors font-medium"
+                        title="Limpiar filtros"
+                    >
+                        Limpiar
+                    </button>
+                {/if}
+            </div>
         </div>
 
         <!-- VISTA TABLA (DEFAULT) -->
@@ -402,7 +474,9 @@
                                 <th class="p-4 text-right">Reservado</th>
                                 <th class="p-4 text-right">Disponible</th>
                                 <th class="p-4 text-center">Alerta Mínima</th>
-                                <th class="p-4 text-right">Costo Unitario</th>
+                                {#if hasFinancialAccess}
+                                    <th class="p-4 text-right">Costo Unitario</th>
+                                {/if}
                                 <th class="p-4">Proveedores</th>
                                 <th class="p-4 text-right">Acciones</th>
                             </tr>
@@ -459,9 +533,11 @@
                                             </span>
                                         {/if}
                                     </td>
-                                    <td class="p-4 text-right font-mono text-slate-300 font-semibold">
-                                        {formatCurrency(mat.unit_cost)}
-                                    </td>
+                                    {#if hasFinancialAccess}
+                                        <td class="p-4 text-right font-mono text-slate-300 font-semibold">
+                                            {formatCurrency(mat.unit_cost)}
+                                        </td>
+                                    {/if}
                                     <td class="p-4">
                                         <div class="flex flex-wrap gap-1 max-w-xs">
                                             {#each mat.suppliers ?? [] as sup}
@@ -525,9 +601,11 @@
                                                                     <span class="text-[10px] text-slate-400">{sup.phone ?? 'Sin teléfono'} • {sup.email ?? 'Sin email'}</span>
                                                                 </div>
                                                                 <div class="text-right">
-                                                                    <span class="font-mono text-emerald-400 font-bold block">
-                                                                        {sup.pivot?.purchase_price ? formatCurrency(sup.pivot.purchase_price) : 'Sin precio pactado'}
-                                                                    </span>
+                                                                    {#if hasFinancialAccess}
+                                                                        <span class="font-mono text-emerald-400 font-bold block">
+                                                                            {sup.pivot?.purchase_price ? formatCurrency(sup.pivot.purchase_price) : 'Sin precio pactado'}
+                                                                        </span>
+                                                                    {/if}
                                                                     {#if sup.lead_time_days}
                                                                         <span class="text-[10px] text-slate-500">Lead time: {sup.lead_time_days}d</span>
                                                                     {/if}
@@ -560,10 +638,12 @@
                                                             <span class="font-mono font-bold text-emerald-300 text-sm">{available.toFixed(2)}</span>
                                                         </div>
                                                     </div>
-                                                    <div class="flex items-center justify-between text-xs pt-1">
-                                                        <span class="text-slate-400">Valorización total en stock:</span>
-                                                        <span class="font-mono font-bold text-emerald-400">{formatCurrency(current * Number(mat.unit_cost))}</span>
-                                                    </div>
+                                                    {#if hasFinancialAccess}
+                                                        <div class="flex items-center justify-between text-xs pt-1">
+                                                            <span class="text-slate-400">Valorización total en stock:</span>
+                                                            <span class="font-mono font-bold text-emerald-400">{formatCurrency(current * Number(mat.unit_cost))}</span>
+                                                        </div>
+                                                    {/if}
                                                 </div>
                                             </div>
                                         </td>
@@ -595,9 +675,11 @@
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700 capitalize">
                                     {mat.unit_of_measure}
                                 </span>
-                                <span class="font-mono text-emerald-400 font-extrabold text-base">
-                                    {formatCurrency(mat.unit_cost)}
-                                </span>
+                                {#if hasFinancialAccess}
+                                    <span class="font-mono text-emerald-400 font-extrabold text-base">
+                                        {formatCurrency(mat.unit_cost)}
+                                    </span>
+                                {/if}
                             </div>
 
                             <h3 class="text-base font-bold text-white">{mat.name}</h3>
@@ -805,10 +887,12 @@
                         />
                     </div>
 
-                    <div>
-                        <label for="m-cost" class="block font-semibold text-slate-300 mb-1">Costo Unitario ($) *</label>
-                        <CurrencyInput bind:value={materialForm.unit_cost} id="m-cost" required />
-                    </div>
+                    {#if hasFinancialAccess}
+                        <div>
+                            <label for="m-cost" class="block font-semibold text-slate-300 mb-1">Costo Unitario ($) *</label>
+                            <CurrencyInput bind:value={materialForm.unit_cost} id="m-cost" required />
+                        </div>
+                    {/if}
                 </div>
 
                 <!-- SECCIÓN DE PROVEEDORES OPCIONALES (NOTA 4) -->
@@ -855,12 +939,14 @@
                                             {/each}
                                         </select>
                                     </div>
-                                    <div class="w-32">
-                                        <CurrencyInput
-                                            bind:value={supRow.purchase_price}
-                                            placeholder="Precio compra"
-                                        />
-                                    </div>
+                                    {#if hasFinancialAccess}
+                                        <div class="w-32">
+                                            <CurrencyInput
+                                                bind:value={supRow.purchase_price}
+                                                placeholder="Precio compra"
+                                            />
+                                        </div>
+                                    {/if}
                                     <label class="flex items-center gap-1.5 text-[11px] text-slate-300 whitespace-nowrap cursor-pointer">
                                         <input
                                             type="checkbox"

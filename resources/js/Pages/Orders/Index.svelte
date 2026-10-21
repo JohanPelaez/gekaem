@@ -1,30 +1,202 @@
 <script>
-    import { router, Link } from '@inertiajs/svelte';
+    import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import ViewToggle from '../../Components/ViewToggle.svelte';
     import CurrencyInput from '../../Components/CurrencyInput.svelte';
     import QuickCreateModal from '../../Components/QuickCreateModal.svelte';
+    import OrderDateSelector from '../../Components/OrderDateSelector.svelte';
+    import CalendarView from './CalendarView.svelte';
+    import { canViewPrices } from '../../Utils/permissions.js';
 
     let {
         orders,
+        calendarOrders = [],
+        allScheduledOrders = [],
+        ordersCountByDate = {},
         customers = [],
         products = [],
         wipQueueMinutes = 0,
         dailyProductiveMinutes = 480,
         defaultBufferPercent = 20,
-        filters = { search: '', status: '' },
+        filters = { search: '', status: '', customer_id: '', payment_status: '', delivery_range: '', exact_date: '' },
         errors = {},
     } = $props();
 
+    function normalizeDateKey(dateValue) {
+        if (!dateValue) return '';
+        const str = String(dateValue).trim();
+        const match = str.match(/^(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : '';
+    }
+
+    function getOrderDateKey(order) {
+        if (!order) return '';
+        if (order.delivery_date_key && /^\d{4}-\d{2}-\d{2}$/.test(order.delivery_date_key)) {
+            return order.delivery_date_key;
+        }
+        const raw = order.committed_delivery_at || order.predicted_delivery_at || order.delivery_date || '';
+        if (!raw) return '';
+        const match = String(raw).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : '';
+    }
+
+    // Mapa reactivo global como fuente única de verdad para ambos calendarios
+    let allOrdersByDate = $derived.by(() => {
+        const map = {};
+        const combined = [
+            ...(Array.isArray(allScheduledOrders) ? allScheduledOrders : []),
+            ...(Array.isArray(calendarOrders) ? calendarOrders : []),
+            ...(Array.isArray(orders) ? orders : (orders?.data ?? [])),
+        ];
+
+        const seenIds = new Set();
+        for (const order of combined) {
+            if (!order || seenIds.has(order.id)) continue;
+            seenIds.add(order.id);
+            const key = getOrderDateKey(order);
+            if (!key) continue;
+            if (!map[key]) {
+                map[key] = [];
+            }
+            map[key].push(order);
+        }
+        return map;
+    });
+
+    function formatExactDateHuman(dateKey) {
+        if (!dateKey) return '';
+        const clean = normalizeDateKey(dateKey);
+        if (!clean) return '';
+        const [y, m, d] = clean.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        return dateObj.toLocaleDateString('es-CO', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        });
+    }
+
+    function formatDayTitle(dateKey) {
+        if (!dateKey) return '';
+        const clean = normalizeDateKey(dateKey);
+        if (!clean) return '';
+        const [y, m, d] = clean.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        const str = dateObj.toLocaleDateString('es-CO', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        });
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    let authUser = $derived(page.props.auth?.user);
+    let hasFinancialAccess = $derived(canViewPrices(authUser));
+
     let search = $state('');
     let statusFilter = $state('');
+    let customerFilter = $state('');
+    let paymentStatusFilter = $state('');
+    let deliveryRangeFilter = $state('');
+    let selectedExactDate = $state('');
+
     $effect(() => {
         search = filters.search ?? '';
         statusFilter = filters.status ?? '';
+        customerFilter = filters.customer_id ? String(filters.customer_id) : '';
+        paymentStatusFilter = filters.payment_status ?? '';
+        deliveryRangeFilter = filters.delivery_range ?? '';
+        selectedExactDate = filters.exact_date ?? '';
     });
 
-    let viewMode = $state('table'); // 'table' | 'cards'
+    let viewMode = $state('table'); // 'table' | 'cards' | 'calendar'
     let expandedRows = $state(new Set());
+
+    // Estado reactivo para el menú contextual del día en el calendario
+    let dayContextMenu = $state({
+        open: false,
+        dateKey: '',
+        orders: [],
+        x: 0,
+        y: 0,
+    });
+
+    // Modal de desglose detallado de pedidos para un día específico
+    let dayOrdersModal = $state({
+        open: false,
+        dateKey: '',
+        orders: [],
+    });
+
+    function handleCalendarDayClick(day, event) {
+        const clickX = event.clientX || (typeof window !== 'undefined' ? window.innerWidth / 2 : 200);
+        const clickY = event.clientY || (typeof window !== 'undefined' ? window.innerHeight / 2 : 200);
+        const menuWidth = 280;
+        const menuHeight = 260;
+        const screenW = typeof window !== 'undefined' ? window.innerWidth : 1024;
+        const screenH = typeof window !== 'undefined' ? window.innerHeight : 768;
+        const x = Math.min(Math.max(10, clickX), screenW - menuWidth - 20);
+        const y = Math.min(Math.max(10, clickY), screenH - menuHeight - 20);
+
+        const dateKey = day.dateStr;
+        const dayOrders = allOrdersByDate[dateKey] || day.orders || [];
+
+        dayContextMenu = {
+            open: true,
+            dateKey: dateKey,
+            orders: dayOrders,
+            x,
+            y,
+        };
+    }
+
+    function closeContextMenu() {
+        dayContextMenu.open = false;
+    }
+
+    function handleContextCreateOrder() {
+        const date = dayContextMenu.dateKey;
+        closeContextMenu();
+        openCreateForDate(date);
+    }
+
+    function handleContextViewOrders() {
+        const date = dayContextMenu.dateKey;
+        const ords = allOrdersByDate[date] || dayContextMenu.orders || [];
+        closeContextMenu();
+        dayOrdersModal = {
+            open: true,
+            dateKey: date,
+            orders: ords,
+        };
+    }
+
+    function handleContextFilterTable() {
+        const date = dayContextMenu.dateKey;
+        closeContextMenu();
+        viewMode = 'table';
+        selectedExactDate = date;
+        applyFilters();
+    }
+
+    function handleContextGoKanban() {
+        const date = dayContextMenu.dateKey;
+        closeContextMenu();
+        router.visit(`/kanban?date=${date}`);
+    }
+
+    function openCreateForDate(dateKey) {
+        resetOrderForm();
+        if (dateKey) {
+            orderForm.committed_delivery_at = `${dateKey}T17:00`;
+        }
+        if (products.length > 0) {
+            addItem();
+        }
+        showCreateModal = true;
+    }
 
     // Clientes locales sincronizados para permitir quick create
     let localCustomers = $state([]);
@@ -73,13 +245,35 @@
     function applyFilters() {
         router.get(
             '/orders',
-            { search, status: statusFilter },
+            {
+                search,
+                status: statusFilter,
+                customer_id: customerFilter,
+                payment_status: hasFinancialAccess ? paymentStatusFilter : '',
+                delivery_range: deliveryRangeFilter,
+                exact_date: selectedExactDate,
+            },
             { preserveState: true, preserveScroll: true, replace: true },
         );
     }
 
     function setStatus(st) {
         statusFilter = st;
+        applyFilters();
+    }
+
+    function clearExactDate() {
+        selectedExactDate = '';
+        applyFilters();
+    }
+
+    function clearFilters() {
+        search = '';
+        statusFilter = '';
+        customerFilter = '';
+        paymentStatusFilter = '';
+        deliveryRangeFilter = '';
+        selectedExactDate = '';
         applyFilters();
     }
 
@@ -283,14 +477,22 @@
 
     function formatDate(dateStr) {
         if (!dateStr) return 'N/A';
-        const d = new Date(dateStr);
-        return d.toLocaleDateString('es-CO', {
+        const clean = normalizeDateKey(dateStr);
+        if (!clean) return 'N/A';
+        const [y, m, d] = clean.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        let timeStr = '';
+        if (String(dateStr).includes('T')) {
+            timeStr = String(dateStr).split('T')[1].slice(0, 5);
+        } else if (String(dateStr).includes(' ')) {
+            timeStr = String(dateStr).split(' ')[1].slice(0, 5);
+        }
+        const formatted = dateObj.toLocaleDateString('es-CO', {
             weekday: 'short',
             month: 'short',
             day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
         });
+        return timeStr ? `${formatted} ${timeStr}` : formatted;
     }
 
     function formatMinutes(mins) {
@@ -343,7 +545,7 @@
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
-                <ViewToggle bind:mode={viewMode} storageKey="gekaem_orders_view" />
+                <ViewToggle bind:mode={viewMode} storageKey="gekaem_orders_view" showCalendar={true} />
                 <Link
                     href="/kanban"
                     class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors border border-slate-700 flex items-center gap-1.5"
@@ -397,66 +599,145 @@
             </div>
         </div>
 
-        <!-- BARRA DE FILTROS Y BUSCADOR -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
-            <!-- Pestañas de estado -->
-            <div class="flex flex-wrap items-center gap-1 text-xs">
-                <button
-                    type="button"
-                    onclick={() => setStatus('')}
-                    class="px-3 py-1.5 rounded-xl font-medium transition-colors {!statusFilter ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
-                >
-                    Todos
-                </button>
-                <button
-                    type="button"
-                    onclick={() => setStatus('pending')}
-                    class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'pending' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
-                >
-                    En Espera
-                </button>
-                <button
-                    type="button"
-                    onclick={() => setStatus('in_progress')}
-                    class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'in_progress' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
-                >
-                    En Producción
-                </button>
-                <button
-                    type="button"
-                    onclick={() => setStatus('blocked')}
-                    class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'blocked' ? 'bg-rose-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
-                >
-                    Bloqueados
-                </button>
-                <button
-                    type="button"
-                    onclick={() => setStatus('ready')}
-                    class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'ready' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
-                >
-                    Listos
-                </button>
-                <button
-                    type="button"
-                    onclick={() => setStatus('delivered')}
-                    class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'delivered' ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
-                >
-                    Entregados
-                </button>
+        <!-- BARRA DE FILTROS Y BUSCADOR COMBINADOS -->
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-3xl space-y-3 shadow-lg">
+            <!-- Fila 1: Pestañas de estado operativo y Buscador rápido -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-1 text-xs">
+                    <button
+                        type="button"
+                        onclick={() => setStatus('')}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {!statusFilter ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                    >
+                        Todos
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => setStatus('pending')}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'pending' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                    >
+                        En Espera
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => setStatus('in_progress')}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'in_progress' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                    >
+                        En Producción
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => setStatus('blocked')}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'blocked' ? 'bg-rose-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                    >
+                        Bloqueados
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => setStatus('ready')}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'ready' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                    >
+                        Listos
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => setStatus('delivered')}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'delivered' ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                    >
+                        Entregados
+                    </button>
+                </div>
+
+                <!-- Buscador por #pedido o cliente -->
+                <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl w-full md:w-72">
+                    <span class="text-slate-500 text-xs">🔍</span>
+                    <input
+                        type="text"
+                        bind:value={search}
+                        oninput={handleSearchInput}
+                        placeholder="Buscar por # o cliente..."
+                        class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
+                    />
+                    {#if search}
+                        <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-500 text-xs hover:text-white">✕</button>
+                    {/if}
+                </div>
             </div>
 
-            <!-- Buscador rápido -->
-            <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl w-full md:w-72">
-                <span class="text-slate-500 text-xs">🔍</span>
-                <input
-                    type="text"
-                    bind:value={search}
-                    oninput={handleSearchInput}
-                    placeholder="Buscar por # o cliente..."
-                    class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
-                />
-                {#if search}
-                    <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-500 text-xs hover:text-white">✕</button>
+            <!-- Fila 2: Filtros desplegables secundarios -->
+            <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-800/80 text-xs">
+                <!-- Filtro por Cliente -->
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500 font-semibold text-[11px]">Cliente:</span>
+                    <select
+                        bind:value={customerFilter}
+                        onchange={applyFilters}
+                        class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
+                    >
+                        <option value="">Todos los Clientes</option>
+                        {#each localCustomers as c}
+                            <option value={String(c.id)}>{c.name}</option>
+                        {/each}
+                    </select>
+                </div>
+
+                <!-- Filtro por Estado de Pago (SOLO SI TIENE PERMISOS FINANCIEROS) -->
+                {#if hasFinancialAccess}
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-slate-500 font-semibold text-[11px]">Estado de Pago:</span>
+                        <select
+                            bind:value={paymentStatusFilter}
+                            onchange={applyFilters}
+                            class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
+                        >
+                            <option value="">Todos los Abonos</option>
+                            <option value="unpaid">Sin Abono</option>
+                            <option value="partial">Abono Parcial</option>
+                            <option value="paid">Pagado Total</option>
+                        </select>
+                    </div>
+                {/if}
+
+                <!-- Filtro por Rango de Entrega -->
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-500 font-semibold text-[11px]">Entrega:</span>
+                    <select
+                        bind:value={deliveryRangeFilter}
+                        onchange={applyFilters}
+                        class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
+                    >
+                        <option value="">Cualquier Fecha</option>
+                        <option value="delayed">Atrasados</option>
+                        <option value="today">Hoy</option>
+                        <option value="this_week">Esta Semana</option>
+                        <option value="this_month">Este Mes</option>
+                    </select>
+                </div>
+
+                <!-- Chip de Fecha Exacta Seleccionada (desde el Calendario) -->
+                {#if selectedExactDate}
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold text-xs">
+                        <span>📅 Entrega: {formatExactDateHuman(selectedExactDate)}</span>
+                        <button
+                            type="button"
+                            onclick={clearExactDate}
+                            class="hover:text-white p-0.5 rounded-full hover:bg-emerald-500/30 transition-colors ml-1"
+                            title="Quitar filtro de fecha exacta"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                {/if}
+
+                {#if search || statusFilter || customerFilter || paymentStatusFilter || deliveryRangeFilter || selectedExactDate}
+                    <button
+                        type="button"
+                        onclick={clearFilters}
+                        class="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs transition-colors font-medium ml-auto"
+                        title="Limpiar todos los filtros"
+                    >
+                        Limpiar Filtros
+                    </button>
                 {/if}
             </div>
         </div>
@@ -473,8 +754,10 @@
                                 <th class="p-3.5">Cliente</th>
                                 <th class="p-3.5">Estado</th>
                                 <th class="p-3.5">Entrega Comprometida</th>
-                                <th class="p-3.5 text-right">Total</th>
-                                <th class="p-3.5 text-right">Saldo</th>
+                                {#if hasFinancialAccess}
+                                    <th class="p-3.5 text-right">Total</th>
+                                    <th class="p-3.5 text-right">Saldo</th>
+                                {/if}
                                 <th class="p-3.5 text-center">Progreso</th>
                                 <th class="p-3.5 text-right">Acciones</th>
                             </tr>
@@ -520,12 +803,14 @@
                                     <td class="p-3.5 font-mono text-slate-300">
                                         📅 {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
                                     </td>
-                                    <td class="p-3.5 text-right font-mono font-bold text-white">
-                                        {formatCurrency(order.total_amount)}
-                                    </td>
-                                    <td class="p-3.5 text-right font-mono font-bold {order.pending_balance > 0 ? 'text-amber-400' : 'text-emerald-400'}">
-                                        {order.pending_balance > 0 ? formatCurrency(order.pending_balance) : '✓ Pagado'}
-                                    </td>
+                                    {#if hasFinancialAccess}
+                                        <td class="p-3.5 text-right font-mono font-bold text-white">
+                                            {formatCurrency(order.total_amount)}
+                                        </td>
+                                        <td class="p-3.5 text-right font-mono font-bold {order.pending_balance > 0 ? 'text-amber-400' : 'text-emerald-400'}">
+                                            {order.pending_balance > 0 ? formatCurrency(order.pending_balance) : '✓ Pagado'}
+                                        </td>
+                                    {/if}
                                     <td class="p-3.5 text-center">
                                         <div class="inline-flex items-center gap-1.5">
                                             <div class="w-16 h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
@@ -545,14 +830,16 @@
                                                 <span>📋</span>
                                                 <span>Ver en Tablero</span>
                                             </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => openPaymentModal(order)}
-                                                class="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-colors"
-                                                title="Registrar Abono o Ver Pagos"
-                                            >
-                                                💳 Abonos
-                                            </button>
+                                            {#if hasFinancialAccess}
+                                                <button
+                                                    type="button"
+                                                    onclick={() => openPaymentModal(order)}
+                                                    class="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-colors"
+                                                    title="Registrar Abono o Ver Pagos"
+                                                >
+                                                    💳 Abonos
+                                                </button>
+                                            {/if}
                                             {#if order.derived_status === 'ready'}
                                                 <button
                                                     type="button"
@@ -595,7 +882,7 @@
                                                                         <span>{task.item_name_snapshot}</span>
                                                                     </div>
                                                                     <span class="text-[10px] text-slate-500 font-mono">
-                                                                        Estimado: {task.estimated_minutes} min • Unitario: {formatCurrency(task.unit_price)}
+                                                                        Estimado: {task.estimated_minutes} min {#if hasFinancialAccess}• Unitario: {formatCurrency(task.unit_price)}{/if}
                                                                     </span>
                                                                 </div>
                                                                 <div>
@@ -612,52 +899,54 @@
                                                     </div>
                                                 </div>
 
-                                                <!-- Historial de Abonos y Comprobantes -->
-                                                <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-2.5">
-                                                    <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                                                        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                                                            Historial de Abonos ({order.payments?.length ?? 0})
-                                                        </span>
-                                                        <span class="font-mono text-xs font-bold text-emerald-400">
-                                                            Total abonado: {formatCurrency(order.paid_amount)}
-                                                        </span>
-                                                    </div>
+                                                <!-- Historial de Abonos y Comprobantes (SOLO SI TIENE PERMISOS FINANCIEROS) -->
+                                                {#if hasFinancialAccess}
+                                                    <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-2.5">
+                                                        <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                                            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                                                Historial de Abonos ({order.payments?.length ?? 0})
+                                                            </span>
+                                                            <span class="font-mono text-xs font-bold text-emerald-400">
+                                                                Total abonado: {formatCurrency(order.paid_amount)}
+                                                            </span>
+                                                        </div>
 
-                                                    <div class="space-y-1.5 max-h-48 overflow-y-auto">
-                                                        {#each order.payments ?? [] as pay}
-                                                            <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
-                                                                <div>
-                                                                    <div class="font-bold text-white flex items-center gap-1.5 font-mono">
-                                                                        <span class="text-emerald-400">{formatCurrency(pay.amount)}</span>
-                                                                        <span class="text-slate-400 font-sans text-[11px] capitalize">• {pay.payment_method}</span>
+                                                        <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                                                            {#each order.payments ?? [] as pay}
+                                                                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
+                                                                    <div>
+                                                                        <div class="font-bold text-white flex items-center gap-1.5 font-mono">
+                                                                            <span class="text-emerald-400">{formatCurrency(pay.amount)}</span>
+                                                                            <span class="text-slate-400 font-sans text-[11px] capitalize">• {pay.payment_method}</span>
+                                                                        </div>
+                                                                        <span class="text-[10px] text-slate-500 font-mono">Fecha: {pay.payment_date}</span>
                                                                     </div>
-                                                                    <span class="text-[10px] text-slate-500 font-mono">Fecha: {pay.payment_date}</span>
-                                                                </div>
-                                                                <div class="flex items-center gap-1.5">
-                                                                    {#if pay.voucher_path}
-                                                                        <a
-                                                                            href={`/storage/${pay.voucher_path}`}
-                                                                            target="_blank"
-                                                                            class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold text-[10px] border border-slate-700"
+                                                                    <div class="flex items-center gap-1.5">
+                                                                        {#if pay.voucher_path}
+                                                                            <a
+                                                                                href={`/storage/${pay.voucher_path}`}
+                                                                                target="_blank"
+                                                                                class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold text-[10px] border border-slate-700"
+                                                                            >
+                                                                                Comprobante ↗
+                                                                            </a>
+                                                                        {/if}
+                                                                        <button
+                                                                            type="button"
+                                                                            onclick={() => deletePayment(pay)}
+                                                                            class="p-1 rounded text-slate-500 hover:text-rose-400 text-xs"
+                                                                            title="Eliminar abono"
                                                                         >
-                                                                            Comprobante ↗
-                                                                        </a>
-                                                                    {/if}
-                                                                    <button
-                                                                        type="button"
-                                                                        onclick={() => deletePayment(pay)}
-                                                                        class="p-1 rounded text-slate-500 hover:text-rose-400 text-xs"
-                                                                        title="Eliminar abono"
-                                                                    >
-                                                                        ✕
-                                                                    </button>
+                                                                            ✕
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        {:else}
-                                                            <span class="text-slate-500 text-xs italic py-2 block">Sin abonos registrados aún.</span>
-                                                        {/each}
+                                                            {:else}
+                                                                <span class="text-slate-500 text-xs italic py-2 block">Sin abonos registrados aún.</span>
+                                                            {/each}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                {/if}
                                             </div>
 
                                             {#if order.notes}
@@ -682,7 +971,7 @@
             </div>
 
         <!-- VISTA EN TARJETAS (CARDS) -->
-        {:else}
+        {:else if viewMode === 'cards'}
             <div class="space-y-4">
                 {#each orders.data as order (order.id)}
                     {@const badge = getDerivedStatusBadge(order.derived_status)}
@@ -712,45 +1001,49 @@
                                     {#if order.notes}
                                         <span class="italic max-w-sm truncate text-slate-500">"{order.notes}"</span>
                                     {/if}
-                                    <span class="font-mono text-white font-bold">
-                                        Total: {formatCurrency(order.total_amount)}
-                                    </span>
+                                    {#if hasFinancialAccess}
+                                        <span class="font-mono text-white font-bold">
+                                            Total: {formatCurrency(order.total_amount)}
+                                        </span>
+                                    {/if}
                                 </div>
                             </div>
 
-                            <!-- Badges de Estado Financiero -->
-                            <div class="flex flex-wrap items-center gap-2">
-                                {#if order.payment_status === 'paid'}
-                                    <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
-                                        <span>✓</span>
-                                        <span>Pagado ({formatCurrency(order.total_amount)})</span>
-                                    </span>
-                                {:else if order.payment_status === 'partial'}
-                                    <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
-                                        <span>⏳</span>
-                                        <span>Abonado: {formatCurrency(order.paid_amount)} / Saldo: {formatCurrency(order.pending_balance)}</span>
-                                    </span>
-                                {:else}
-                                    <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1.5">
-                                        <span>⚠️</span>
-                                        <span>Sin Abono (Saldo: {formatCurrency(order.total_amount)})</span>
-                                    </span>
-                                {/if}
-
-                                <button
-                                    type="button"
-                                    onclick={() => openPaymentModal(order)}
-                                    class="px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-emerald-400 font-semibold text-xs border border-emerald-500/30 flex items-center gap-1.5 transition-colors"
-                                >
-                                    <span>💳</span>
-                                    <span>{order.pending_balance > 0 ? 'Registrar Abono' : 'Ver Abonos'}</span>
-                                    {#if order.payments && order.payments.length > 0}
-                                        <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
-                                            {order.payments.length}
+                            <!-- Badges de Estado Financiero (SOLO SI TIENE PERMISOS) -->
+                            {#if hasFinancialAccess}
+                                <div class="flex flex-wrap items-center gap-2">
+                                    {#if order.payment_status === 'paid'}
+                                        <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5">
+                                            <span>✓</span>
+                                            <span>Pagado ({formatCurrency(order.total_amount)})</span>
+                                        </span>
+                                    {:else if order.payment_status === 'partial'}
+                                        <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
+                                            <span>⏳</span>
+                                            <span>Abonado: {formatCurrency(order.paid_amount)} / Saldo: {formatCurrency(order.pending_balance)}</span>
+                                        </span>
+                                    {:else}
+                                        <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1.5">
+                                            <span>⚠️</span>
+                                            <span>Sin Abono (Saldo: {formatCurrency(order.total_amount)})</span>
                                         </span>
                                     {/if}
-                                </button>
-                            </div>
+
+                                    <button
+                                        type="button"
+                                        onclick={() => openPaymentModal(order)}
+                                        class="px-3 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-emerald-400 font-semibold text-xs border border-emerald-500/30 flex items-center gap-1.5 transition-colors"
+                                    >
+                                        <span>💳</span>
+                                        <span>{order.pending_balance > 0 ? 'Registrar Abono' : 'Ver Abonos'}</span>
+                                        {#if order.payments && order.payments.length > 0}
+                                            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
+                                                {order.payments.length}
+                                            </span>
+                                        {/if}
+                                    </button>
+                                </div>
+                            {/if}
 
                             <!-- Fecha de Entrega y Progreso -->
                             <div class="flex flex-col sm:flex-row lg:flex-col gap-2 w-full lg:w-60">
@@ -825,10 +1118,22 @@
                     </div>
                 {/each}
             </div>
+
+        <!-- VISTA EN CALENDARIO (PUNTO 10) -->
+        {:else if viewMode === 'calendar'}
+            <CalendarView
+                orders={calendarOrders && calendarOrders.length > 0 ? calendarOrders : (allScheduledOrders.length > 0 ? allScheduledOrders : (orders.data || []))}
+                {hasFinancialAccess}
+                onOpenPaymentModal={openPaymentModal}
+                onMarkDelivered={markDelivered}
+                onDayClick={handleCalendarDayClick}
+                {formatCurrency}
+                {getDerivedStatusBadge}
+            />
         {/if}
 
-        <!-- PAGINACIÓN -->
-        {#if orders.links && orders.links.length > 3}
+        <!-- PAGINACIÓN (SOLO PARA VISTA TABLA Y TARJETAS) -->
+        {#if viewMode !== 'calendar' && orders.links && orders.links.length > 3}
             <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between text-xs text-slate-400">
                 <div>Mostrando {orders.from ?? 0} a {orders.to ?? 0} de {orders.total} pedidos</div>
                 <div class="flex items-center gap-1">
@@ -861,8 +1166,8 @@
             </div>
 
             <form onsubmit={submitOrder} class="space-y-4 text-xs">
-                <!-- CLIENTE Y FECHA DE ENTREGA COMPROMETIDA DIRECTA -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- CLIENTE Y FECHA DE ENTREGA COMPROMETIDA CON SELECTOR VISUAL DE CAPACIDAD -->
+                <div class="space-y-4">
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <label for="ord-customer" class="font-semibold text-slate-300">Cliente *</label>
@@ -890,18 +1195,14 @@
                         {/if}
                     </div>
 
-                    <div>
-                        <label for="ord-committed" class="block font-semibold text-slate-300 mb-1">
-                            Fecha y Hora de Entrega Comprometida *
-                        </label>
-                        <input
-                            id="ord-committed"
-                            type="datetime-local"
-                            bind:value={orderForm.committed_delivery_at}
-                            required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono font-bold"
-                        />
-                    </div>
+                    <!-- SELECTOR VISUAL DE CALENDARIO CON CARGA DIARIA (PUNTO 11) -->
+                    <OrderDateSelector
+                        bind:value={orderForm.committed_delivery_at}
+                        {allOrdersByDate}
+                        {ordersCountByDate}
+                        {allScheduledOrders}
+                        {getDerivedStatusBadge}
+                    />
                 </div>
 
                 <!-- RENGLONES DE PRODUCTOS -->
@@ -999,68 +1300,74 @@
                     />
                 </div>
 
-                <!-- SECCIÓN DE ABONO INICIAL (CHECKBOX COLAPSABLE) -->
-                <div class="pt-3 border-t border-slate-800 space-y-3">
-                    <label class="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                            type="checkbox"
-                            bind:checked={orderForm.has_initial_deposit}
-                            class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0"
-                        />
-                        <span class="font-bold text-white text-xs">Registrar Abono Inicial en este Pedido</span>
-                    </label>
+                <!-- SECCIÓN DE ABONO INICIAL (SOLO SI TIENE PERMISOS FINANCIEROS) -->
+                {#if hasFinancialAccess}
+                    <div class="pt-3 border-t border-slate-800 space-y-3">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                bind:checked={orderForm.has_initial_deposit}
+                                class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0"
+                            />
+                            <span class="font-bold text-white text-xs">Registrar Abono Inicial en este Pedido</span>
+                        </label>
 
-                    {#if orderForm.has_initial_deposit}
-                        <div class="p-4 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-3">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label for="ord-deposit" class="block font-semibold text-slate-300 mb-1">Monto del Abono ($) *</label>
-                                    <CurrencyInput bind:value={orderForm.initial_deposit} id="ord-deposit" required placeholder="0" />
+                        {#if orderForm.has_initial_deposit}
+                            <div class="p-4 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="ord-deposit" class="block font-semibold text-slate-300 mb-1">Monto del Abono ($) *</label>
+                                        <CurrencyInput bind:value={orderForm.initial_deposit} id="ord-deposit" required placeholder="0" />
+                                    </div>
+
+                                    <div>
+                                        <label for="ord-method" class="block font-semibold text-slate-300 mb-1">Método de Pago *</label>
+                                        <select
+                                            id="ord-method"
+                                            bind:value={orderForm.payment_method}
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                        >
+                                            <option value="transfer">Transferencia / Nequi / Daviplata</option>
+                                            <option value="cash">Efectivo</option>
+                                            <option value="card">Tarjeta</option>
+                                            <option value="other">Otro medio</option>
+                                        </select>
+                                    </div>
                                 </div>
 
                                 <div>
-                                    <label for="ord-method" class="block font-semibold text-slate-300 mb-1">Método de Pago *</label>
-                                    <select
-                                        id="ord-method"
-                                        bind:value={orderForm.payment_method}
-                                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
-                                    >
-                                        <option value="transfer">Transferencia / Nequi / Daviplata</option>
-                                        <option value="cash">Efectivo</option>
-                                        <option value="card">Tarjeta</option>
-                                        <option value="other">Otro medio</option>
-                                    </select>
+                                    <label for="ord-voucher" class="block font-semibold text-slate-300 mb-1">
+                                        Comprobante o Foto del Pago (Opcional, máx 5MB)
+                                    </label>
+                                    <input
+                                        id="ord-voucher"
+                                        type="file"
+                                        accept="image/*,.pdf"
+                                        onchange={onInitialVoucherChange}
+                                        class="w-full text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
+                                    />
+                                </div>
+
+                                <!-- Saldo calculado -->
+                                <div class="flex items-center justify-between text-xs pt-1 text-slate-400">
+                                    <span>Saldo pendiente estimado:</span>
+                                    <span class="font-mono font-bold text-amber-300">{formatCurrency(initialPendingBalance)}</span>
                                 </div>
                             </div>
-
-                            <div>
-                                <label for="ord-voucher" class="block font-semibold text-slate-300 mb-1">
-                                    Comprobante o Foto del Pago (Opcional, máx 5MB)
-                                </label>
-                                <input
-                                    id="ord-voucher"
-                                    type="file"
-                                    accept="image/*,.pdf"
-                                    onchange={onInitialVoucherChange}
-                                    class="w-full text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
-                                />
-                            </div>
-
-                            <!-- Saldo calculado -->
-                            <div class="flex items-center justify-between text-xs pt-1 text-slate-400">
-                                <span>Saldo pendiente estimado:</span>
-                                <span class="font-mono font-bold text-amber-300">{formatCurrency(initialPendingBalance)}</span>
-                            </div>
-                        </div>
-                    {/if}
-                </div>
+                        {/if}
+                    </div>
+                {/if}
 
                 <!-- TOTAL Y BOTONES -->
                 <div class="flex items-center justify-between pt-3 border-t border-slate-800">
-                    <div class="text-xs">
-                        <span class="text-slate-400">Total del Pedido: </span>
-                        <span class="font-mono font-bold text-emerald-400 text-base">{formatCurrency(totalAmount)}</span>
-                    </div>
+                    {#if hasFinancialAccess}
+                        <div class="text-xs">
+                            <span class="text-slate-400">Total del Pedido: </span>
+                            <span class="font-mono font-bold text-emerald-400 text-base">{formatCurrency(totalAmount)}</span>
+                        </div>
+                    {:else}
+                        <div></div>
+                    {/if}
 
                     <div class="flex items-center gap-2">
                         <button
@@ -1084,8 +1391,8 @@
     </div>
 {/if}
 
-<!-- MODAL REGISTRAR ABONO Y VER HISTORIAL DE PAGOS -->
-{#if showPaymentModal && selectedOrderForPayment}
+<!-- MODAL REGISTRAR ABONO Y VER HISTORIAL DE PAGOS (SOLO VISIBLE CON PERMISOS) -->
+{#if showPaymentModal && selectedOrderForPayment && hasFinancialAccess}
     <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -1274,3 +1581,238 @@
     type="customer"
     onSuccess={handleQuickCustomerSuccess}
 />
+
+<!-- SVELTE WINDOW EVENT PARA TECLA ESCAPE -->
+<svelte:window onkeydown={(e) => {
+    if (e.key === 'Escape') {
+        if (dayContextMenu.open) closeContextMenu();
+        if (dayOrdersModal.open) dayOrdersModal.open = false;
+    }
+}} />
+
+<!-- MENÚ CONTEXTUAL AL HACER CLIC EN UN DÍA DEL CALENDARIO (PUNTO 3) -->
+{#if dayContextMenu.open}
+    <div
+        class="fixed inset-0 z-40 bg-slate-950/20 backdrop-blur-[1px]"
+        onclick={closeContextMenu}
+        role="button"
+        tabindex="-1"
+        onkeydown={(e) => { if (e.key === 'Escape') closeContextMenu(); }}
+    ></div>
+
+    <div
+        class="fixed z-50 w-72 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-2.5 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100"
+        style="left: {dayContextMenu.x}px; top: {dayContextMenu.y}px;"
+    >
+        <!-- Cabecera del Menú -->
+        <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
+            <div class="min-w-0 pr-2">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Opciones del Día</span>
+                <span class="font-bold text-white text-xs block truncate" title={formatDayTitle(dayContextMenu.dateKey)}>
+                    {formatDayTitle(dayContextMenu.dateKey)}
+                </span>
+            </div>
+            <button
+                type="button"
+                onclick={closeContextMenu}
+                class="text-slate-400 hover:text-white p-1 rounded-lg"
+            >
+                ✕
+            </button>
+        </div>
+
+        <!-- Opciones -->
+        <div class="space-y-1 pt-1">
+            <!-- 1. Crear nuevo pedido para este día -->
+            <button
+                type="button"
+                onclick={handleContextCreateOrder}
+                class="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-600/20 text-slate-200 hover:text-emerald-300 flex items-center gap-2.5 transition-colors font-medium group"
+            >
+                <span class="text-emerald-400 group-hover:scale-110 transition-transform text-sm">➕</span>
+                <span>Crear nuevo pedido para este día</span>
+            </button>
+
+            <!-- 2. Ver pedidos de este día -->
+            <button
+                type="button"
+                onclick={handleContextViewOrders}
+                class="w-full text-left px-3 py-2 rounded-xl hover:bg-sky-600/20 text-slate-200 hover:text-sky-300 flex items-center justify-between transition-colors font-medium group"
+            >
+                <div class="flex items-center gap-2.5">
+                    <span class="text-sky-400 group-hover:scale-110 transition-transform text-sm">📋</span>
+                    <span>Ver pedidos de este día</span>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold {dayContextMenu.orders.length > 0 ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-500'}">
+                    {dayContextMenu.orders.length}
+                </span>
+            </button>
+
+            <!-- 3. Filtrar en Tabla por esta fecha -->
+            <button
+                type="button"
+                onclick={handleContextFilterTable}
+                class="w-full text-left px-3 py-2 rounded-xl hover:bg-purple-600/20 text-slate-200 hover:text-purple-300 flex items-center gap-2.5 transition-colors font-medium group"
+            >
+                <span class="text-purple-400 group-hover:scale-110 transition-transform text-sm">▦</span>
+                <span>Filtrar en Tabla por esta fecha</span>
+            </button>
+
+            <!-- 4. Ver entregas del día en Kanban -->
+            <button
+                type="button"
+                onclick={handleContextGoKanban}
+                class="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-600/20 text-slate-200 hover:text-amber-300 flex items-center gap-2.5 transition-colors font-medium group border-t border-slate-800/80 pt-2"
+            >
+                <span class="text-amber-400 group-hover:scale-110 transition-transform text-sm">🏭</span>
+                <span>Ver entregas del día en Kanban</span>
+            </button>
+        </div>
+    </div>
+{/if}
+
+<!-- MODAL DE DESGLOSE DE PEDIDOS DEL DÍA -->
+{#if dayOrdersModal.open}
+    <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <!-- Encabezado del modal -->
+            <div class="flex items-start justify-between border-b border-slate-800 pb-3">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2.5 py-0.5 rounded-lg font-mono font-bold text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            📅 {formatExactDateHuman(dayOrdersModal.dateKey)}
+                        </span>
+                        <span class="text-xs text-slate-400">({dayOrdersModal.orders.length} {dayOrdersModal.orders.length === 1 ? 'pedido programado' : 'pedidos programados'})</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mt-1 capitalize">
+                        {formatDayTitle(dayOrdersModal.dateKey)}
+                    </h3>
+                </div>
+                <button
+                    type="button"
+                    onclick={() => dayOrdersModal.open = false}
+                    class="text-slate-400 hover:text-white text-base p-1"
+                >
+                    ✕
+                </button>
+            </div>
+
+            <!-- Listado de Pedidos del Día -->
+            {#if dayOrdersModal.orders.length === 0}
+                <div class="p-8 text-center bg-slate-950 rounded-2xl border border-slate-800/80 text-slate-400 text-xs space-y-2">
+                    <span class="text-3xl block">✨</span>
+                    <span class="font-bold text-white block">No hay pedidos comprometidos para este día</span>
+                    <p class="text-[11px] text-slate-500">Puedes aprovechar la capacidad del taller registrando un nuevo pedido.</p>
+                </div>
+            {:else}
+                <div class="space-y-3">
+                    {#each dayOrdersModal.orders as order (order.id)}
+                        {@const badge = getDerivedStatusBadge(order.derived_status)}
+                        {@const tasks = order.production_tasks || order.tasks || []}
+                        <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-mono font-bold text-emerald-400 text-sm">
+                                        #{order.order_number}
+                                    </span>
+                                    <span class="font-bold text-white text-sm">
+                                        {order.customer?.name ?? 'Cliente'}
+                                    </span>
+                                    {#if order.customer?.phone}
+                                        <span class="text-[11px] font-mono text-slate-400">📞 {order.customer.phone}</span>
+                                    {/if}
+                                </div>
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border {badge.color} self-start sm:self-auto">
+                                    {badge.label}
+                                </span>
+                            </div>
+
+                            {#if hasFinancialAccess}
+                                <div class="flex items-center gap-4 text-xs font-mono text-slate-400 pt-1 border-t border-slate-800/60">
+                                    <span>Total: <strong class="text-white">{formatCurrency(order.total_amount)}</strong></span>
+                                    <span>Abonado: <strong class="text-emerald-400">{formatCurrency(order.paid_amount)}</strong></span>
+                                    <span>Saldo: <strong class="{order.pending_balance > 0 ? 'text-amber-400' : 'text-emerald-400'}">{formatCurrency(order.pending_balance)}</strong></span>
+                                </div>
+                            {/if}
+
+                            <!-- Tareas / Productos -->
+                            {#if tasks.length > 0}
+                                <div class="flex flex-wrap gap-1.5 items-center">
+                                    {#each tasks as task}
+                                        <span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-mono">
+                                            <span class="font-bold text-white">{task.quantity}x</span>
+                                            <span>{task.item_name_snapshot}</span>
+                                        </span>
+                                    {/each}
+                                </div>
+                            {/if}
+
+                            <!-- Acciones rápidas -->
+                            <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800/60">
+                                <button
+                                    type="button"
+                                    onclick={() => {
+                                        dayOrdersModal.open = false;
+                                        router.visit(`/kanban?order_id=${order.id}`);
+                                    }}
+                                    class="px-3 py-1.5 rounded-xl bg-sky-950/70 hover:bg-sky-900/70 text-sky-400 text-xs font-bold border border-sky-800/70 flex items-center gap-1"
+                                >
+                                    <span>📋</span>
+                                    <span>Kanban</span>
+                                </button>
+                                {#if hasFinancialAccess}
+                                    <button
+                                        type="button"
+                                        onclick={() => {
+                                            dayOrdersModal.open = false;
+                                            openPaymentModal(order);
+                                        }}
+                                        class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-emerald-400 text-xs font-semibold border border-slate-700"
+                                    >
+                                        💳 Abonos
+                                    </button>
+                                {/if}
+                                {#if order.derived_status === 'ready'}
+                                    <button
+                                        type="button"
+                                        onclick={() => {
+                                            dayOrdersModal.open = false;
+                                            markDelivered(order);
+                                        }}
+                                        class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"
+                                    >
+                                        ✓ Entregar
+                                    </button>
+                                {/if}
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
+
+            <!-- Pie del Modal con Acción de Crear Pedido -->
+            <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
+                <button
+                    type="button"
+                    onclick={() => {
+                        const targetDate = dayOrdersModal.dateKey;
+                        dayOrdersModal.open = false;
+                        openCreateForDate(targetDate);
+                    }}
+                    class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
+                >
+                    <span>➕</span>
+                    <span>Crear pedido para este día</span>
+                </button>
+
+                <button
+                    type="button"
+                    onclick={() => dayOrdersModal.open = false}
+                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs"
+                >
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}

@@ -93,9 +93,20 @@ class CreateOrderAction
             }
 
             // 4. Crear la orden (la "US" en el tablero Kanban)
-            $committedDeliveryAt = !empty($data['committed_delivery_at'])
-                ? Carbon::parse($data['committed_delivery_at'])
-                : null;
+            $committedDeliveryAt = null;
+            if (!empty($data['committed_delivery_at'])) {
+                $rawVal = trim((string) $data['committed_delivery_at']);
+                if (preg_match('/^(\d{4}-\d{2}-\d{2})/', $rawVal, $m)) {
+                    $datePart = $m[1];
+                    $timePart = '17:00:00';
+                    if (preg_match('/[T ](\d{2}:\d{2}(?::\d{2})?)/', $rawVal, $tm)) {
+                        $timePart = strlen($tm[1]) === 5 ? $tm[1] . ':00' : $tm[1];
+                    }
+                    $committedDeliveryAt = "{$datePart} {$timePart}";
+                } else {
+                    $committedDeliveryAt = Carbon::parse($rawVal)->format('Y-m-d H:i:s');
+                }
+            }
 
             /** @var Order $order */
             $order = Order::withoutGlobalScope('tenant')->create([

@@ -32,12 +32,15 @@ class ProductController extends Controller
     public function index(Request $request): Response
     {
         $search = $request->string('search')->trim()->value();
+        $typeId = $request->input('product_type_id');
+        $wfId = $request->input('workflow_id');
 
         $products = Product::query()
             ->when(!empty($search), function ($query) use ($search): void {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('barcode', 'like', "%{$search}%");
+                $query->where(fn ($sub) => $sub->where('name', 'like', "%{$search}%")->orWhere('barcode', 'like', "%{$search}%"));
             })
+            ->when(!empty($typeId), fn ($q) => $q->where('product_type_id', (int) $typeId))
+            ->when(!empty($wfId), fn ($q) => $q->where('workflow_id', (int) $wfId))
             ->with([
                 'productType',
                 'workflow',
@@ -55,7 +58,11 @@ class ProductController extends Controller
             'rawMaterials' => RawMaterial::orderBy('name')->get(['id', 'name', 'unit_of_measure', 'current_stock', 'reserved_stock']),
             'orthogonalAttributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
             'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
-            'filters' => ['search' => $search],
+            'filters' => [
+                'search' => $search,
+                'product_type_id' => $typeId ? (int) $typeId : '',
+                'workflow_id' => $wfId ? (int) $wfId : '',
+            ],
         ]);
     }
 

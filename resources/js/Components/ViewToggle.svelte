@@ -7,6 +7,7 @@
     let {
         mode = $bindable('table'),
         storageKey = 'gekaem_view_mode',
+        showCalendar = false,
         onchange,
     } = $props();
 
@@ -14,7 +15,7 @@
     $effect(() => {
         if (typeof window !== 'undefined' && storageKey) {
             const saved = localStorage.getItem(storageKey);
-            if (saved === 'cards' || saved === 'table') {
+            if (saved === 'cards' || saved === 'table' || (showCalendar && saved === 'calendar')) {
                 if (mode !== saved) {
                     mode = saved;
                 }
@@ -63,4 +64,19 @@
         </svg>
         <span>Tarjetas</span>
     </button>
+
+    {#if showCalendar}
+        <button
+            type="button"
+            onclick={() => setView('calendar')}
+            class="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all {mode === 'calendar' ? 'bg-slate-800 text-emerald-400 shadow-sm border border-slate-700 font-bold' : 'text-slate-400 hover:text-slate-200'}"
+            title="Vista en Calendario Mensual"
+            aria-pressed={mode === 'calendar'}
+        >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>Calendario</span>
+        </button>
+    {/if}
 </div>
