@@ -538,6 +538,15 @@
                                         <div class="flex items-center justify-end gap-1.5">
                                             <button
                                                 type="button"
+                                                onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
+                                                class="px-2.5 py-1 rounded-lg bg-sky-950/60 hover:bg-sky-900/60 text-sky-400 hover:text-sky-300 border border-sky-800/60 text-xs font-semibold transition-colors flex items-center gap-1"
+                                                title="Ver en Tablero Kanban aislado"
+                                            >
+                                                <span>📋</span>
+                                                <span>Ver en Tablero</span>
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onclick={() => openPaymentModal(order)}
                                                 class="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-colors"
                                                 title="Registrar Abono o Ver Pagos"
@@ -564,9 +573,19 @@
                                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                                 <!-- Productos y Tareas de Producción -->
                                                 <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-2.5">
-                                                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block border-b border-slate-800 pb-1.5">
-                                                        Productos Solicitados ({order.production_tasks?.length ?? 0} ítems)
-                                                    </span>
+                                                    <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                                        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                                            Productos Solicitados ({order.production_tasks?.length ?? 0} ítems)
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
+                                                            class="text-[11px] font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-colors"
+                                                            title="Abrir Tablero Kanban de este Pedido"
+                                                        >
+                                                            <span>📋 Ver en Tablero ➔</span>
+                                                        </button>
+                                                    </div>
                                                     <div class="space-y-1.5 max-h-48 overflow-y-auto">
                                                         {#each order.production_tasks ?? [] as task}
                                                             <div class="flex items-center justify-between p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
@@ -758,14 +777,16 @@
 
                             <!-- Acciones -->
                             <div class="flex items-center gap-2 self-end lg:self-center shrink-0">
-                                <Link
-                                    href={`/kanban?order_id=${order.id}`}
-                                    class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 hover:text-sky-300 text-xs font-semibold border border-slate-700 hover:border-sky-500/50 transition-colors flex items-center gap-1.5"
+                                <button
+                                    type="button"
+                                    onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
+                                    class="px-3.5 py-2 rounded-xl bg-sky-950/70 hover:bg-sky-900/70 text-sky-400 hover:text-sky-300 text-xs font-bold border border-sky-800/70 hover:border-sky-500/60 transition-colors flex items-center gap-1.5 shadow-sm"
                                     title="Abrir tablero Kanban aislado para este pedido"
                                 >
-                                    <span>Tablero Kanban</span>
+                                    <span>📋</span>
+                                    <span>Ver en Tablero</span>
                                     <span>➔</span>
-                                </Link>
+                                </button>
 
                                 {#if order.derived_status === 'ready'}
                                     <button

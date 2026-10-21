@@ -1,12 +1,14 @@
 <script>
     import { router, Link } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
+    import { csrfFetch } from '../../Utils/csrfFetch';
 
     let {
         workflows = [],
         orders = [],
         customers = [],
         products = [],
+        productTypes = [],
         selectedOrderId = null,
     } = $props();
 
@@ -29,13 +31,16 @@
     // Vista general: 'kanban' (Macro Pedidos) | 'table' (Tabla de Tareas)
     let generalViewMode = $state('kanban');
 
-    // Filtros progresivos
-    let searchFilter = $state('');
-    let customerFilter = $state('');
-    let statusFilter = $state('all'); // 'all' | 'pending' | 'in_progress' | 'blocked' | 'ready'
-    let deliveryFilter = $state('all'); // 'all' | 'late' | 'today' | 'week'
-    let workflowFilter = $state('');
-    let productFilter = $state('');
+    // Filtros progresivos reactivos
+    let filters = $state({
+        customerId: '',
+        status: 'all', // 'all' | 'pending' | 'in_progress' | 'blocked' | 'ready'
+        dateRange: 'all', // 'all' | 'late' | 'today' | 'week'
+        workflowId: '',
+        productId: '',
+        productTypeId: '',
+        search: '',
+    });
 
     // Estado Drag & Drop para Pedidos Macro y Tareas de Flujo
     let draggedOrderId = $state(null);
@@ -133,7 +138,30 @@
         });
     });
 
-    // Filtrado progresivo de pedidos para el Nivel 1
+    // Comprobador de si una tarea individual coincide con los filtros específicos de producto
+    function taskMatchesSpecificFilters(task) {
+        if (filters.workflowId) {
+            const wfId = getTaskWorkflowId(task);
+            if (String(wfId) !== String(filters.workflowId)) {
+                return false;
+            }
+        }
+        if (filters.productTypeId) {
+            const prod = getTaskProduct(task);
+            if (!prod || String(prod.product_type_id) !== String(filters.productTypeId)) {
+                return false;
+            }
+        }
+        if (filters.productId) {
+            const prod = getTaskProduct(task);
+            if (!prod || String(prod.id) !== String(filters.productId)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Filtrado de pedidos
     let filteredOrders = $derived.by(() => {
         const now = new Date();
         now.setHours(0, 0, 0, 0);
@@ -145,8 +173,8 @@
             const tasks = getOrderTasks(order);
 
             // Buscador general (número o cliente)
-            if (searchFilter.trim()) {
-                const q = searchFilter.toLowerCase().trim();
+            if (filters.search.trim()) {
+                const q = filters.search.toLowerCase().trim();
                 const numStr = String(order.order_number);
                 const custName = (order.customer?.name ?? '').toLowerCase();
                 if (!numStr.includes(q) && !custName.includes(q)) {
@@ -155,44 +183,40 @@
             }
 
             // Filtro por cliente
-            if (customerFilter && String(order.customer_id) !== String(customerFilter)) {
+            if (filters.customerId && String(order.customer_id) !== String(filters.customerId)) {
                 return false;
             }
 
             // Filtro por estado macro del pedido
-            if (statusFilter !== 'all' && order.derived_status !== statusFilter) {
+            if (filters.status !== 'all' && order.derived_status !== filters.status) {
                 return false;
             }
 
             // Filtro por fecha de entrega comprometida
-            if (deliveryFilter !== 'all' && order.committed_delivery_at) {
+            if (filters.dateRange !== 'all' && order.committed_delivery_at) {
                 const deliveryDate = new Date(order.committed_delivery_at);
                 deliveryDate.setHours(0, 0, 0, 0);
 
-                if (deliveryFilter === 'late') {
+                if (filters.dateRange === 'late') {
                     if (deliveryDate >= now || order.derived_status === 'ready') return false;
-                } else if (deliveryFilter === 'today') {
+                } else if (filters.dateRange === 'today') {
                     if (deliveryDate.getTime() !== now.getTime()) return false;
-                } else if (deliveryFilter === 'week') {
+                } else if (filters.dateRange === 'week') {
                     if (deliveryDate < now || deliveryDate > endOfWeek) return false;
                 }
             }
 
-            // Filtro por flujo de trabajo específico
-            if (workflowFilter) {
-                const hasWf = tasks.some(
-                    (t) => String(getTaskWorkflowId(t)) === String(workflowFilter),
+            // En Vista Tabla de Producción:
+            // Si hay filtros específicos (flujo, tipo o producto), el pedido se conserva si AL MENOS UN producto cumple.
+            // NUNCA se oculta el pedido completo si solo un producto del pedido coincide.
+            if (generalViewMode === 'table') {
+                const hasSpecificFilters = Boolean(
+                    filters.workflowId || filters.productTypeId || filters.productId
                 );
-                if (!hasWf) return false;
-            }
-
-            // Filtro por producto específico
-            if (productFilter) {
-                const hasProd = tasks.some((t) => {
-                    const prod = getTaskProduct(t);
-                    return prod && String(prod.id) === String(productFilter);
-                });
-                if (!hasProd) return false;
+                if (hasSpecificFilters) {
+                    const hasMatchingTask = tasks.some(taskMatchesSpecificFilters);
+                    if (!hasMatchingTask) return false;
+                }
             }
 
             return true;
@@ -226,12 +250,17 @@
         return groups;
     });
 
-    // Todas las tareas de los pedidos filtrados para la vista de tabla
+    // Tareas individuales para la vista de tabla con filtrado directo sobre productos
     let filteredTableTasks = $derived.by(() => {
         const list = [];
         for (const order of filteredOrders) {
             const tasks = getOrderTasks(order);
             for (const task of tasks) {
+                // Filtrado directo sobre cada producto/tarea individual
+                if (!taskMatchesSpecificFilters(task)) {
+                    continue;
+                }
+
                 const stage = getTaskStage(task);
                 const wfId = getTaskWorkflowId(task);
                 const wf = workflows.find((w) => Number(w.id) === wfId) ?? task.workflow;
@@ -250,18 +279,38 @@
         return list;
     });
 
-    function resetFilters() {
-        searchFilter = '';
-        customerFilter = '';
-        statusFilter = 'all';
-        deliveryFilter = 'all';
-        workflowFilter = '';
-        productFilter = '';
+    function setGeneralViewMode(mode) {
+        generalViewMode = mode;
+        if (mode === 'kanban') {
+            // Al volver al tablero visual, limpiamos los filtros específicos de producto
+            filters.workflowId = '';
+            filters.productTypeId = '';
+            filters.productId = '';
+        }
     }
 
-    let hasActiveFilters = $derived(
-        Boolean(searchFilter || customerFilter || statusFilter !== 'all' || deliveryFilter !== 'all' || workflowFilter || productFilter),
-    );
+    function resetFilters() {
+        filters.search = '';
+        filters.customerId = '';
+        filters.status = 'all';
+        filters.dateRange = 'all';
+        filters.workflowId = '';
+        filters.productId = '';
+        filters.productTypeId = '';
+    }
+
+    let hasActiveFilters = $derived.by(() => {
+        const generalActive = Boolean(
+            filters.search.trim() ||
+            filters.customerId ||
+            filters.status !== 'all' ||
+            filters.dateRange !== 'all'
+        );
+        if (generalViewMode === 'table') {
+            return generalActive || Boolean(filters.workflowId || filters.productId || filters.productTypeId);
+        }
+        return generalActive;
+    });
 
     function openOrderBoard(orderId) {
         activeOrderId = orderId;
@@ -372,6 +421,88 @@
         );
     }
 
+    // ID de la tarea que se encuentra actualizando su etapa en la tabla de producción
+    let updatingTaskId = $state(null);
+
+    // Obtener las etapas disponibles para el flujo de una tarea
+    function getTaskWorkflowStages(task) {
+        const wfId = getTaskWorkflowId(task);
+        const wf = workflows.find((w) => Number(w.id) === wfId) ?? task.workflow;
+        return wf?.stages ?? wf?.workflow_stages ?? [];
+    }
+
+    // Modificación directa e inmediata de etapa en la tabla de producción
+    async function handleTableTaskStageChange(task, newStageId) {
+        const stageId = Number(newStageId);
+        if (!stageId || stageId === Number(task.current_stage_id ?? task.current_stage?.id)) {
+            return;
+        }
+
+        const targetWorkflowStages = getTaskWorkflowStages(task);
+        const targetStage = targetWorkflowStages.find((s) => Number(s.id) === stageId);
+        if (!targetStage) return;
+
+        const previousStage = task.current_stage;
+        const previousStageId = task.current_stage_id;
+
+        // Optimismo reactivo en el estado local
+        for (const order of localOrders) {
+            if (order.id === task.order_id) {
+                const tasks = getOrderTasks(order);
+                const foundTask = tasks.find((t) => t.id === task.id);
+                if (foundTask) {
+                    foundTask.current_stage_id = stageId;
+                    foundTask.current_stage = targetStage;
+                    foundTask.currentStage = targetStage;
+                    if (['in_progress', 'done'].includes(targetStage.stage_category)) {
+                        foundTask.materials_consumed = true;
+                    }
+                }
+                break;
+            }
+        }
+
+        updatingTaskId = task.id;
+
+        try {
+            const response = await csrfFetch(`/kanban/tasks/${task.id}/stage`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    stage_id: stageId,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al actualizar la etapa de la tarea.');
+            }
+
+            const data = await response.json();
+            if (data.order) {
+                const localOrder = localOrders.find((o) => o.id === task.order_id);
+                if (localOrder && data.order.derived_status) {
+                    localOrder.derived_status = data.order.derived_status;
+                }
+            }
+        } catch (err) {
+            console.error('Error updating task stage:', err);
+            // Rollback en caso de error
+            for (const order of localOrders) {
+                if (order.id === task.order_id) {
+                    const tasks = getOrderTasks(order);
+                    const foundTask = tasks.find((t) => t.id === task.id);
+                    if (foundTask) {
+                        foundTask.current_stage_id = previousStageId;
+                        foundTask.current_stage = previousStage;
+                        foundTask.currentStage = previousStage;
+                    }
+                    break;
+                }
+            }
+        } finally {
+            updatingTaskId = null;
+        }
+    }
+
     function formatCurrency(val) {
         return new Intl.NumberFormat('es-CO', {
             style: 'currency',
@@ -439,7 +570,7 @@
                     <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center">
                         <button
                             type="button"
-                            onclick={() => generalViewMode = 'kanban'}
+                            onclick={() => setGeneralViewMode('kanban')}
                             class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors {generalViewMode === 'kanban' ? 'bg-sky-500 text-white shadow' : 'text-slate-400 hover:text-white'}"
                         >
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -449,7 +580,7 @@
                         </button>
                         <button
                             type="button"
-                            onclick={() => generalViewMode = 'table'}
+                            onclick={() => setGeneralViewMode('table')}
                             class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors {generalViewMode === 'table' ? 'bg-sky-500 text-white shadow' : 'text-slate-400 hover:text-white'}"
                         >
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -478,7 +609,7 @@
                         <input
                             id="filter-search"
                             type="text"
-                            bind:value={searchFilter}
+                            bind:value={filters.search}
                             placeholder="Ej. #104 o 'Camila'..."
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
                         />
@@ -489,7 +620,7 @@
                         <label for="filter-cust" class="block text-[11px] font-semibold text-slate-400 mb-1">Cliente</label>
                         <select
                             id="filter-cust"
-                            bind:value={customerFilter}
+                            bind:value={filters.customerId}
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
                         >
                             <option value="">Todos los Clientes</option>
@@ -504,7 +635,7 @@
                         <label for="filter-status" class="block text-[11px] font-semibold text-slate-400 mb-1">Estado del Pedido</label>
                         <select
                             id="filter-status"
-                            bind:value={statusFilter}
+                            bind:value={filters.status}
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
                         >
                             <option value="all">Todos los Estados</option>
@@ -520,7 +651,7 @@
                         <label for="filter-date" class="block text-[11px] font-semibold text-slate-400 mb-1">Fecha de Entrega</label>
                         <select
                             id="filter-date"
-                            bind:value={deliveryFilter}
+                            bind:value={filters.dateRange}
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
                         >
                             <option value="all">Todas las Fechas</option>
@@ -531,14 +662,14 @@
                     </div>
                 </div>
 
-                <!-- Nivel 2: Filtros Específicos (Flujo y Producto) -->
-                <div class="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                    <div class="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+                <!-- Nivel 2: Filtros Específicos (Flujo, Tipo de Producto y Producto - Solo visibles en Tabla de Producción) -->
+                {#if generalViewMode === 'table'}
+                    <div class="pt-2 border-t border-slate-800/80 flex items-center gap-3 w-full flex-wrap text-xs">
                         <!-- Flujo de Trabajo -->
                         <div class="flex items-center gap-2">
                             <span class="text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</span>
                             <select
-                                bind:value={workflowFilter}
+                                bind:value={filters.workflowId}
                                 class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500"
                             >
                                 <option value="">Todos los Flujos</option>
@@ -548,11 +679,25 @@
                             </select>
                         </div>
 
+                        <!-- Tipo de Producto -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 font-semibold text-[11px] shrink-0">Tipo:</span>
+                            <select
+                                bind:value={filters.productTypeId}
+                                class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500 max-w-[180px] truncate"
+                            >
+                                <option value="">Todos los Tipos</option>
+                                {#each productTypes as pt (pt.id)}
+                                    <option value={pt.id}>{pt.name}</option>
+                                {/each}
+                            </select>
+                        </div>
+
                         <!-- Producto -->
                         <div class="flex items-center gap-2">
                             <span class="text-slate-400 font-semibold text-[11px] shrink-0">Producto:</span>
                             <select
-                                bind:value={productFilter}
+                                bind:value={filters.productId}
                                 class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500 max-w-[200px] truncate"
                             >
                                 <option value="">Todos los Productos</option>
@@ -562,21 +707,26 @@
                             </select>
                         </div>
                     </div>
+                {/if}
 
-                    <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                        <span class="text-slate-500 text-[11px]">
+                <!-- Barra Inferior de Conteo y Limpieza de Filtros -->
+                <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-3 text-xs">
+                    <span class="text-slate-500 text-[11px]">
+                        {#if generalViewMode === 'table'}
+                            {filteredTableTasks.length} producto(s) en {filteredOrders.length} pedido(s)
+                        {:else}
                             {filteredOrders.length} pedido(s) encontrado(s)
-                        </span>
-                        {#if hasActiveFilters}
-                            <button
-                                type="button"
-                                onclick={resetFilters}
-                                class="text-rose-400 hover:text-rose-300 text-[11px] font-semibold underline px-2 py-0.5"
-                            >
-                                Limpiar Filtros
-                            </button>
                         {/if}
-                    </div>
+                    </span>
+                    {#if hasActiveFilters}
+                        <button
+                            type="button"
+                            onclick={resetFilters}
+                            class="text-rose-400 hover:text-rose-300 text-[11px] font-semibold underline px-2 py-0.5"
+                        >
+                            Limpiar Filtros
+                        </button>
+                    {/if}
                 </div>
             </div>
 
@@ -728,7 +878,7 @@
                                     <th class="p-3.5">Cliente</th>
                                     <th class="p-3.5">Producto Solicitado</th>
                                     <th class="p-3.5">Flujo Asignado</th>
-                                    <th class="p-3.5">Etapa Actual (Color HEX)</th>
+                                    <th class="p-3.5">Etapa Actual (Modificar)</th>
                                     <th class="p-3.5">Tiempo Est.</th>
                                     <th class="p-3.5">Entrega</th>
                                     <th class="p-3.5 text-right">Acción</th>
@@ -743,6 +893,9 @@
                                     </tr>
                                 {:else}
                                     {#each filteredTableTasks as task (task.id)}
+                                        {@const taskStages = getTaskWorkflowStages(task)}
+                                        {@const curStage = task.current_stage ?? getTaskStage(task)}
+                                        {@const curColor = curStage?.color || '#64748b'}
                                         <tr class="hover:bg-slate-800/30 transition-colors">
                                             <td class="p-3.5 font-mono font-bold text-sky-400">
                                                 #{task.order_number}
@@ -758,15 +911,42 @@
                                                 {task.workflow?.name ?? 'No asignado'}
                                             </td>
                                             <td class="p-3.5">
-                                                {#if task.current_stage}
-                                                    <span
-                                                        class="px-2 py-0.5 rounded text-[10px] font-bold inline-block"
-                                                        style="background-color: {task.current_stage.color || '#64748b'}22; color: {task.current_stage.color || '#64748b'}; border: 1px solid {task.current_stage.color || '#64748b'}55;"
-                                                    >
-                                                        {task.current_stage.name}
-                                                    </span>
+                                                {#if taskStages.length > 0}
+                                                    <div class="relative inline-flex items-center">
+                                                        <select
+                                                            value={task.current_stage_id ?? curStage?.id}
+                                                            onchange={(e) => handleTableTaskStageChange(task, e.target.value)}
+                                                            disabled={updatingTaskId === task.id}
+                                                            class="pl-2.5 pr-7 py-1.5 rounded-xl text-[11px] font-bold transition-all focus:outline-none cursor-pointer border shadow-sm appearance-none disabled:opacity-60 disabled:cursor-wait"
+                                                            style="background-color: {curColor}1c; color: {curColor}; border-color: {curColor}55;"
+                                                            title="Modificar etapa de producción"
+                                                        >
+                                                            {#each taskStages as st (st.id)}
+                                                                <option
+                                                                    value={st.id}
+                                                                    class="bg-slate-900 text-white font-medium py-1"
+                                                                    style="color: {st.color || '#fff'};"
+                                                                >
+                                                                    ● {st.name}
+                                                                </option>
+                                                            {/each}
+                                                        </select>
+                                                        <!-- Flecha o Spinner interactivo -->
+                                                        <div class="pointer-events-none absolute right-2 flex items-center" style="color: {curColor};">
+                                                            {#if updatingTaskId === task.id}
+                                                                <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                                                </svg>
+                                                            {:else}
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                                                </svg>
+                                                            {/if}
+                                                        </div>
+                                                    </div>
                                                 {:else}
-                                                    <span class="text-slate-600 italic">Sin etapa</span>
+                                                    <span class="text-slate-600 italic text-[11px]">Sin etapas</span>
                                                 {/if}
                                             </td>
                                             <td class="p-3.5 font-mono text-amber-300">

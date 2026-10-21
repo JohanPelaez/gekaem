@@ -8,8 +8,10 @@ use App\Actions\Kanban\MoveProductionTaskAction;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductType;
 use App\Models\ProductionTask;
 use App\Models\Workflow;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +35,7 @@ class KanbanController extends Controller
         $orders = Order::where('derived_status', '!=', 'delivered')
             ->with([
                 'customer',
-                'productionTasks.productVariant.product',
+                'productionTasks.productVariant.product.productType',
                 'productionTasks.workflow.stages' => fn ($q) => $q->orderBy('position'),
                 'productionTasks.currentStage',
             ])
@@ -46,6 +48,7 @@ class KanbanController extends Controller
             'orders' => $orders,
             'customers' => Customer::orderBy('name')->get(['id', 'name']),
             'products' => Product::orderBy('name')->get(['id', 'name']),
+            'productTypes' => ProductType::orderBy('name')->get(['id', 'name']),
             'selectedOrderId' => $selectedOrderId,
         ]);
     }
@@ -77,23 +80,38 @@ class KanbanController extends Controller
     }
 
     /**
-     * Move a Kanban production task to a new stage.
+     * Move or update a Kanban production task to a new stage.
      */
     public function moveTask(
         Request $request,
         ProductionTask $productionTask,
         MoveProductionTaskAction $moveAction
-    ): RedirectResponse {
+    ): JsonResponse|RedirectResponse {
         $validated = $request->validate([
-            'target_stage_id' => ['required', 'integer', 'exists:workflow_stages,id'],
+            'target_stage_id' => ['nullable', 'integer', 'exists:workflow_stages,id'],
+            'stage_id' => ['nullable', 'integer', 'exists:workflow_stages,id'],
             'column_position' => ['nullable', 'integer'],
         ]);
 
-        $moveAction->execute(
+        $stageId = (int) ($validated['stage_id'] ?? $validated['target_stage_id']);
+        if (!$stageId) {
+            return response()->json(['error' => 'Se requiere el campo stage_id o target_stage_id.'], 422);
+        }
+
+        $updatedTask = $moveAction->execute(
             $productionTask,
-            (int) $validated['target_stage_id'],
+            $stageId,
             (int) ($validated['column_position'] ?? 0)
         );
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Etapa actualizada correctamente.',
+                'task' => $updatedTask->load(['currentStage', 'workflow']),
+                'order' => $updatedTask->order,
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Tarea actualizada correctamente en el tablero Kanban.');
     }

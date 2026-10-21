@@ -33,6 +33,7 @@ Route::middleware(['auth'])->group(function (): void {
     Route::prefix('kanban')->name('kanban.')->group(function (): void {
         Route::get('/', [KanbanController::class, 'index'])->name('index');
         Route::patch('/tasks/{productionTask}/move', [KanbanController::class, 'moveTask'])->name('tasks.move');
+        Route::patch('/tasks/{productionTask}/stage', [KanbanController::class, 'moveTask'])->name('tasks.stage');
         Route::patch('/orders/{order}/macro-status', [KanbanController::class, 'macroStatus'])->name('orders.macro-status');
     });
 

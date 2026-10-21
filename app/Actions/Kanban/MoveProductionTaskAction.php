@@ -31,8 +31,8 @@ class MoveProductionTaskAction
             $task->current_stage_id = $targetStage->id;
             $task->column_position = $columnPosition;
 
-            // Registrar inicio si entra por primera vez a producción
-            if ($targetStage->stage_category === 'in_progress' && $task->started_at === null) {
+            // Registrar inicio si entra por primera vez a producción o se finaliza
+            if (in_array($targetStage->stage_category, ['in_progress', 'done'], true) && $task->started_at === null) {
                 $task->started_at = Carbon::now();
             }
 
@@ -41,8 +41,8 @@ class MoveProductionTaskAction
                 $task->completed_at = Carbon::now();
             }
 
-            // Descontar materia prima si entra a in_progress y aún no se ha consumido
-            if ($targetStage->stage_category === 'in_progress' && !$task->materials_consumed) {
+            // Descontar materia prima si entra a in_progress o done y aún no se ha consumido
+            if (in_array($targetStage->stage_category, ['in_progress', 'done'], true) && !$task->materials_consumed) {
                 $variant = $task->productVariant()->with('product')->first();
 
                 if ($variant !== null) {
