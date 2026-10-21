@@ -10,9 +10,11 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderPaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\QuickCreateController;
 use App\Http\Controllers\RawMaterialController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TenantSettingsController;
+use App\Http\Controllers\UnitOfMeasureController;
 use App\Http\Controllers\WorkflowController;
 use Illuminate\Support\Facades\Route;
 
@@ -89,6 +91,26 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/{workflow}/stages', [WorkflowController::class, 'storeStage'])->name('stages.store');
         Route::patch('/stages/{stage}', [WorkflowController::class, 'updateStage'])->name('stages.update');
         Route::delete('/stages/{stage}', [WorkflowController::class, 'destroyStage'])->name('stages.destroy');
+    });
+
+    // Unidades de Medida
+    Route::prefix('units-of-measure')->name('units-of-measure.')->group(function (): void {
+        Route::get('/', [UnitOfMeasureController::class, 'index'])->name('index');
+        Route::post('/', [UnitOfMeasureController::class, 'store'])->name('store');
+        Route::patch('/{unitOfMeasure}', [UnitOfMeasureController::class, 'update'])->name('update');
+        Route::delete('/{unitOfMeasure}', [UnitOfMeasureController::class, 'destroy'])->name('destroy');
+    });
+
+    // Rutas de Creación Rápida en Contexto (Quick Create)
+    Route::prefix('quick')->name('quick.')->group(function (): void {
+        Route::post('/product-types', [QuickCreateController::class, 'productType'])->name('product-types');
+        Route::post('/workflows', [QuickCreateController::class, 'workflow'])->name('workflows');
+        Route::post('/suppliers', [QuickCreateController::class, 'supplier'])->name('suppliers');
+        Route::post('/customers', [QuickCreateController::class, 'customer'])->name('customers');
+        Route::post('/raw-materials', [QuickCreateController::class, 'rawMaterial'])->name('raw-materials');
+        Route::post('/units-of-measure', [QuickCreateController::class, 'unitOfMeasure'])->name('units-of-measure');
+        Route::post('/attributes', [QuickCreateController::class, 'attribute'])->name('attributes');
+        Route::post('/attributes/{orthogonalAttribute}/options', [QuickCreateController::class, 'attributeOption'])->name('attributes.options');
     });
 
     // Perfil de Usuario y Ajustes

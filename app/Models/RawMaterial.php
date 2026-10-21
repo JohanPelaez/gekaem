@@ -15,6 +15,27 @@ class RawMaterial extends Model
     use BelongsToTenant, HasFactory;
 
     /**
+     * Unidades de medida disponibles para materias primas.
+     *
+     * @var list<string>
+     */
+    public const UNITS_OF_MEASURE = [
+        'unidad',
+        'par',
+        'docena',
+        'metro',
+        'centimetro',
+        'rollo',
+        'lamina',
+        'pliego',
+        'gramo',
+        'kilogramo',
+        'litro',
+        'mililitro',
+        'paquete',
+    ];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>

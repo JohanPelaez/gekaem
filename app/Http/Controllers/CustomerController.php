@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -53,6 +54,7 @@ class CustomerController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        $validated['name'] = Str::title(trim($validated['name']));
         Customer::create($validated);
 
         return redirect()->back()->with('success', 'Cliente registrado con éxito.');
@@ -72,6 +74,7 @@ class CustomerController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        $validated['name'] = Str::title(trim($validated['name']));
         $customer->update($validated);
 
         return redirect()->back()->with('success', 'Cliente actualizado con éxito.');

@@ -7,9 +7,11 @@ namespace App\Http\Controllers;
 use App\Models\RawMaterial;
 use App\Models\RawMaterialMovement;
 use App\Models\Supplier;
+use App\Models\UnitOfMeasure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -40,6 +42,7 @@ class RawMaterialController extends Controller
         return Inertia::render('RawMaterials/Index', [
             'rawMaterials' => $rawMaterials,
             'allSuppliers' => $allSuppliers,
+            'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
             'filters' => ['search' => $search],
         ]);
     }
@@ -65,7 +68,7 @@ class RawMaterialController extends Controller
         DB::transaction(function () use ($validated): void {
             /** @var RawMaterial $material */
             $material = RawMaterial::create([
-                'name' => $validated['name'],
+                'name' => Str::title(trim($validated['name'])),
                 'sku' => $validated['sku'] ?? null,
                 'unit_of_measure' => $validated['unit_of_measure'],
                 'current_stock' => $validated['current_stock'],
@@ -121,7 +124,7 @@ class RawMaterialController extends Controller
 
         DB::transaction(function () use ($rawMaterial, $validated): void {
             $rawMaterial->update([
-                'name' => $validated['name'],
+                'name' => Str::title(trim($validated['name'])),
                 'sku' => $validated['sku'] ?? null,
                 'unit_of_measure' => $validated['unit_of_measure'],
                 'min_stock_alert' => $validated['min_stock_alert'],

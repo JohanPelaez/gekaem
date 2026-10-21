@@ -46,10 +46,10 @@ class CatalogAndInventoryTest extends TestCase
             'notes' => 'Cliente VIP',
         ]);
         $createResponse->assertRedirect();
-        $this->assertDatabaseHas('customers', ['name' => 'Nuevo Cliente de Prueba']);
+        $this->assertDatabaseHas('customers', ['name' => 'Nuevo Cliente De Prueba']);
 
         // 3. Update
-        $customer = Customer::where('name', 'Nuevo Cliente de Prueba')->firstOrFail();
+        $customer = Customer::where('name', 'Nuevo Cliente De Prueba')->firstOrFail();
         $updateResponse = $this->patch("/customers/{$customer->id}", [
             'name' => 'Cliente Modificado',
             'phone' => '+57 300 111 2233',
@@ -79,16 +79,16 @@ class CatalogAndInventoryTest extends TestCase
             'lead_time_days' => 4,
         ]);
         $createResponse->assertRedirect();
-        $this->assertDatabaseHas('suppliers', ['name' => 'Insumos del Caribe', 'lead_time_days' => 4]);
+        $this->assertDatabaseHas('suppliers', ['name' => 'Insumos Del Caribe', 'lead_time_days' => 4]);
 
         // 3. Update
-        $supplier = Supplier::where('name', 'Insumos del Caribe')->firstOrFail();
+        $supplier = Supplier::where('name', 'Insumos Del Caribe')->firstOrFail();
         $updateResponse = $this->patch("/suppliers/{$supplier->id}", [
             'name' => 'Insumos del Caribe S.A.S.',
             'lead_time_days' => 5,
         ]);
         $updateResponse->assertRedirect();
-        $this->assertDatabaseHas('suppliers', ['name' => 'Insumos del Caribe S.A.S.', 'lead_time_days' => 5]);
+        $this->assertDatabaseHas('suppliers', ['name' => 'Insumos Del Caribe S.a.s.', 'lead_time_days' => 5]);
 
         // 4. Destroy
         $deleteResponse = $this->delete("/suppliers/{$supplier->id}");
@@ -117,9 +117,9 @@ class CatalogAndInventoryTest extends TestCase
             ],
         ]);
         $response->assertRedirect();
-        $this->assertDatabaseHas('raw_materials', ['name' => 'Botones Metálicos 15mm']);
+        $this->assertDatabaseHas('raw_materials', ['name' => 'Botones Metálicos 15Mm']);
 
-        $material = RawMaterial::where('name', 'Botones Metálicos 15mm')->firstOrFail();
+        $material = RawMaterial::where('name', 'Botones Metálicos 15Mm')->firstOrFail();
         $this->assertCount(1, $material->suppliers);
         $this->assertSame($supplier->id, $material->suppliers->first()->id);
 
@@ -148,7 +148,7 @@ class CatalogAndInventoryTest extends TestCase
             'unit_cost' => 0.30,
         ]);
         $updateResponse->assertRedirect();
-        $this->assertDatabaseHas('raw_materials', ['name' => 'Botones Metálicos Reforzados 15mm']);
+        $this->assertDatabaseHas('raw_materials', ['name' => 'Botones Metálicos Reforzados 15Mm']);
 
         // 4. Destroy
         $this->delete("/raw-materials/{$material->id}")->assertRedirect();

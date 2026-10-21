@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Supplier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -53,6 +54,7 @@ class SupplierController extends Controller
             'lead_time_days' => ['required', 'integer', 'min:0', 'max:365'],
         ]);
 
+        $validated['name'] = Str::title(trim($validated['name']));
         Supplier::create($validated);
 
         return redirect()->back()->with('success', 'Proveedor registrado con éxito.');
@@ -71,6 +73,7 @@ class SupplierController extends Controller
             'lead_time_days' => ['required', 'integer', 'min:0', 'max:365'],
         ]);
 
+        $validated['name'] = Str::title(trim($validated['name']));
         $supplier->update($validated);
 
         return redirect()->back()->with('success', 'Proveedor actualizado con éxito.');

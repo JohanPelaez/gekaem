@@ -151,4 +151,24 @@ class Tenant extends Model
     {
         return $this->hasMany(ProductionTask::class);
     }
+
+    /**
+     * Get the units of measure belonging to the tenant.
+     *
+     * @return HasMany<UnitOfMeasure>
+     */
+    public function unitsOfMeasure(): HasMany
+    {
+        return $this->hasMany(UnitOfMeasure::class);
+    }
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Tenant $tenant): void {
+            UnitOfMeasure::seedDefaultsForTenant($tenant->id);
+        });
+    }
 }

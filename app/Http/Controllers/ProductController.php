@@ -14,11 +14,13 @@ use App\Models\ProductVariant;
 use App\Models\ProductionTask;
 use App\Models\RawMaterial;
 use App\Models\Tenant;
+use App\Models\UnitOfMeasure;
 use App\Models\Workflow;
 use App\Support\ProductionTimeConverter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -52,6 +54,7 @@ class ProductController extends Controller
             'workflows' => Workflow::orderBy('name')->get(['id', 'name']),
             'rawMaterials' => RawMaterial::orderBy('name')->get(['id', 'name', 'unit_of_measure', 'current_stock', 'reserved_stock']),
             'orthogonalAttributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
+            'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
             'filters' => ['search' => $search],
         ]);
     }
@@ -66,6 +69,7 @@ class ProductController extends Controller
             'product_type_id' => ['nullable', 'integer', 'exists:product_types,id'],
             'workflow_id' => ['required', 'integer', 'exists:workflows,id'],
             'barcode' => ['nullable', 'string', 'max:100'],
+            'barcode_format' => ['nullable', 'string', 'in:CODE128,CODE39,EAN13,UPC,EAN8,ITF14'],
             'time_value' => ['required', 'numeric', 'min:0.1'],
             'production_time_unit' => ['required', 'in:minutes,hours,days'],
             'buffer_percentage' => ['required', 'integer', 'min:0', 'max:100'],
@@ -90,10 +94,11 @@ class ProductController extends Controller
 
             /** @var Product $product */
             $product = Product::create([
-                'name' => $validated['name'],
+                'name' => Str::title(trim($validated['name'])),
                 'product_type_id' => $validated['product_type_id'] ?? null,
                 'workflow_id' => $validated['workflow_id'],
                 'barcode' => $validated['barcode'] ?? null,
+                'barcode_format' => $validated['barcode_format'] ?? 'CODE128',
                 'base_production_minutes' => $baseMinutes,
                 'production_time_unit' => $validated['production_time_unit'],
                 'buffer_percentage' => $validated['buffer_percentage'],
@@ -139,6 +144,7 @@ class ProductController extends Controller
             'product_type_id' => ['nullable', 'integer', 'exists:product_types,id'],
             'workflow_id' => ['required', 'integer', 'exists:workflows,id'],
             'barcode' => ['nullable', 'string', 'max:100'],
+            'barcode_format' => ['nullable', 'string', 'in:CODE128,CODE39,EAN13,UPC,EAN8,ITF14'],
             'time_value' => ['required', 'numeric', 'min:0.1'],
             'production_time_unit' => ['required', 'in:minutes,hours,days'],
             'buffer_percentage' => ['required', 'integer', 'min:0', 'max:100'],
@@ -166,10 +172,11 @@ class ProductController extends Controller
             );
 
             $product->update([
-                'name' => $validated['name'],
+                'name' => Str::title(trim($validated['name'])),
                 'product_type_id' => $validated['product_type_id'] ?? null,
                 'workflow_id' => $validated['workflow_id'],
                 'barcode' => $validated['barcode'] ?? null,
+                'barcode_format' => $validated['barcode_format'] ?? 'CODE128',
                 'base_production_minutes' => $baseMinutes,
                 'production_time_unit' => $validated['production_time_unit'],
                 'buffer_percentage' => $validated['buffer_percentage'],
@@ -229,7 +236,9 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:100'],
         ]);
 
-        ProductType::create($validated);
+        ProductType::create([
+            'name' => Str::title(trim($validated['name'])),
+        ]);
 
         return redirect()->back()->with('success', 'Tipo de producto creado.');
     }
@@ -243,7 +252,9 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:100'],
         ]);
 
-        OrthogonalAttribute::create($validated);
+        OrthogonalAttribute::create([
+            'name' => Str::title(trim($validated['name'])),
+        ]);
 
         return redirect()->back()->with('success', 'Eje de atributo ortogonal creado.');
     }

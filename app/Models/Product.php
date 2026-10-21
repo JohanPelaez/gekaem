@@ -25,6 +25,7 @@ class Product extends Model
         'workflow_id',
         'name',
         'barcode',
+        'barcode_format',
         'base_production_minutes',
         'production_time_unit',
         'buffer_percentage',
