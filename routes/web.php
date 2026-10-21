@@ -33,6 +33,7 @@ Route::middleware(['auth'])->group(function (): void {
     Route::prefix('kanban')->name('kanban.')->group(function (): void {
         Route::get('/', [KanbanController::class, 'index'])->name('index');
         Route::patch('/tasks/{productionTask}/move', [KanbanController::class, 'moveTask'])->name('tasks.move');
+        Route::patch('/orders/{order}/macro-status', [KanbanController::class, 'macroStatus'])->name('orders.macro-status');
     });
 
     // Módulo 1: Pedidos, Calculadora Predictiva de Entrega y Cierre Kanban
@@ -88,7 +89,9 @@ Route::middleware(['auth'])->group(function (): void {
     Route::prefix('workflows')->name('workflows.')->group(function (): void {
         Route::get('/', [WorkflowController::class, 'index'])->name('index');
         Route::post('/', [WorkflowController::class, 'store'])->name('store');
+        Route::patch('/{workflow}', [WorkflowController::class, 'update'])->name('update');
         Route::post('/{workflow}/stages', [WorkflowController::class, 'storeStage'])->name('stages.store');
+        Route::post('/{workflow}/stages/reorder', [WorkflowController::class, 'reorderStages'])->name('stages.reorder');
         Route::patch('/stages/{stage}', [WorkflowController::class, 'updateStage'])->name('stages.update');
         Route::delete('/stages/{stage}', [WorkflowController::class, 'destroyStage'])->name('stages.destroy');
     });

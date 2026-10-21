@@ -2,13 +2,13 @@
     import { router, Link } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
 
-    let { workflows = [], selectedWorkflowId = null, orders = [] } = $props();
-
-    // Estado reactivo local en Svelte 5
-    let viewMode = $state('swimlanes'); // 'swimlanes' | 'columns'
-    let draggedTaskId = $state(null);
-    let dragOverStageId = $state(null);
-    let isMoving = $state(false);
+    let {
+        workflows = [],
+        orders = [],
+        customers = [],
+        products = [],
+        selectedOrderId = null,
+    } = $props();
 
     // Copia local de pedidos para optimismo reactivo
     let localOrders = $state([]);
@@ -17,48 +17,322 @@
         localOrders = JSON.parse(JSON.stringify(orders));
     });
 
-    let currentWorkflow = $derived(
-        workflows.find((w) => w.id === selectedWorkflowId) ?? workflows[0],
-    );
-    let stages = $derived(currentWorkflow?.stages ?? []);
+    // ID del pedido actualmente abierto en vista aislada
+    let activeOrderId = $state(null);
 
-    // Estado derivado: todas las tareas agrupadas para la vista de columnas
-    let allTasks = $derived(
-        localOrders.flatMap((order) =>
-            (order.tasks ?? []).map((task) => ({
-                ...task,
-                order_number: order.order_number,
-                customer_name: order.customer?.name ?? 'Cliente',
-                order_status: order.derived_status,
-            })),
-        ),
+    $effect(() => {
+        if (selectedOrderId) {
+            activeOrderId = Number(selectedOrderId);
+        }
+    });
+
+    // Vista general: 'kanban' (Macro Pedidos) | 'table' (Tabla de Tareas)
+    let generalViewMode = $state('kanban');
+
+    // Filtros progresivos
+    let searchFilter = $state('');
+    let customerFilter = $state('');
+    let statusFilter = $state('all'); // 'all' | 'pending' | 'in_progress' | 'blocked' | 'ready'
+    let deliveryFilter = $state('all'); // 'all' | 'late' | 'today' | 'week'
+    let workflowFilter = $state('');
+    let productFilter = $state('');
+
+    // Estado Drag & Drop para Pedidos Macro y Tareas de Flujo
+    let draggedOrderId = $state(null);
+    let dragOverMacroStatus = $state(null);
+    let draggedTaskId = $state(null);
+    let dragOverStageId = $state(null);
+    let isMoving = $state(false);
+
+    // --- FUNCIONES HELPER SEGURAS (SOPORTAN snake_case Y camelCase) ---
+    function getOrderTasks(order) {
+        return order?.production_tasks ?? order?.productionTasks ?? [];
+    }
+
+    function getTaskVariant(task) {
+        return task?.product_variant ?? task?.productVariant ?? null;
+    }
+
+    function getTaskProduct(task) {
+        return getTaskVariant(task)?.product ?? task?.product ?? null;
+    }
+
+    function getTaskStage(task) {
+        return task?.current_stage ?? task?.currentStage ?? null;
+    }
+
+    function getTaskWorkflowId(task) {
+        return Number(task?.workflow_id ?? task?.workflow?.id ?? getTaskProduct(task)?.workflow_id ?? 0);
+    }
+
+    // Pedido actualmente seleccionado en el Nivel 2
+    let activeOrder = $derived(
+        activeOrderId ? localOrders.find((o) => o.id === activeOrderId) ?? null : null,
     );
 
-    function selectWorkflow(wfId) {
-        router.get(
-            '/kanban',
-            { workflow_id: wfId },
-            { preserveState: true, preserveScroll: true },
+    // Flujos únicos presentes en las tareas del pedido activo
+    let orderWorkflows = $derived.by(() => {
+        if (!activeOrder) return [];
+        const tasks = getOrderTasks(activeOrder);
+        const map = new Map();
+
+        for (const task of tasks) {
+            const wfId = getTaskWorkflowId(task);
+            const fullWf = workflows.find((w) => Number(w.id) === wfId) ?? task.workflow;
+            if (fullWf && fullWf.id) {
+                const id = Number(fullWf.id);
+                if (!map.has(id)) {
+                    map.set(id, {
+                        ...fullWf,
+                        stages: fullWf.stages ?? fullWf.workflow_stages ?? [],
+                        tasksCount: 0,
+                    });
+                }
+                map.get(id).tasksCount++;
+            }
+        }
+
+        // Si ninguna tarea mapeó a un flujo pero hay flujos disponibles en el tenant
+        if (map.size === 0 && workflows.length > 0) {
+            const fallbackWf = workflows.find((w) => w.is_default) ?? workflows[0];
+            map.set(Number(fallbackWf.id), {
+                ...fallbackWf,
+                stages: fallbackWf.stages ?? fallbackWf.workflow_stages ?? [],
+                tasksCount: tasks.length,
+            });
+        }
+
+        return Array.from(map.values());
+    });
+
+    // ID del flujo seleccionado dentro del pedido
+    let selectedOrderWorkflowId = $state(null);
+
+    // Flujo activo en el pedido con fallback automático al primero
+    let activeOrderWorkflow = $derived.by(() => {
+        if (orderWorkflows.length === 0) return null;
+        if (selectedOrderWorkflowId) {
+            const found = orderWorkflows.find((w) => Number(w.id) === Number(selectedOrderWorkflowId));
+            if (found) return found;
+        }
+        return orderWorkflows[0];
+    });
+
+    let activeOrderStages = $derived(
+        activeOrderWorkflow?.stages ?? [],
+    );
+
+    // Tareas del pedido activo en el flujo seleccionado
+    let activeOrderTasks = $derived.by(() => {
+        if (!activeOrder) return [];
+        const tasks = getOrderTasks(activeOrder);
+        if (!activeOrderWorkflow) return tasks;
+        return tasks.filter((t) => {
+            const wfId = getTaskWorkflowId(t);
+            return wfId === Number(activeOrderWorkflow.id) || (wfId === 0 && orderWorkflows.length === 1);
+        });
+    });
+
+    // Filtrado progresivo de pedidos para el Nivel 1
+    let filteredOrders = $derived.by(() => {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        const endOfWeek = new Date(now);
+        endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
+
+        return localOrders.filter((order) => {
+            const tasks = getOrderTasks(order);
+
+            // Buscador general (número o cliente)
+            if (searchFilter.trim()) {
+                const q = searchFilter.toLowerCase().trim();
+                const numStr = String(order.order_number);
+                const custName = (order.customer?.name ?? '').toLowerCase();
+                if (!numStr.includes(q) && !custName.includes(q)) {
+                    return false;
+                }
+            }
+
+            // Filtro por cliente
+            if (customerFilter && String(order.customer_id) !== String(customerFilter)) {
+                return false;
+            }
+
+            // Filtro por estado macro del pedido
+            if (statusFilter !== 'all' && order.derived_status !== statusFilter) {
+                return false;
+            }
+
+            // Filtro por fecha de entrega comprometida
+            if (deliveryFilter !== 'all' && order.committed_delivery_at) {
+                const deliveryDate = new Date(order.committed_delivery_at);
+                deliveryDate.setHours(0, 0, 0, 0);
+
+                if (deliveryFilter === 'late') {
+                    if (deliveryDate >= now || order.derived_status === 'ready') return false;
+                } else if (deliveryFilter === 'today') {
+                    if (deliveryDate.getTime() !== now.getTime()) return false;
+                } else if (deliveryFilter === 'week') {
+                    if (deliveryDate < now || deliveryDate > endOfWeek) return false;
+                }
+            }
+
+            // Filtro por flujo de trabajo específico
+            if (workflowFilter) {
+                const hasWf = tasks.some(
+                    (t) => String(getTaskWorkflowId(t)) === String(workflowFilter),
+                );
+                if (!hasWf) return false;
+            }
+
+            // Filtro por producto específico
+            if (productFilter) {
+                const hasProd = tasks.some((t) => {
+                    const prod = getTaskProduct(t);
+                    return prod && String(prod.id) === String(productFilter);
+                });
+                if (!hasProd) return false;
+            }
+
+            return true;
+        });
+    });
+
+    // Columnas macro fijas para pedidos
+    const MACRO_COLUMNS = [
+        { key: 'pending', title: 'Pendientes', color: '#f59e0b', desc: 'Sin iniciar o en cola WIP' },
+        { key: 'in_progress', title: 'En Fabricación', color: '#38bdf8', desc: 'Con tareas operativas en curso' },
+        { key: 'blocked', title: 'Bloqueados', color: '#ef4444', desc: 'En pausa o con impedimentos' },
+        { key: 'ready', title: 'Listos para Entrega', color: '#10b981', desc: 'Todas las tareas terminadas' },
+    ];
+
+    // Pedidos agrupados por columna macro
+    let ordersByMacroColumn = $derived.by(() => {
+        const groups = {
+            pending: [],
+            in_progress: [],
+            blocked: [],
+            ready: [],
+        };
+        for (const order of filteredOrders) {
+            const status = order.derived_status;
+            if (groups[status]) {
+                groups[status].push(order);
+            } else {
+                groups.pending.push(order);
+            }
+        }
+        return groups;
+    });
+
+    // Todas las tareas de los pedidos filtrados para la vista de tabla
+    let filteredTableTasks = $derived.by(() => {
+        const list = [];
+        for (const order of filteredOrders) {
+            const tasks = getOrderTasks(order);
+            for (const task of tasks) {
+                const stage = getTaskStage(task);
+                const wfId = getTaskWorkflowId(task);
+                const wf = workflows.find((w) => Number(w.id) === wfId) ?? task.workflow;
+                list.push({
+                    ...task,
+                    order_id: order.id,
+                    order_number: order.order_number,
+                    customer_name: order.customer?.name ?? 'Cliente',
+                    order_status: order.derived_status,
+                    committed_delivery_at: order.committed_delivery_at,
+                    current_stage: stage,
+                    workflow: wf,
+                });
+            }
+        }
+        return list;
+    });
+
+    function resetFilters() {
+        searchFilter = '';
+        customerFilter = '';
+        statusFilter = 'all';
+        deliveryFilter = 'all';
+        workflowFilter = '';
+        productFilter = '';
+    }
+
+    let hasActiveFilters = $derived(
+        Boolean(searchFilter || customerFilter || statusFilter !== 'all' || deliveryFilter !== 'all' || workflowFilter || productFilter),
+    );
+
+    function openOrderBoard(orderId) {
+        activeOrderId = orderId;
+        selectedOrderWorkflowId = null;
+        const url = new URL(window.location.href);
+        url.searchParams.set('order_id', orderId);
+        window.history.pushState({}, '', url);
+    }
+
+    function closeOrderBoard() {
+        activeOrderId = null;
+        selectedOrderWorkflowId = null;
+        const url = new URL(window.location.href);
+        url.searchParams.delete('order_id');
+        window.history.pushState({}, '', url);
+    }
+
+    // --- ACCIONES MACRO PARA PEDIDOS ---
+    function handleMacroDragStart(e, orderId) {
+        draggedOrderId = orderId;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(orderId));
+    }
+
+    function handleMacroDragOver(e, statusKey) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        dragOverMacroStatus = statusKey;
+    }
+
+    function handleMacroDrop(e, targetStatus) {
+        e.preventDefault();
+        dragOverMacroStatus = null;
+        if (!draggedOrderId) return;
+
+        updateOrderMacroStatus(draggedOrderId, targetStatus);
+        draggedOrderId = null;
+    }
+
+    function updateOrderMacroStatus(orderId, newStatus) {
+        const order = localOrders.find((o) => o.id === orderId);
+        if (!order || order.derived_status === newStatus) return;
+
+        // Actualización optimista
+        order.derived_status = newStatus;
+
+        isMoving = true;
+        router.patch(
+            `/kanban/orders/${orderId}/macro-status`,
+            { status: newStatus },
+            {
+                preserveScroll: true,
+                onFinish: () => { isMoving = false; },
+            },
         );
     }
 
-    function handleDragStart(e, taskId) {
+    // --- ACCIONES DE MOVIMIENTO DE TAREAS DENTRO DE UN FLUJO ---
+    function handleTaskDragStart(e, taskId) {
         draggedTaskId = taskId;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(taskId));
     }
 
-    function handleDragOver(e, stageId) {
+    function handleTaskDragOver(e, stageId) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         dragOverStageId = stageId;
     }
 
-    function handleDragLeave(e) {
-        dragOverStageId = null;
-    }
-
-    function handleDrop(e, targetStageId) {
+    function handleTaskDrop(e, targetStageId) {
         e.preventDefault();
         dragOverStageId = null;
         if (!draggedTaskId) return;
@@ -68,24 +342,23 @@
     }
 
     function moveTask(taskId, targetStageId) {
-        const targetStage = stages.find((s) => s.id === targetStageId);
+        const targetStage = activeOrderStages.find((s) => Number(s.id) === Number(targetStageId));
         if (!targetStage) return;
 
-        // Actualización optimista del estado local en Svelte 5
-        let found = false;
-        for (const order of localOrders) {
-            for (const task of order.tasks ?? []) {
+        // Optimismo reactivo en el pedido activo
+        if (activeOrder) {
+            const tasks = getOrderTasks(activeOrder);
+            for (const task of tasks) {
                 if (task.id === taskId) {
                     task.current_stage_id = targetStageId;
                     task.current_stage = targetStage;
+                    task.currentStage = targetStage;
                     if (targetStage.stage_category === 'in_progress') {
                         task.materials_consumed = true;
                     }
-                    found = true;
                     break;
                 }
             }
-            if (found) break;
         }
 
         isMoving = true;
@@ -94,498 +367,597 @@
             { target_stage_id: targetStageId, column_position: 0 },
             {
                 preserveScroll: true,
-                onFinish: () => {
-                    isMoving = false;
-                },
+                onFinish: () => { isMoving = false; },
             },
         );
     }
 
-    function getStatusBadge(status) {
-        switch (status) {
-            case 'pending':
-                return {
-                    label: 'En Espera',
-                    classes:
-                        'bg-amber-500/15 text-amber-300 border-amber-500/30',
-                };
-            case 'in_progress':
-                return {
-                    label: 'En Producción',
-                    classes: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-                };
-            case 'blocked':
-                return {
-                    label: 'Bloqueado',
-                    classes: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
-                };
-            case 'ready':
-                return {
-                    label: 'Listo para Entrega',
-                    classes:
-                        'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-                };
-            case 'delivered':
-                return {
-                    label: 'Entregado',
-                    classes:
-                        'bg-slate-500/15 text-slate-300 border-slate-500/30',
-                };
-            default:
-                return {
-                    label: status,
-                    classes:
-                        'bg-slate-500/15 text-slate-300 border-slate-500/30',
-                };
-        }
+    function formatCurrency(val) {
+        return new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'COP',
+            maximumFractionDigits: 0,
+        }).format(val || 0);
     }
 
-    function getCategoryColor(category) {
-        switch (category) {
-            case 'pending':
-                return 'bg-amber-400';
-            case 'in_progress':
-                return 'bg-sky-400';
-            case 'blocked':
-                return 'bg-rose-400';
-            case 'done':
-                return 'bg-emerald-400';
-            default:
-                return 'bg-slate-400';
-        }
+    function formatDate(dateStr) {
+        if (!dateStr) return 'Sin fecha';
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('es-CO', {
+            day: '2-digit',
+            month: 'short',
+        });
     }
 
-    function getNextStage(currentStageId) {
-        const idx = stages.findIndex((s) => s.id === currentStageId);
-        if (idx !== -1 && idx < stages.length - 1) {
-            return stages[idx + 1];
-        }
-        return null;
-    }
+    function getDeliveryBadge(dateStr, status) {
+        if (!dateStr) return null;
+        if (status === 'ready' || status === 'delivered') return null;
 
-    function getPrevStage(currentStageId) {
-        const idx = stages.findIndex((s) => s.id === currentStageId);
-        if (idx > 0) {
-            return stages[idx - 1];
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        const d = new Date(dateStr);
+        d.setHours(0, 0, 0, 0);
+
+        const diffDays = Math.round((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            return { text: `Atrasado (${Math.abs(diffDays)}d)`, color: '#ef4444' };
+        }
+        if (diffDays === 0) {
+            return { text: 'Entrega Hoy', color: '#f59e0b' };
+        }
+        if (diffDays === 1) {
+            return { text: 'Mañana', color: '#38bdf8' };
         }
         return null;
     }
 </script>
 
-<AppLayout title="Tablero Kanban">
-    <div class="space-y-6">
-        <!-- ENCABEZADO Y SELECTOR DE FLUJOS (WORKFLOWS) -->
-        <div
-            class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-5 rounded-2xl backdrop-blur-sm"
-        >
-            <div>
-                <div class="flex items-center gap-2">
-                    <span
-                        class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    >
-                        Módulo 5
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-white">
-                        Tablero de Producción Kanban
-                    </h1>
-                </div>
-                <p class="text-xs text-slate-400 mt-1">
-                    Gestión visual Make-to-Order: Los pedidos actúan como
-                    carriles agrupadores (<strong>US</strong>) y los productos
-                    solicitados como tarjetas operativas (<strong
-                        >Tareas</strong
-                    >).
-                </p>
-            </div>
-
-            <!-- Selector de Flujos / Pestañas de Workflows -->
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-xs font-semibold text-slate-400 mr-1"
-                    >Flujo:</span
-                >
-                {#each workflows as wf}
-                    <button
-                        type="button"
-                        onclick={() => selectWorkflow(wf.id)}
-                        class="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all {wf.id ===
-                        currentWorkflow?.id
-                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/80'}"
-                    >
-                        {wf.name}
-                        {#if wf.is_default}
-                            <span
-                                class="ml-1 text-[10px] px-1 py-0.2 bg-black/20 rounded font-normal"
-                                >Defecto</span
-                            >
-                        {/if}
-                    </button>
-                {/each}
-            </div>
-        </div>
-
-        <!-- BARRA DE CONTROL Y SELECTOR DE VISTA -->
-        <div
-            class="flex flex-wrap items-center justify-between gap-3 text-xs border-b border-slate-800/80 pb-3"
-        >
-            <div class="flex items-center gap-2">
-                <span class="text-slate-400">Modo de Visualización:</span>
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-1 flex items-center gap-1">
-                    <button
-                        type="button"
-                        onclick={() => (viewMode = 'swimlanes')}
-                        class="px-3 py-1 rounded-lg font-medium transition-all {viewMode ===
-                        'swimlanes'
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-white'}"
-                    >
-                        Carriles por Pedido (US)
-                    </button>
-                    <button
-                        type="button"
-                        onclick={() => (viewMode = 'columns')}
-                        class="px-3 py-1 rounded-lg font-medium transition-all {viewMode ===
-                        'columns'
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-white'}"
-                    >
-                        Vista Global de Columnas
-                    </button>
-                </div>
-            </div>
-
-            <!-- Leyenda de Estados Dinámicos -->
-            <div class="hidden sm:flex items-center gap-4 text-[11px] text-slate-400">
-                <span class="flex items-center gap-1.5"
-                    ><span class="w-2 h-2 rounded-full bg-amber-400"></span> Pendiente</span
-                >
-                <span class="flex items-center gap-1.5"
-                    ><span class="w-2 h-2 rounded-full bg-sky-400"></span> En Proceso</span
-                >
-                <span class="flex items-center gap-1.5"
-                    ><span class="w-2 h-2 rounded-full bg-rose-400"></span> Bloqueado</span
-                >
-                <span class="flex items-center gap-1.5"
-                    ><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Terminado</span
-                >
-            </div>
-        </div>
-
-        <!-- MODO 1: CARRILES HORIZONTALES (SWIMLANES POR PEDIDO "US") -->
-        {#if viewMode === 'swimlanes'}
-            {#if localOrders.length === 0}
-                <div
-                    class="p-12 text-center bg-slate-900/50 border border-slate-800 rounded-2xl"
-                >
-                    <div
-                        class="w-12 h-12 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-xl mb-3"
-                    >
-                        📦
+<AppLayout title="Tablero Kanban de Producción">
+    <div class="space-y-5">
+        <!-- ========================================== -->
+        <!-- MODO 1: TABLERO GENERAL CENTRADO EN PEDIDOS -->
+        <!-- ========================================== -->
+        {#if !activeOrder}
+            <!-- ENCABEZADO Y CONTROLES GENERALES -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                            Módulo 5
+                        </span>
+                        <h1 class="text-2xl font-bold tracking-tight text-white">Tablero de Producción por Pedidos</h1>
                     </div>
-                    <h3 class="text-base font-semibold text-white">
-                        No hay pedidos activos para este flujo
-                    </h3>
-                    <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                        Crea un nuevo pedido desde el módulo de Pedidos o cambia
-                        al flujo predeterminado.
+                    <p class="text-xs text-slate-400 mt-1">
+                        Monitorea el avance integral de cada pedido ("US") y abre su tablero aislado para gestionar sus productos y flujos de trabajo.
                     </p>
                 </div>
-            {:else}
-                <div class="space-y-6">
-                    {#each localOrders as order (order.id)}
-                        {@const badge = getStatusBadge(order.derived_status)}
-                        <div
-                            class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-lg shadow-black/20"
-                        >
-                            <!-- ENCABEZADO DEL CARRIL (US / PEDIDO) -->
-                            <div
-                                class="bg-slate-900 px-5 py-3.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3"
-                            >
-                                <div class="flex items-center gap-3">
-                                    <div
-                                        class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs"
-                                    >
-                                        #{order.order_number}
-                                    </div>
-                                    <div>
-                                        <div class="flex items-center gap-2">
-                                            <span
-                                                class="font-bold text-sm text-white"
-                                            >
-                                                {order.customer?.name ??
-                                                    'Cliente'}
-                                            </span>
-                                            <span
-                                                class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border {badge.classes}"
-                                            >
-                                                {badge.label}
-                                            </span>
-                                        </div>
-                                        <div
-                                            class="text-[11px] text-slate-400 flex items-center gap-3 mt-0.5"
-                                        >
-                                            <span
-                                                >Total Pedido: <strong
-                                                    class="text-slate-200"
-                                                    >${order.total_amount}</strong
-                                                ></span
-                                            >
-                                            <span>•</span>
-                                            <span
-                                                >Duración con holgura: <strong
-                                                    class="text-amber-300"
-                                                    >{order.formatted_time}</strong
-                                                ></span
-                                            >
-                                        </div>
-                                    </div>
-                                </div>
 
-                                <!-- Predicción de Entrega del Pedido -->
-                                <div
-                                    class="text-right bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800/80 text-xs"
-                                >
-                                    <span class="text-[10px] text-slate-400 uppercase font-semibold block"
-                                        >Entrega Proyectada:</span
-                                    >
-                                    <span class="font-mono text-emerald-400 font-bold">
-                                        {order.predicted_delivery_at
-                                            ? new Date(
-                                                  order.predicted_delivery_at,
-                                              ).toLocaleDateString('es-CO', {
-                                                  weekday: 'short',
-                                                  day: '2-digit',
-                                                  month: 'short',
-                                                  hour: '2-digit',
-                                                  minute: '2-digit',
-                                              })
-                                            : 'Calculando...'}
-                                    </span>
+                <!-- SELECTOR DE VISTA: TABLERO / TABLA -->
+                <div class="flex items-center gap-2 shrink-0 self-start md:self-auto">
+                    <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center">
+                        <button
+                            type="button"
+                            onclick={() => generalViewMode = 'kanban'}
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors {generalViewMode === 'kanban' ? 'bg-sky-500 text-white shadow' : 'text-slate-400 hover:text-white'}"
+                        >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                            </svg>
+                            <span>Tablero Macro</span>
+                        </button>
+                        <button
+                            type="button"
+                            onclick={() => generalViewMode = 'table'}
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors {generalViewMode === 'table' ? 'bg-sky-500 text-white shadow' : 'text-slate-400 hover:text-white'}"
+                        >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                            </svg>
+                            <span>Tabla de Producción</span>
+                        </button>
+                    </div>
+
+                    <Link
+                        href="/orders"
+                        class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+                    >
+                        Gestionar Pedidos ➔
+                    </Link>
+                </div>
+            </div>
+
+            <!-- BARRA DE FILTROS PROGRESIVOS (DE LO GENERAL A LO ESPECÍFICO) -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-sm">
+                <!-- Nivel 1: Filtros Generales -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <!-- Buscador rápido -->
+                    <div>
+                        <label for="filter-search" class="block text-[11px] font-semibold text-slate-400 mb-1">Buscar Pedido o Cliente</label>
+                        <input
+                            id="filter-search"
+                            type="text"
+                            bind:value={searchFilter}
+                            placeholder="Ej. #104 o 'Camila'..."
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+                        />
+                    </div>
+
+                    <!-- Selector de Cliente -->
+                    <div>
+                        <label for="filter-cust" class="block text-[11px] font-semibold text-slate-400 mb-1">Cliente</label>
+                        <select
+                            id="filter-cust"
+                            bind:value={customerFilter}
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
+                        >
+                            <option value="">Todos los Clientes</option>
+                            {#each customers as cust (cust.id)}
+                                <option value={cust.id}>{cust.name}</option>
+                            {/each}
+                        </select>
+                    </div>
+
+                    <!-- Estado del Pedido -->
+                    <div>
+                        <label for="filter-status" class="block text-[11px] font-semibold text-slate-400 mb-1">Estado del Pedido</label>
+                        <select
+                            id="filter-status"
+                            bind:value={statusFilter}
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
+                        >
+                            <option value="all">Todos los Estados</option>
+                            <option value="pending">Pendientes</option>
+                            <option value="in_progress">En Fabricación</option>
+                            <option value="blocked">Bloqueados</option>
+                            <option value="ready">Listos para Entrega</option>
+                        </select>
+                    </div>
+
+                    <!-- Fecha de Entrega -->
+                    <div>
+                        <label for="filter-date" class="block text-[11px] font-semibold text-slate-400 mb-1">Fecha de Entrega</label>
+                        <select
+                            id="filter-date"
+                            bind:value={deliveryFilter}
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
+                        >
+                            <option value="all">Todas las Fechas</option>
+                            <option value="late">⚠️ Atrasados</option>
+                            <option value="today">⚡ Entrega Hoy</option>
+                            <option value="week">📅 Esta Semana</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Nivel 2: Filtros Específicos (Flujo y Producto) -->
+                <div class="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+                        <!-- Flujo de Trabajo -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</span>
+                            <select
+                                bind:value={workflowFilter}
+                                class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500"
+                            >
+                                <option value="">Todos los Flujos</option>
+                                {#each workflows as wf (wf.id)}
+                                    <option value={wf.id}>{wf.name}</option>
+                                {/each}
+                            </select>
+                        </div>
+
+                        <!-- Producto -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 font-semibold text-[11px] shrink-0">Producto:</span>
+                            <select
+                                bind:value={productFilter}
+                                class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500 max-w-[200px] truncate"
+                            >
+                                <option value="">Todos los Productos</option>
+                                {#each products as prod (prod.id)}
+                                    <option value={prod.id}>{prod.name}</option>
+                                {/each}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                        <span class="text-slate-500 text-[11px]">
+                            {filteredOrders.length} pedido(s) encontrado(s)
+                        </span>
+                        {#if hasActiveFilters}
+                            <button
+                                type="button"
+                                onclick={resetFilters}
+                                class="text-rose-400 hover:text-rose-300 text-[11px] font-semibold underline px-2 py-0.5"
+                            >
+                                Limpiar Filtros
+                            </button>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA A: TABLERO KANBAN MACRO (4 COLUMNAS DE PEDIDOS) -->
+            {#if generalViewMode === 'kanban'}
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
+                    {#each MACRO_COLUMNS as col (col.key)}
+                        {@const colOrders = ordersByMacroColumn[col.key] || []}
+                        <div
+                            class="bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {dragOverMacroStatus === col.key ? 'ring-2 ring-sky-500 bg-slate-900' : ''}"
+                            style="border-top: 4px solid {col.color};"
+                            ondragover={(e) => handleMacroDragOver(e, col.key)}
+                            ondrop={(e) => handleMacroDrop(e, col.key)}
+                            role="region"
+                            aria-label={`Columna ${col.title}`}
+                        >
+                            <!-- Cabecera de la Columna Macro -->
+                            <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2.5 h-2.5 rounded-full" style="background-color: {col.color};"></div>
+                                    <h3 class="text-sm font-bold text-white tracking-wide">{col.title}</h3>
                                 </div>
+                                <span
+                                    class="px-2 py-0.5 rounded-full text-xs font-mono font-bold"
+                                    style="background-color: {col.color}22; color: {col.color}; border: 1px solid {col.color}44;"
+                                >
+                                    {colOrders.length}
+                                </span>
                             </div>
 
-                            <!-- COLUMNAS KANBAN DENTRO DEL CARRIL -->
-                            <div
-                                class="grid grid-flow-col auto-cols-[minmax(250px,1fr)] overflow-x-auto p-4 gap-3.5 bg-slate-950/40 min-h-[170px]"
-                            >
-                                {#each stages as stage (stage.id)}
-                                    {@const stageTasks = (
-                                        order.tasks ?? []
-                                    ).filter(
-                                        (t) => t.current_stage_id === stage.id,
-                                    )}
-                                    {@const isDropTarget =
-                                        dragOverStageId === stage.id}
-                                    <div
-                                        class="bg-slate-900/60 rounded-xl border border-slate-800/80 p-2.5 flex flex-col transition-all {isDropTarget
-                                            ? 'ring-2 ring-emerald-500 bg-emerald-950/20 border-emerald-500/50'
-                                            : ''}"
-                                        ondragover={(e) =>
-                                            handleDragOver(e, stage.id)}
-                                        ondragleave={handleDragLeave}
-                                        ondrop={(e) => handleDrop(e, stage.id)}
-                                        role="region"
-                                        aria-label={stage.name}
-                                    >
-                                        <!-- Título de la etapa -->
+                            <!-- Lista de Pedidos en esta Columna -->
+                            <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[780px]">
+                                {#if colOrders.length === 0}
+                                    <div class="py-12 text-center text-slate-600 text-xs italic">
+                                        No hay pedidos en esta etapa.
+                                    </div>
+                                {:else}
+                                    {#each colOrders as order (order.id)}
+                                        {@const tasks = getOrderTasks(order)}
+                                        {@const completedCount = tasks.filter(t => (getTaskStage(t)?.stage_category ?? t.stage_category) === 'done').length}
+                                        {@const progressPercent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0}
+                                        {@const delivBadge = getDeliveryBadge(order.committed_delivery_at, order.derived_status)}
+
                                         <div
-                                            class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800/60 text-xs"
+                                            class="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl p-3.5 space-y-3 shadow transition-all cursor-grab active:cursor-grabbing group"
+                                            draggable="true"
+                                            ondragstart={(e) => handleMacroDragStart(e, order.id)}
+                                            role="article"
                                         >
-                                            <div
-                                                class="flex items-center gap-1.5 min-w-0"
-                                            >
-                                                <span
-                                                    class="w-2 h-2 rounded-full shrink-0 {getCategoryColor(
-                                                        stage.stage_category,
-                                                    )}"
-                                                ></span>
-                                                <span
-                                                    class="font-semibold text-slate-300 truncate text-[11px]"
-                                                >
-                                                    {stage.name}
+                                            <!-- Encabezado de la Tarjeta del Pedido -->
+                                            <div class="flex items-start justify-between gap-2">
+                                                <div>
+                                                    <span class="font-mono text-xs font-black text-sky-400">
+                                                        #{order.order_number}
+                                                    </span>
+                                                    <h4 class="text-sm font-bold text-white group-hover:text-sky-300 transition-colors line-clamp-1">
+                                                        {order.customer?.name ?? 'Cliente'}
+                                                    </h4>
+                                                </div>
+
+                                                <span class="font-mono text-xs font-extrabold text-emerald-400 shrink-0">
+                                                    {formatCurrency(order.total_amount)}
                                                 </span>
                                             </div>
-                                            <span
-                                                class="text-[10px] px-1.5 py-0.2 rounded-md bg-slate-800 text-slate-400 font-mono"
-                                            >
-                                                {stageTasks.length}
-                                            </span>
-                                        </div>
 
-                                        <!-- Tareas dentro de la columna -->
-                                        <div class="space-y-2.5 flex-1 min-h-[90px]">
-                                            {#each stageTasks as task (task.id)}
-                                                {@render taskCard(task, stage)}
-                                            {:else}
-                                                <div
-                                                    class="h-full flex items-center justify-center border border-dashed border-slate-800/60 rounded-lg p-3 text-[11px] text-slate-600 text-center"
-                                                >
-                                                    Soltar aquí
+                                            <!-- Fechas y Alertas de Entrega -->
+                                            <div class="flex items-center justify-between text-[11px] text-slate-400">
+                                                <div class="flex items-center gap-1">
+                                                    <span>📅 Entrega:</span>
+                                                    <span class="font-medium text-slate-300">{formatDate(order.committed_delivery_at)}</span>
                                                 </div>
-                                            {/each}
+                                                {#if delivBadge}
+                                                    <span
+                                                        class="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                                        style="background-color: {delivBadge.color}22; color: {delivBadge.color}; border: 1px solid {delivBadge.color}44;"
+                                                    >
+                                                        {delivBadge.text}
+                                                    </span>
+                                                {/if}
+                                            </div>
+
+                                            <!-- Barra de Progreso de Tareas -->
+                                            <div class="space-y-1">
+                                                <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                                                    <span>Progreso: {completedCount} de {tasks.length} tareas</span>
+                                                    <span class="font-bold text-slate-200">{progressPercent}%</span>
+                                                </div>
+                                                <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                                                    <div
+                                                        class="h-full rounded-full transition-all duration-300"
+                                                        style="width: {progressPercent}%; background-color: {col.color};"
+                                                    ></div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Resumen de Productos con sus Etapas Coloreadas (Punto 6) -->
+                                            <div class="space-y-1.5 pt-2 border-t border-slate-900">
+                                                {#each tasks.slice(0, 3) as task}
+                                                    {@const stage = getTaskStage(task)}
+                                                    <div class="flex items-center justify-between text-[11px] gap-2">
+                                                        <span class="text-slate-300 truncate font-medium flex-1" title={task.item_name_snapshot}>
+                                                            {task.quantity > 1 ? `${task.quantity}x ` : ''}{task.item_name_snapshot}
+                                                        </span>
+                                                        {#if stage}
+                                                            <span
+                                                                class="px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 truncate max-w-[110px]"
+                                                                style="background-color: {stage.color || '#64748b'}22; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}55;"
+                                                                title={stage.name}
+                                                            >
+                                                                {stage.name}
+                                                            </span>
+                                                        {/if}
+                                                    </div>
+                                                {/each}
+                                                {#if tasks.length > 3}
+                                                    <span class="text-[10px] text-slate-500 font-medium block">
+                                                        +{tasks.length - 3} producto(s) más...
+                                                    </span>
+                                                {/if}
+                                            </div>
+
+                                            <!-- Botón Destacado: Abrir Tablero del Pedido -->
+                                            <div class="pt-2">
+                                                <button
+                                                    type="button"
+                                                    onclick={() => openOrderBoard(order.id)}
+                                                    class="w-full py-2 rounded-xl bg-slate-900 hover:bg-sky-950/60 border border-slate-800 hover:border-sky-500/50 text-sky-400 hover:text-sky-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm group-hover:border-sky-500/40"
+                                                >
+                                                    <span>Abrir Tablero del Pedido</span>
+                                                    <span>➔</span>
+                                                </button>
+                                            </div>
                                         </div>
+                                    {/each}
+                                {/if}
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+
+            <!-- VISTA B: TABLA DE PRODUCCIÓN -->
+            {:else}
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-950 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                <tr>
+                                    <th class="p-3.5"># Pedido</th>
+                                    <th class="p-3.5">Cliente</th>
+                                    <th class="p-3.5">Producto Solicitado</th>
+                                    <th class="p-3.5">Flujo Asignado</th>
+                                    <th class="p-3.5">Etapa Actual (Color HEX)</th>
+                                    <th class="p-3.5">Tiempo Est.</th>
+                                    <th class="p-3.5">Entrega</th>
+                                    <th class="p-3.5 text-right">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/80">
+                                {#if filteredTableTasks.length === 0}
+                                    <tr>
+                                        <td colspan="8" class="p-8 text-center text-slate-500 text-xs italic">
+                                            No se encontraron tareas de producción con los filtros seleccionados.
+                                        </td>
+                                    </tr>
+                                {:else}
+                                    {#each filteredTableTasks as task (task.id)}
+                                        <tr class="hover:bg-slate-800/30 transition-colors">
+                                            <td class="p-3.5 font-mono font-bold text-sky-400">
+                                                #{task.order_number}
+                                            </td>
+                                            <td class="p-3.5 font-semibold text-white">
+                                                {task.customer_name}
+                                            </td>
+                                            <td class="p-3.5 text-slate-200">
+                                                <div class="font-medium">{task.item_name_snapshot}</div>
+                                                <div class="text-[10px] text-slate-500 font-mono">Cant: {task.quantity}</div>
+                                            </td>
+                                            <td class="p-3.5 text-slate-400">
+                                                {task.workflow?.name ?? 'No asignado'}
+                                            </td>
+                                            <td class="p-3.5">
+                                                {#if task.current_stage}
+                                                    <span
+                                                        class="px-2 py-0.5 rounded text-[10px] font-bold inline-block"
+                                                        style="background-color: {task.current_stage.color || '#64748b'}22; color: {task.current_stage.color || '#64748b'}; border: 1px solid {task.current_stage.color || '#64748b'}55;"
+                                                    >
+                                                        {task.current_stage.name}
+                                                    </span>
+                                                {:else}
+                                                    <span class="text-slate-600 italic">Sin etapa</span>
+                                                {/if}
+                                            </td>
+                                            <td class="p-3.5 font-mono text-amber-300">
+                                                ⏱ {task.estimated_minutes ?? 0} min
+                                            </td>
+                                            <td class="p-3.5 text-slate-300 font-medium">
+                                                {formatDate(task.committed_delivery_at)}
+                                            </td>
+                                            <td class="p-3.5 text-right">
+                                                <button
+                                                    type="button"
+                                                    onclick={() => openOrderBoard(task.order_id)}
+                                                    class="px-2.5 py-1 rounded-lg bg-sky-950/60 hover:bg-sky-900/60 border border-sky-800/60 text-sky-400 text-xs font-semibold transition-colors"
+                                                >
+                                                    Abrir Pedido ➔
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {/each}
+                                {/if}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {/if}
+
+        <!-- ============================================================== -->
+        <!-- MODO 2: VISTA EXCLUSIVA Y AISLADA DE UN SOLO PEDIDO (MULTI-FLUJO) -->
+        <!-- ============================================================== -->
+        {:else}
+            <!-- BARRA DE NAVEGACIÓN Y RETORNO -->
+            <div class="flex items-center justify-between gap-3">
+                <button
+                    type="button"
+                    onclick={closeOrderBoard}
+                    class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
+                >
+                    <span>←</span>
+                    <span>Volver al Tablero General de Pedidos</span>
+                </button>
+
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500 text-xs">Tablero Aislado del Pedido:</span>
+                    <span class="font-mono text-sm font-black text-sky-400">#{activeOrder.order_number}</span>
+                </div>
+            </div>
+
+            <!-- FICHA PRINCIPAL DEL PEDIDO AISLADO -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h2 class="text-xl font-bold text-white">
+                                Pedido #{activeOrder.order_number} — {activeOrder.customer?.name ?? 'Cliente'}
+                            </h2>
+                            <span class="font-mono text-sm font-bold text-emerald-400 bg-emerald-950/50 px-2.5 py-0.5 rounded-lg border border-emerald-800/40">
+                                {formatCurrency(activeOrder.total_amount)}
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-4 text-xs text-slate-400 mt-1 flex-wrap">
+                            <span>📅 Entrega Comprometida: <strong class="text-slate-200">{formatDate(activeOrder.committed_delivery_at)}</strong></span>
+                            <span>⏱ Tiempo Total: <strong class="text-amber-300 font-mono">{activeOrder.formatted_time}</strong></span>
+                            {#if activeOrder.pending_balance > 0}
+                                <span>Saldo Pendiente: <strong class="text-rose-400 font-mono">{formatCurrency(activeOrder.pending_balance)}</strong></span>
+                            {/if}
+                        </div>
+                    </div>
+
+                    <!-- SELECTOR RÁPIDO DE ESTADO MACRO DEL PEDIDO -->
+                    <div class="flex items-center gap-2 self-start lg:self-auto">
+                        <span class="text-xs text-slate-400 font-semibold">Estado del Pedido:</span>
+                        <select
+                            value={activeOrder.derived_status}
+                            onchange={(e) => updateOrderMacroStatus(activeOrder.id, e.target.value)}
+                            class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs font-semibold focus:outline-none focus:border-sky-500"
+                        >
+                            <option value="pending">Pendiente</option>
+                            <option value="in_progress">En Fabricación</option>
+                            <option value="blocked">Bloqueado</option>
+                            <option value="ready">Listo para Entrega</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- PESTAÑAS DE FLUJO AISLADAS: SOLO LOS FLUJOS PRESENTES EN ESTE PEDIDO -->
+                {#if orderWorkflows.length > 1}
+                    <div class="pt-3 border-t border-slate-800 flex items-center gap-2 overflow-x-auto">
+                        <span class="text-xs text-slate-400 font-semibold shrink-0">Flujos en este Pedido:</span>
+                        {#each orderWorkflows as wf (wf.id)}
+                            {@const isActive = Number(activeOrderWorkflow?.id) === Number(wf.id)}
+                            <button
+                                type="button"
+                                onclick={() => selectedOrderWorkflowId = wf.id}
+                                class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 {isActive ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20' : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'}"
+                            >
+                                <span>{wf.name}</span>
+                                <span class="px-1.5 py-0.2 rounded-full text-[10px] {isActive ? 'bg-sky-800 text-white' : 'bg-slate-800 text-slate-400'}">
+                                    {wf.tasksCount}
+                                </span>
+                            </button>
+                        {/each}
+                    </div>
+                {/if}
+            </div>
+
+            <!-- TABLERO KANBAN DE ETAPAS PARA EL FLUJO ACTIVO DEL PEDIDO -->
+            {#if activeOrderStages.length === 0}
+                <div class="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-400 text-sm">
+                    Este flujo no tiene etapas configuradas. Ve al Módulo de Flujos para agregar etapas.
+                </div>
+            {:else}
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4 items-start">
+                    {#each activeOrderStages as stage (stage.id)}
+                        {@const stageTasks = activeOrderTasks.filter(t => Number(t.current_stage_id ?? getTaskStage(t)?.id) === Number(stage.id))}
+                        <div
+                            class="bg-slate-900 border border-slate-800 rounded-2xl flex flex-col min-h-[500px] shadow-sm transition-colors {dragOverStageId === stage.id ? 'ring-2 ring-sky-500 bg-slate-900/90' : ''}"
+                            style="border-top: 4px solid {stage.color || '#64748b'};"
+                            ondragover={(e) => handleTaskDragOver(e, stage.id)}
+                            ondrop={(e) => handleTaskDrop(e, stage.id)}
+                            role="region"
+                            aria-label={`Etapa ${stage.name}`}
+                        >
+                            <!-- Cabecera de la Etapa / Columna -->
+                            <div class="p-3.5 border-b border-slate-800 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-2.5 h-2.5 rounded-full" style="background-color: {stage.color || '#64748b'};"></div>
+                                    <h3 class="text-xs font-bold text-white tracking-wide truncate max-w-[130px]" title={stage.name}>
+                                        {stage.name}
+                                    </h3>
+                                </div>
+                                <span
+                                    class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+                                    style="background-color: {stage.color || '#64748b'}22; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}44;"
+                                >
+                                    {stageTasks.length}
+                                </span>
+                            </div>
+
+                            <!-- Lista de Tareas en esta Etapa -->
+                            <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[700px]">
+                                {#if stageTasks.length === 0}
+                                    <div class="py-12 text-center text-slate-600 text-xs italic">
+                                        Sin productos en esta columna.
                                     </div>
-                                {/each}
+                                {:else}
+                                    {#each stageTasks as task (task.id)}
+                                        <div
+                                            class="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl p-3 space-y-2.5 shadow transition-all cursor-grab active:cursor-grabbing group"
+                                            draggable="true"
+                                            ondragstart={(e) => handleTaskDragStart(e, task.id)}
+                                            role="article"
+                                        >
+                                            <div class="flex items-start justify-between gap-1.5">
+                                                <h4 class="text-xs font-bold text-white group-hover:text-sky-300 transition-colors">
+                                                    {task.item_name_snapshot}
+                                                </h4>
+                                                <span class="font-mono text-[10px] font-bold text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded shrink-0">
+                                                    {task.quantity}x
+                                                </span>
+                                            </div>
+
+                                            <div class="flex items-center justify-between text-[10px] text-slate-400">
+                                                <span class="font-mono text-amber-300">⏱ {task.estimated_minutes} min</span>
+                                                {#if task.materials_consumed}
+                                                    <span class="text-emerald-400 flex items-center gap-0.5 font-semibold" title="Materias primas descontadas del inventario">
+                                                        <span>✓</span>
+                                                        <span>BOM Ok</span>
+                                                    </span>
+                                                {/if}
+                                            </div>
+
+                                            <!-- Selector / Controles de Movimiento de Etapa -->
+                                            <div class="pt-2 border-t border-slate-900 flex items-center justify-between gap-1 text-[11px]">
+                                                <select
+                                                    value={task.current_stage_id ?? getTaskStage(task)?.id}
+                                                    onchange={(e) => moveTask(task.id, Number(e.target.value))}
+                                                    class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-300 text-[10px] font-medium focus:outline-none focus:border-sky-500"
+                                                >
+                                                    {#each activeOrderStages as st}
+                                                        <option value={st.id}>{st.name}</option>
+                                                    {/each}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    {/each}
+                                {/if}
                             </div>
                         </div>
                     {/each}
                 </div>
             {/if}
-
-            <!-- MODO 2: VISTA GLOBAL DE COLUMNAS -->
-        {:else}
-            <div
-                class="grid grid-flow-col auto-cols-[minmax(280px,1fr)] overflow-x-auto gap-4 pb-4"
-            >
-                {#each stages as stage (stage.id)}
-                    {@const stageTasks = allTasks.filter(
-                        (t) => t.current_stage_id === stage.id,
-                    )}
-                    {@const isDropTarget = dragOverStageId === stage.id}
-                    <div
-                        class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col min-h-[550px] shadow-sm transition-all {isDropTarget
-                            ? 'ring-2 ring-emerald-500 bg-emerald-950/20'
-                            : ''}"
-                        ondragover={(e) => handleDragOver(e, stage.id)}
-                        ondragleave={handleDragLeave}
-                        ondrop={(e) => handleDrop(e, stage.id)}
-                        role="region"
-                        aria-label={stage.name}
-                    >
-                        <!-- Cabecera de Columna -->
-                        <div
-                            class="flex items-center justify-between pb-3 mb-3 border-b border-slate-800"
-                        >
-                            <div class="flex items-center gap-2 min-w-0">
-                                <span
-                                    class="w-2.5 h-2.5 rounded-full {getCategoryColor(
-                                        stage.stage_category,
-                                    )}"
-                                ></span>
-                                <span
-                                    class="font-bold text-sm text-slate-200 truncate"
-                                >
-                                    {stage.name}
-                                </span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                {#if stage.wip_limit}
-                                    <span
-                                        class="text-[10px] text-slate-500 font-mono"
-                                        >WIP: {stage.wip_limit}</span
-                                    >
-                                {/if}
-                                <span
-                                    class="px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 font-bold text-xs font-mono"
-                                >
-                                    {stageTasks.length}
-                                </span>
-                            </div>
-                        </div>
-
-                        <!-- Lista de tarjetas de tareas -->
-                        <div class="space-y-3 flex-1 overflow-y-auto">
-                            {#each stageTasks as task (task.id)}
-                                {@render taskCard(task, stage, true)}
-                            {:else}
-                                <div
-                                    class="h-32 flex items-center justify-center border-2 border-dashed border-slate-800/80 rounded-xl text-xs text-slate-600 font-medium"
-                                >
-                                    Sin tareas
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/each}
-            </div>
         {/if}
     </div>
 </AppLayout>
-
-<!-- SNIPPET DE TARJETA DE TAREA KANBAN (SVELTE 5) -->
-{#snippet taskCard(task, currentStage, showOrderHeader = false)}
-    {@const prevStage = getPrevStage(currentStage.id)}
-    {@const nextStage = getNextStage(currentStage.id)}
-
-    <div
-        role="group"
-        aria-label={task.item_name_snapshot}
-        draggable="true"
-        ondragstart={(e) => handleDragStart(e, task.id)}
-        class="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 rounded-xl p-3 shadow-md transition-all cursor-grab active:cursor-grabbing group hover:shadow-emerald-500/5 select-none"
-    >
-        <!-- Badge opcional de Pedido si estamos en vista de columnas -->
-        {#if showOrderHeader}
-            <div
-                class="flex items-center justify-between text-[11px] mb-2 pb-1.5 border-b border-slate-700/60"
-            >
-                <span class="font-bold text-emerald-400 font-mono"
-                    >Pedido #{task.order_number}</span
-                >
-                <span class="text-slate-400 truncate max-w-[120px]"
-                    >{task.customer_name}</span
-                >
-            </div>
-        {/if}
-
-        <!-- Nombre del Producto / Snapshot -->
-        <h4
-            class="text-xs font-bold text-white tracking-tight line-clamp-2 leading-snug group-hover:text-emerald-300 transition-colors"
-        >
-            {task.item_name_snapshot}
-        </h4>
-
-        <!-- Metadatos de la Tarea: Cantidad, Tiempo estimado y Precio -->
-        <div
-            class="mt-2 flex items-center justify-between text-[11px] text-slate-400"
-        >
-            <span class="bg-slate-900/80 px-2 py-0.5 rounded font-mono text-slate-300">
-                Cant: <strong class="text-white">{Number(task.quantity)}</strong>
-            </span>
-            <span class="font-mono text-amber-300 font-medium">
-                ⏱ {task.formatted_time}
-            </span>
-        </div>
-
-        <!-- Indicador de Consumo de Materia Prima -->
-        <div class="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[10px]">
-            {#if task.materials_consumed}
-                <span
-                    class="flex items-center gap-1 text-emerald-400 font-medium"
-                >
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                    Consumo registrado
-                </span>
-            {:else}
-                <span class="flex items-center gap-1 text-amber-400 font-medium">
-                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                    Material reservado
-                </span>
-            {/if}
-
-            <!-- Botones Rápidos de Avance (Para Móviles y Clics Rápidos) -->
-            <div class="flex items-center gap-1">
-                {#if prevStage}
-                    <button
-                        type="button"
-                        onclick={() => moveTask(task.id, prevStage.id)}
-                        class="w-5 h-5 rounded bg-slate-700/80 hover:bg-slate-600 text-slate-300 hover:text-white flex items-center justify-center font-bold text-[11px] transition-colors"
-                        title={`Mover a ${prevStage.name}`}
-                    >
-                        ←
-                    </button>
-                {/if}
-                {#if nextStage}
-                    <button
-                        type="button"
-                        onclick={() => moveTask(task.id, nextStage.id)}
-                        class="w-5 h-5 rounded bg-emerald-600/80 hover:bg-emerald-500 text-white flex items-center justify-center font-bold text-[11px] transition-colors"
-                        title={`Mover a ${nextStage.name}`}
-                    >
-                        →
-                    </button>
-                {/if}
-            </div>
-        </div>
-    </div>
-{/snippet}

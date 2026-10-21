@@ -759,10 +759,12 @@
                             <!-- Acciones -->
                             <div class="flex items-center gap-2 self-end lg:self-center shrink-0">
                                 <Link
-                                    href="/kanban"
-                                    class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+                                    href={`/kanban?order_id=${order.id}`}
+                                    class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 hover:text-sky-300 text-xs font-semibold border border-slate-700 hover:border-sky-500/50 transition-colors flex items-center gap-1.5"
+                                    title="Abrir tablero Kanban aislado para este pedido"
                                 >
-                                    Kanban ➔
+                                    <span>Tablero Kanban</span>
+                                    <span>➔</span>
                                 </Link>
 
                                 {#if order.derived_status === 'ready'}
