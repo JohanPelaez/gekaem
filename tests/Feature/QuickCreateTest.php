@@ -236,4 +236,39 @@ class QuickCreateTest extends TestCase
 
         $this->assertDatabaseMissing('units_of_measure', ['id' => $unit->id]);
     }
+
+    public function test_quick_create_product(): void
+    {
+        $workflow = \App\Models\Workflow::firstOrFail();
+
+        $response = $this->postJson('/quick/products', [
+            'name' => 'taza magica personalizada',
+            'workflow_id' => $workflow->id,
+            'base_price' => 35000,
+            'production_time_minutes' => 45,
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonStructure([
+                'product' => [
+                    'id',
+                    'name',
+                    'base_price',
+                    'base_production_minutes',
+                    'variants',
+                ],
+            ])
+            ->assertJsonPath('product.name', 'Taza Magica Personalizada');
+
+        $productId = $response->json('product.id');
+        $this->assertDatabaseHas('products', [
+            'id' => $productId,
+            'name' => 'Taza Magica Personalizada',
+            'base_production_minutes' => 45,
+        ]);
+        $this->assertDatabaseHas('product_variants', [
+            'product_id' => $productId,
+        ]);
+    }
 }
+

@@ -11,6 +11,7 @@
         hasFinancialAccess = true,
         onOpenPaymentModal,
         onMarkDelivered,
+        onEditOrder,
         onDayClick,
         formatCurrency = (v) => `$${Number(v || 0).toLocaleString()}`,
         getDerivedStatusBadge = (s) => ({ label: s, color: 'bg-slate-800 text-slate-300' }),
@@ -276,7 +277,7 @@
                 <div
                     class="min-h-[120px] sm:min-h-[140px] p-2 sm:p-2.5 flex flex-col justify-between transition-all cursor-pointer group/cell
                         {day.isCurrentMonth ? 'bg-slate-900/50 hover:bg-slate-800/80 hover:shadow-inner' : 'bg-slate-950/70 text-slate-600 hover:bg-slate-900/40'}
-                        {today ? 'ring-1 ring-inset ring-emerald-500/40 bg-emerald-950/10' : ''}"
+                        {today ? 'border-2 border-sky-400 bg-sky-950/30 text-sky-300' : ''}"
                     onclick={(e) => onDayClick?.(day, e)}
                     oncontextmenu={(e) => { e.preventDefault(); onDayClick?.(day, e); }}
                     role="button"
@@ -289,28 +290,34 @@
                         <div class="flex items-center gap-1.5">
                             <span class="font-mono text-xs font-bold px-1.5 py-0.5 rounded-lg
                                 {today
-                                    ? 'bg-emerald-500 text-slate-950 font-black'
+                                    ? 'bg-sky-500 text-slate-950 font-black'
                                     : day.isCurrentMonth
                                         ? 'text-white'
                                         : 'text-slate-600'}"
                             >
                                 {day.dayNumber}
                             </span>
+                            {#if today}
+                                <span class="text-[8px] font-black uppercase text-sky-300 px-1 py-0.5 rounded bg-sky-950/90 border border-sky-400/60 leading-none">
+                                    HOY
+                                </span>
+                            {/if}
                             <span class="opacity-0 group-hover/cell:opacity-100 text-[10px] text-slate-400 hover:text-emerald-400 transition-opacity" title="Opciones del día">
                                 ⋮
                             </span>
                         </div>
 
                         {#if count > 0}
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-tight border
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-tight border flex items-center gap-1
                                 {count >= 5
                                     ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                                     : count >= 3
                                         ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'}"
+                                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'}"
                                 title={`${count} entregas programadas`}
                             >
-                                {count} {count === 1 ? 'entrega' : 'entregas'}
+                                <span class="w-1.5 h-1.5 rounded-full {count >= 5 ? 'bg-[#f43f5e]' : count >= 3 ? 'bg-[#f59e0b]' : 'bg-[#10b981]'}"></span>
+                                <span>{count} {count === 1 ? 'entrega' : 'entregas'}</span>
                             </span>
                         {/if}
                     </div>
@@ -429,6 +436,18 @@
                     </span>
                 </div>
                 <div class="flex items-center justify-between">
+                    <span class="text-slate-400">Modalidad de Envío:</span>
+                    {#if order.shipping_type === 'envio_incluido'}
+                        <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                            📦 Envío Incluido
+                        </span>
+                    {:else}
+                        <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                            🚚 Contraentrega
+                        </span>
+                    {/if}
+                </div>
+                <div class="flex items-center justify-between">
                     <span class="text-slate-400">Entrega Comprometida:</span>
                     <span class="font-mono font-bold text-white capitalize">
                         📅 {formatFullDate(order.committed_delivery_at || order.predicted_delivery_at)}
@@ -505,6 +524,21 @@
                     >
                         <span>📋</span>
                         <span>Ir al Tablero Kanban</span>
+                    </button>
+
+                    <!-- Botón Editar Pedido -->
+                    <button
+                        type="button"
+                        onclick={() => {
+                            const target = order;
+                            selectedOrderForDetail = null;
+                            onEditOrder?.(target);
+                        }}
+                        class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 transition-colors"
+                        title="Editar Pedido"
+                    >
+                        <span>✏️</span>
+                        <span>Editar</span>
                     </button>
 
                     {#if hasFinancialAccess}

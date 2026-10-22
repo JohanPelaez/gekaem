@@ -65,15 +65,11 @@
 
     function parseInitialDate(val) {
         if (!val) {
-            const d = new Date();
-            d.setDate(d.getDate() + 2);
-            const y = d.getFullYear();
-            const m = d.getMonth();
-            const day = d.getDate();
+            const now = new Date();
             return {
-                year: y,
-                month: m,
-                dateStr: `${y}-${pad(m + 1)}-${pad(day)}`,
+                year: now.getFullYear(),
+                month: now.getMonth(),
+                dateStr: '',
                 timeStr: '17:00',
             };
         }
@@ -117,6 +113,8 @@
             if (value !== fullVal) {
                 value = fullVal;
             }
+        } else if (value !== '') {
+            value = '';
         }
     });
 
@@ -139,6 +137,8 @@
             if (timePart && timePart !== selectedTime) {
                 selectedTime = timePart;
             }
+        } else {
+            selectedDate = '';
         }
     });
 
@@ -369,15 +369,20 @@
                     onclick={() => selectDate(day)}
                     class="relative h-9 rounded-xl flex flex-col items-center justify-center text-xs transition-all border
                         {isSelected
-                            ? 'bg-emerald-600 text-white font-extrabold border-emerald-400 shadow-md shadow-emerald-600/30 ring-2 ring-emerald-500/40'
+                            ? 'bg-indigo-600 text-white ring-2 ring-indigo-300 font-bold shadow-lg border-indigo-400'
                             : day.isCurrentMonth
                                 ? today
-                                    ? 'bg-slate-800 text-emerald-400 font-bold border-emerald-500/50 hover:bg-slate-700'
+                                    ? 'border-2 border-sky-400 bg-sky-950/30 text-sky-300 hover:bg-sky-900/40'
                                     : 'bg-slate-900/80 text-slate-200 border-slate-800/80 hover:bg-slate-800 hover:border-slate-700'
                                 : 'bg-slate-950/40 text-slate-600 border-transparent hover:text-slate-400'}"
                     title={`${day.dateStr} — ${day.count} pedidos programados`}
                 >
-                    <span class="text-[11px] leading-none">{day.dayNumber}</span>
+                    <div class="flex items-center gap-1 leading-none">
+                        <span class="text-[11px] font-bold leading-none">{day.dayNumber}</span>
+                        {#if today && !isSelected}
+                            <span class="text-[7px] font-black uppercase text-sky-300 leading-none">HOY</span>
+                        {/if}
+                    </div>
 
                     <!-- Indicador de carga de pedidos del día -->
                     {#if day.count > 0}
@@ -401,15 +406,15 @@
             <span class="font-semibold text-slate-500">Carga del Taller:</span>
             <div class="flex items-center gap-3">
                 <span class="flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                     <span>1-2 pedidos</span>
                 </span>
                 <span class="flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                     <span>3-4 pedidos</span>
                 </span>
                 <span class="flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                     <span>5+ (Alta)</span>
                 </span>
             </div>
@@ -425,11 +430,11 @@
                     id="{id}-time"
                     type="time"
                     bind:value={selectedTime}
-                    class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                    class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
                 />
             </div>
 
-            <!-- Resumen Informativo Dinámico -->
+            <!-- Resumen Informativo Dinámico o Aviso si no hay fecha -->
             <div class="text-xs">
                 {#if selectedKey}
                     <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-medium border
@@ -444,6 +449,11 @@
                             {formattedSelectedDateHuman} ({selectedTime}) — {selectedLoadCount} {selectedLoadCount === 1 ? 'pedido programado' : 'pedidos programados'}
                         </span>
                     </div>
+                {:else}
+                    <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        <span>⚠️</span>
+                        <span>Selecciona un día en el calendario para comprometer la entrega</span>
+                    </div>
                 {/if}
             </div>
         </div>
@@ -453,14 +463,19 @@
             <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-white flex items-center gap-1.5">
                     <span>📋</span>
-                    <span>Pedidos para esta fecha ({selectedDayOrders.length}):</span>
+                    <span>Pedidos para esta fecha{selectedKey ? ` (${selectedDayOrders.length})` : ''}:</span>
                 </span>
                 <span class="text-[10px] text-slate-500 font-mono">
                     Carga actual del taller
                 </span>
             </div>
 
-            {#if selectedDayOrders.length === 0}
+            {#if !selectedKey}
+                <div class="p-3 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl flex items-center gap-2 text-slate-400 text-xs">
+                    <span class="text-sm">👆</span>
+                    <span>Haz clic en un día del calendario para consultar los pedidos programados en esa fecha.</span>
+                </div>
+            {:else if selectedDayOrders.length === 0}
                 <div class="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-emerald-300 text-xs">
                     <span class="text-sm">✨</span>
                     <span>Día despejado: 0 pedidos comprometidos para esta fecha</span>

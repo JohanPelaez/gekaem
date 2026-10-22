@@ -6,7 +6,9 @@
     import QuickCreateModal from '../../Components/QuickCreateModal.svelte';
     import OrderDateSelector from '../../Components/OrderDateSelector.svelte';
     import CalendarView from './CalendarView.svelte';
+    import ProductFormModal from '../../Components/ProductFormModal.svelte';
     import { canViewPrices } from '../../Utils/permissions.js';
+    import { csrfFetch } from '../../Utils/csrfFetch.js';
 
     let {
         orders,
@@ -15,6 +17,12 @@
         ordersCountByDate = {},
         customers = [],
         products = [],
+        workflows = [],
+        productTypes = [],
+        rawMaterials = [],
+        orthogonalAttributes = [],
+        attributes = [],
+        unitsOfMeasure = [],
         wipQueueMinutes = 0,
         dailyProductiveMinutes = 480,
         defaultBufferPercent = 20,
@@ -204,9 +212,22 @@
         localCustomers = [...customers];
     });
 
+    // Productos locales sincronizados para permitir quick create de productos
+    let localProducts = $state([]);
+    $effect(() => {
+        localProducts = [...products];
+    });
+
     let showCreateModal = $state(false);
     let quickCustomerModalOpen = $state(false);
     let processing = $state(false);
+
+    // Estado para edición de pedidos
+    let isEditingOrder = $state(false);
+    let editingOrderId = $state(null);
+
+    // Estado para modal completo de producto en pedidos (Nota 7, 8, 9)
+    let productModalOpen = $state(false);
 
     // Modal de Abonos
     let showPaymentModal = $state(false);
@@ -222,10 +243,11 @@
         voucher: null,
     });
 
-    // Formulario de Creación de Pedido (Simplificado)
+    // Formulario de Creación / Edición de Pedido
     let orderForm = $state({
         customer_id: '',
         committed_delivery_at: '',
+        shipping_type: 'contraentrega',
         notes: '',
         items: [],
         has_initial_deposit: false,
@@ -287,16 +309,12 @@
         expandedRows = next;
     }
 
-    function getTomorrowDateTimeLocal() {
-        const d = new Date();
-        d.setDate(d.getDate() + 2);
-        d.setHours(17, 0, 0, 0);
-        return d.toISOString().slice(0, 16);
-    }
-
     function resetOrderForm() {
+        isEditingOrder = false;
+        editingOrderId = null;
         orderForm.customer_id = localCustomers[0]?.id ?? '';
-        orderForm.committed_delivery_at = getTomorrowDateTimeLocal();
+        orderForm.committed_delivery_at = '';
+        orderForm.shipping_type = 'contraentrega';
         orderForm.notes = '';
         orderForm.items = [];
         orderForm.has_initial_deposit = false;
@@ -307,9 +325,48 @@
 
     function openCreate() {
         resetOrderForm();
-        if (products.length > 0) {
+        if (localProducts.length > 0) {
             addItem();
         }
+        showCreateModal = true;
+    }
+
+    function openEditOrder(order) {
+        resetOrderForm();
+        isEditingOrder = true;
+        editingOrderId = order.id;
+        orderForm.customer_id = order.customer_id;
+        orderForm.shipping_type = order.shipping_type || 'contraentrega';
+        orderForm.notes = order.notes || '';
+
+        let dt = '';
+        if (order.committed_delivery_at) {
+            dt = String(order.committed_delivery_at).replace(' ', 'T').slice(0, 16);
+        } else if (order.predicted_delivery_at) {
+            dt = String(order.predicted_delivery_at).replace(' ', 'T').slice(0, 16);
+        }
+        orderForm.committed_delivery_at = dt;
+
+        const tasks = order.production_tasks || order.tasks || [];
+        if (tasks.length > 0) {
+            orderForm.items = tasks.map((t) => {
+                const variant = t.product_variant || t.productVariant;
+                let prodId = variant?.product_id || variant?.product?.id;
+                if (!prodId) {
+                    const found = localProducts.find((p) => p.variants?.some((v) => v.id == t.product_variant_id));
+                    prodId = found?.id ?? '';
+                }
+                return {
+                    product_id: prodId,
+                    product_variant_id: t.product_variant_id,
+                    quantity: Number(t.quantity || 1),
+                    unit_price: Number(t.unit_price || 0),
+                };
+            });
+        } else if (localProducts.length > 0) {
+            addItem();
+        }
+
         showCreateModal = true;
     }
 
@@ -319,8 +376,8 @@
     }
 
     function addItem() {
-        if (products.length === 0) return;
-        const firstProd = products[0];
+        if (localProducts.length === 0) return;
+        const firstProd = localProducts[0];
         const firstVariant = firstProd.variants?.[0] ?? null;
 
         orderForm.items = [
@@ -329,6 +386,7 @@
                 product_id: firstProd.id,
                 product_variant_id: firstVariant?.id ?? '',
                 quantity: 1,
+                unit_price: Number(firstVariant?.price_override ?? firstProd.base_price ?? 0),
             },
         ];
     }
@@ -339,8 +397,51 @@
 
     function onProductChange(item, productId) {
         item.product_id = Number(productId);
-        const prod = products.find((p) => p.id === Number(productId));
-        item.product_variant_id = prod?.variants?.[0]?.id ?? '';
+        const prod = localProducts.find((p) => p.id === Number(productId));
+        const firstVariant = prod?.variants?.[0] ?? null;
+        item.product_variant_id = firstVariant?.id ?? '';
+        item.unit_price = Number(firstVariant?.price_override ?? prod?.base_price ?? 0);
+    }
+
+    function onVariantChange(item, variantId) {
+        item.product_variant_id = Number(variantId);
+        const prod = localProducts.find((p) => p.id === Number(item.product_id));
+        const variant = prod?.variants?.find((v) => v.id === Number(variantId));
+        if (variant) {
+            item.unit_price = Number(variant.price_override ?? prod?.base_price ?? 0);
+        }
+    }
+
+    function openCreateProductModal() {
+        productModalOpen = true;
+    }
+
+    function handleProductCreated(newProduct) {
+        if (!newProduct) return;
+        if (!localProducts.some((p) => p.id === newProduct.id)) {
+            localProducts = [...localProducts, newProduct];
+        }
+        const defaultVariant = newProduct.variants?.[0] ?? null;
+        const unitPrice = defaultVariant?.price_override !== null && defaultVariant?.price_override !== undefined && defaultVariant?.price_override !== ''
+            ? Number(defaultVariant.price_override)
+            : Number(newProduct.base_price || 0);
+
+        const lastItemIdx = orderForm.items.length - 1;
+        if (lastItemIdx >= 0 && (!orderForm.items[lastItemIdx].product_id || orderForm.items[lastItemIdx].product_id === '')) {
+            orderForm.items[lastItemIdx].product_id = newProduct.id;
+            orderForm.items[lastItemIdx].product_variant_id = defaultVariant?.id ?? '';
+            orderForm.items[lastItemIdx].unit_price = unitPrice;
+        } else {
+            orderForm.items = [
+                ...orderForm.items,
+                {
+                    product_id: newProduct.id,
+                    product_variant_id: defaultVariant?.id ?? '',
+                    quantity: 1,
+                    unit_price: unitPrice,
+                },
+            ];
+        }
     }
 
     function onInitialVoucherChange(e) {
@@ -358,7 +459,7 @@
         let total = 0;
         for (const item of orderForm.items) {
             if (!item.product_variant_id || !item.quantity) continue;
-            const prod = products.find((p) => p.id == item.product_id);
+            const prod = localProducts.find((p) => p.id == item.product_id);
             const variant = prod?.variants?.find((v) => v.id == item.product_variant_id);
             if (prod && variant) {
                 const unitMins = Number(prod.base_production_minutes ?? 0) + Number(variant.production_minutes_delta ?? 0);
@@ -372,14 +473,14 @@
         let sum = 0;
         for (const item of orderForm.items) {
             if (!item.product_variant_id || !item.quantity) continue;
-            const prod = products.find((p) => p.id == item.product_id);
+            const prod = localProducts.find((p) => p.id == item.product_id);
             const variant = prod?.variants?.find((v) => v.id == item.product_variant_id);
-            if (prod && variant) {
-                const price = variant.price_override !== null && variant.price_override !== ''
+            const price = item.unit_price !== undefined && item.unit_price !== '' && item.unit_price !== null
+                ? Number(item.unit_price)
+                : (variant?.price_override !== null && variant?.price_override !== ''
                     ? Number(variant.price_override)
-                    : Number(prod.base_price ?? 0);
-                sum += price * Number(item.quantity);
-            }
+                    : Number(prod?.base_price ?? 0));
+            sum += price * Number(item.quantity);
         }
         return sum;
     });
@@ -395,9 +496,43 @@
     function submitOrder(e) {
         e.preventDefault();
 
+        if (!orderForm.committed_delivery_at) {
+            alert('Por favor selecciona un día en el calendario para comprometer la entrega.');
+            return;
+        }
+
+        if (orderForm.items.length === 0) {
+            alert('Agrega al menos un producto al pedido.');
+            return;
+        }
+
+        if (isEditingOrder && editingOrderId) {
+            router.put(`/orders/${editingOrderId}`, {
+                customer_id: Number(orderForm.customer_id),
+                committed_delivery_at: orderForm.committed_delivery_at,
+                shipping_type: orderForm.shipping_type,
+                notes: orderForm.notes ?? '',
+                items: orderForm.items.map((item) => ({
+                    product_variant_id: Number(item.product_variant_id),
+                    quantity: Number(item.quantity),
+                    unit_price: Number(item.unit_price || 0),
+                })),
+            }, {
+                preserveScroll: true,
+                onStart: () => { processing = true; },
+                onFinish: () => { processing = false; },
+                onSuccess: () => {
+                    showCreateModal = false;
+                    resetOrderForm();
+                },
+            });
+            return;
+        }
+
         const formData = new FormData();
         formData.append('customer_id', String(orderForm.customer_id));
         formData.append('committed_delivery_at', orderForm.committed_delivery_at);
+        formData.append('shipping_type', orderForm.shipping_type);
         formData.append('notes', orderForm.notes ?? '');
         formData.append('has_initial_deposit', orderForm.has_initial_deposit ? '1' : '0');
 
@@ -413,6 +548,9 @@
             formData.append(`items[${index}][product_id]`, String(item.product_id));
             formData.append(`items[${index}][product_variant_id]`, String(item.product_variant_id));
             formData.append(`items[${index}][quantity]`, String(item.quantity));
+            if (item.unit_price !== undefined && item.unit_price !== null) {
+                formData.append(`items[${index}][unit_price]`, String(item.unit_price));
+            }
         });
 
         router.post('/orders', formData, {
@@ -526,6 +664,13 @@
             default:
                 return { label: status, color: 'bg-slate-800 text-slate-400 border-slate-700' };
         }
+    }
+
+    function getShippingTypeBadge(type) {
+        if (type === 'envio_incluido') {
+            return { label: '📦 Envío Incluido', color: 'bg-sky-500/15 text-sky-300 border-sky-500/30' };
+        }
+        return { label: '🚚 Contraentrega', color: 'bg-slate-800 text-slate-300 border-slate-700' };
     }
 </script>
 
@@ -758,6 +903,7 @@
                                 <th class="p-3.5">Pedido #</th>
                                 <th class="p-3.5">Cliente</th>
                                 <th class="p-3.5">Estado</th>
+                                <th class="p-3.5">Envío</th>
                                 <th class="p-3.5">Entrega Comprometida</th>
                                 {#if hasFinancialAccess}
                                     <th class="p-3.5 text-right">Total</th>
@@ -770,6 +916,7 @@
                         <tbody class="divide-y divide-slate-800/60 text-slate-300">
                             {#each orders.data as order (order.id)}
                                 {@const badge = getDerivedStatusBadge(order.derived_status)}
+                                {@const shippingBadge = getShippingTypeBadge(order.shipping_type)}
                                 {@const tasksTotal = order.tasks_count ?? 0}
                                 {@const tasksCompleted = order.completed_tasks_count ?? 0}
                                 {@const progressPercent = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : 0}
@@ -805,6 +952,11 @@
                                             {badge.label}
                                         </span>
                                     </td>
+                                    <td class="p-3.5">
+                                        <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold border {shippingBadge.color}">
+                                            {shippingBadge.label}
+                                        </span>
+                                    </td>
                                     <td class="p-3.5 font-mono text-slate-300">
                                         📅 {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
                                     </td>
@@ -828,12 +980,21 @@
                                         <div class="flex items-center justify-end gap-1.5">
                                             <button
                                                 type="button"
+                                                onclick={() => openEditOrder(order)}
+                                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition-colors flex items-center gap-1"
+                                                title="Editar pedido"
+                                            >
+                                                <span>✏️</span>
+                                                <span>Editar</span>
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
                                                 class="px-2.5 py-1 rounded-lg bg-sky-950/60 hover:bg-sky-900/60 text-sky-400 hover:text-sky-300 border border-sky-800/60 text-xs font-semibold transition-colors flex items-center gap-1"
                                                 title="Ver en Tablero Kanban aislado"
                                             >
                                                 <span>📋</span>
-                                                <span>Ver en Tablero</span>
+                                                <span>Tablero</span>
                                             </button>
                                             {#if hasFinancialAccess}
                                                 <button
@@ -861,7 +1022,13 @@
                                 <!-- RENGLÓN EXPANDIDO (ACCORDION) -->
                                 {#if isExpanded}
                                     <tr class="bg-slate-950/70 border-b border-slate-800">
-                                        <td colspan="9" class="p-4 sm:p-6 space-y-4">
+                                        <td colspan="10" class="p-4 sm:p-6 space-y-4">
+                                            <div class="flex items-center gap-2 pb-2 border-b border-slate-800 text-xs">
+                                                <span class="text-slate-400">Modalidad de Envío:</span>
+                                                <span class="px-2.5 py-0.5 rounded-full font-semibold border {shippingBadge.color}">
+                                                    {shippingBadge.label}
+                                                </span>
+                                            </div>
                                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                                 <!-- Productos y Tareas de Producción -->
                                                 <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-2.5">
@@ -965,7 +1132,7 @@
                                 {/if}
                             {:else}
                                 <tr>
-                                    <td colspan="9" class="p-10 text-center text-slate-500 text-xs">
+                                    <td colspan="10" class="p-10 text-center text-slate-500 text-xs">
                                         No se encontraron pedidos registrados.
                                     </td>
                                 </tr>
@@ -980,6 +1147,7 @@
             <div class="space-y-4">
                 {#each orders.data as order (order.id)}
                     {@const badge = getDerivedStatusBadge(order.derived_status)}
+                    {@const shippingBadge = getShippingTypeBadge(order.shipping_type)}
                     {@const tasksTotal = order.tasks_count ?? 0}
                     {@const tasksCompleted = order.completed_tasks_count ?? 0}
                     {@const progressPercent = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : 0}
@@ -997,6 +1165,9 @@
                                     </h3>
                                     <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border {badge.color}">
                                         {badge.label}
+                                    </span>
+                                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-semibold border {shippingBadge.color}">
+                                        {shippingBadge.label}
                                     </span>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -1077,6 +1248,16 @@
                             <div class="flex items-center gap-2 self-end lg:self-center shrink-0">
                                 <button
                                     type="button"
+                                    onclick={() => openEditOrder(order)}
+                                    class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-colors flex items-center gap-1.5 shadow-sm"
+                                    title="Editar este pedido"
+                                >
+                                    <span>✏️</span>
+                                    <span>Editar</span>
+                                </button>
+
+                                <button
+                                    type="button"
                                     onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
                                     class="px-3.5 py-2 rounded-xl bg-sky-950/70 hover:bg-sky-900/70 text-sky-400 hover:text-sky-300 text-xs font-bold border border-sky-800/70 hover:border-sky-500/60 transition-colors flex items-center gap-1.5 shadow-sm"
                                     title="Abrir tablero Kanban aislado para este pedido"
@@ -1131,6 +1312,7 @@
                 {hasFinancialAccess}
                 onOpenPaymentModal={openPaymentModal}
                 onMarkDelivered={markDelivered}
+                onEditOrder={openEditOrder}
                 onDayClick={handleCalendarDayClick}
                 {formatCurrency}
                 {getDerivedStatusBadge}
@@ -1158,21 +1340,25 @@
     </div>
 </AppLayout>
 
-<!-- MODAL CREAR PEDIDO (SIMPLIFICADO) -->
+<!-- MODAL CREAR / EDITAR PEDIDO -->
 {#if showCreateModal}
     <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto overflow-x-hidden">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div>
-                    <h3 class="text-base font-bold text-white">Registrar Nuevo Pedido</h3>
-                    <p class="text-[11px] text-slate-400">Genera las tarjetas de producción en el Tablero Kanban.</p>
+                    <h3 class="text-base font-bold text-white">
+                        {isEditingOrder ? `Editar Pedido #${orders.data?.find(o => o.id === editingOrderId)?.order_number || editingOrderId}` : 'Registrar Nuevo Pedido'}
+                    </h3>
+                    <p class="text-[11px] text-slate-400">
+                        {isEditingOrder ? 'Modifica los productos, entrega y detalles del pedido conservando las etapas en Kanban.' : 'Genera las tarjetas de producción en el Tablero Kanban.'}
+                    </p>
                 </div>
                 <button type="button" onclick={() => showCreateModal = false} class="text-slate-400 hover:text-white">✕</button>
             </div>
 
             <form onsubmit={submitOrder} class="space-y-4 text-xs">
-                <!-- CLIENTE Y FECHA DE ENTREGA COMPROMETIDA CON SELECTOR VISUAL DE CAPACIDAD -->
-                <div class="space-y-4">
+                <!-- CLIENTE Y MODALIDAD DE ENVÍO -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <label for="ord-customer" class="font-semibold text-slate-300">Cliente *</label>
@@ -1200,7 +1386,35 @@
                         {/if}
                     </div>
 
-                    <!-- SELECTOR VISUAL DE CALENDARIO CON CARGA DIARIA (PUNTO 11) -->
+                    <fieldset>
+                        <legend class="block font-semibold text-slate-300 mb-1">Modalidad de Envío *</legend>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-colors {orderForm.shipping_type === 'contraentrega' ? 'bg-slate-800/90 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}">
+                                <input
+                                    type="radio"
+                                    name="order_shipping_type"
+                                    value="contraentrega"
+                                    bind:group={orderForm.shipping_type}
+                                    class="text-emerald-500 focus:ring-0"
+                                />
+                                <span class="font-medium text-[11px] leading-tight">🚚 Contraentrega (Paga cliente)</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-colors {orderForm.shipping_type === 'envio_incluido' ? 'bg-slate-800/90 border-sky-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}">
+                                <input
+                                    type="radio"
+                                    name="order_shipping_type"
+                                    value="envio_incluido"
+                                    bind:group={orderForm.shipping_type}
+                                    class="text-sky-500 focus:ring-0"
+                                />
+                                <span class="font-medium text-[11px] leading-tight">📦 Envío Incluido (Paga empresa)</span>
+                            </label>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <!-- SELECTOR VISUAL DE CALENDARIO CON CARGA DIARIA (PUNTOS 4 Y 5) -->
+                <div>
                     <OrderDateSelector
                         bind:value={orderForm.committed_delivery_at}
                         {allOrdersByDate}
@@ -1217,15 +1431,26 @@
                             <span class="font-bold text-white text-xs">Productos del Pedido</span>
                             <p class="text-[11px] text-slate-500">Agrega las variantes y cantidades solicitadas.</p>
                         </div>
-                        <button
-                            type="button"
-                            onclick={addItem}
-                            disabled={products.length === 0}
-                            class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 disabled:opacity-50"
-                        >
-                            <span>+</span>
-                            <span>Agregar Producto</span>
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onclick={openCreateProductModal}
+                                class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold text-xs border border-slate-700 flex items-center gap-1 transition-colors"
+                                title="Crear un producto nuevo con receta BOM y variantes"
+                            >
+                                <span>+</span>
+                                <span>Nuevo Producto</span>
+                            </button>
+                            <button
+                                type="button"
+                                onclick={addItem}
+                                disabled={localProducts.length === 0}
+                                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                                <span>+</span>
+                                <span>Agregar Renglón</span>
+                            </button>
+                        </div>
                     </div>
 
                     {#if orderForm.items.length === 0}
@@ -1235,33 +1460,34 @@
                     {:else}
                         <div class="space-y-2">
                             {#each orderForm.items as item, idx}
-                                {@const selectedProd = products.find((p) => p.id == item.product_id)}
+                                {@const selectedProd = localProducts.find((p) => p.id == item.product_id)}
                                 {@const selectedVariant = selectedProd?.variants?.find((v) => v.id == item.product_variant_id)}
-                                {@const unitPrice = selectedVariant?.price_override !== null && selectedVariant?.price_override !== ''
+                                {@const unitPrice = selectedVariant?.price_override !== null && selectedVariant?.price_override !== '' && selectedVariant?.price_override !== undefined
                                     ? Number(selectedVariant.price_override)
                                     : Number(selectedProd?.base_price ?? 0)}
-                                {@const subtotal = unitPrice * Number(item.quantity || 0)}
-                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center gap-2.5">
-                                    <div class="flex-1">
+                                {@const subtotal = (item.unit_price ? Number(item.unit_price) : unitPrice) * Number(item.quantity || 0)}
+                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 grid grid-cols-12 gap-3 items-end">
+                                    <div class="col-span-12 sm:col-span-4 min-w-0">
                                         <label for="prod-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Producto</label>
                                         <select
                                             id="prod-sel-{idx}"
                                             bind:value={item.product_id}
                                             onchange={(e) => onProductChange(item, e.target.value)}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs truncate"
                                         >
-                                            {#each products as p}
+                                            {#each localProducts as p}
                                                 <option value={p.id}>{p.name}</option>
                                             {/each}
                                         </select>
                                     </div>
 
-                                    <div class="flex-1">
+                                    <div class="col-span-6 sm:col-span-2 min-w-0">
                                         <label for="var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Variante</label>
                                         <select
                                             id="var-sel-{idx}"
                                             bind:value={item.product_variant_id}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono"
+                                            onchange={(e) => onVariantChange(item, e.target.value)}
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono truncate"
                                         >
                                             {#each selectedProd?.variants ?? [] as v}
                                                 <option value={v.id}>
@@ -1271,7 +1497,7 @@
                                         </select>
                                     </div>
 
-                                    <div class="w-24">
+                                    <div class="col-span-6 sm:col-span-2 min-w-0">
                                         <label for="qty-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Cantidad</label>
                                         <input
                                             id="qty-sel-{idx}"
@@ -1285,29 +1511,41 @@
                                     </div>
 
                                     {#if hasFinancialAccess}
-                                        <div class="w-28 sm:w-32">
-                                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Precio Unitario</span>
-                                            <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs font-mono font-medium truncate">
-                                                {formatCurrency(unitPrice)}
+                                        <div class="col-span-5 sm:col-span-2 min-w-0">
+                                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Precio Unit.</span>
+                                            <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 text-xs font-mono font-medium truncate">
+                                                {formatCurrency(item.unit_price ?? unitPrice)}
                                             </div>
                                         </div>
 
-                                        <div class="w-28 sm:w-32">
-                                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Subtotal</span>
-                                            <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-emerald-400 text-xs font-mono font-bold truncate">
-                                                {formatCurrency(subtotal)}
+                                        <div class="col-span-7 sm:col-span-2 min-w-0 flex items-center gap-2">
+                                            <div class="flex-1 min-w-0">
+                                                <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Subtotal</span>
+                                                <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-emerald-400 text-xs font-mono font-bold truncate">
+                                                    {formatCurrency(subtotal)}
+                                                </div>
                                             </div>
+                                            <button
+                                                type="button"
+                                                onclick={() => removeItem(idx)}
+                                                class="p-1.5 text-slate-500 hover:text-rose-400 shrink-0 self-end mb-0.5"
+                                                title="Quitar producto"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    {:else}
+                                        <div class="col-span-12 sm:col-span-4 min-w-0 flex justify-end">
+                                            <button
+                                                type="button"
+                                                onclick={() => removeItem(idx)}
+                                                class="p-2 text-slate-500 hover:text-rose-400 shrink-0"
+                                                title="Quitar producto"
+                                            >
+                                                ✕
+                                            </button>
                                         </div>
                                     {/if}
-
-                                    <button
-                                        type="button"
-                                        onclick={() => removeItem(idx)}
-                                        class="p-2 text-slate-500 hover:text-rose-400 self-end sm:self-center"
-                                        title="Quitar producto"
-                                    >
-                                        ✕
-                                    </button>
                                 </div>
                             {/each}
                         </div>
@@ -1326,8 +1564,8 @@
                     />
                 </div>
 
-                <!-- SECCIÓN DE ABONO INICIAL (SOLO SI TIENE PERMISOS FINANCIEROS) -->
-                {#if hasFinancialAccess}
+                <!-- SECCIÓN DE ABONO INICIAL (SOLO AL CREAR Y CON PERMISOS FINANCIEROS) -->
+                {#if hasFinancialAccess && !isEditingOrder}
                     <div class="pt-3 border-t border-slate-800 space-y-3">
                         <label class="flex items-center gap-2 cursor-pointer select-none">
                             <input
@@ -1373,43 +1611,60 @@
                                         class="w-full text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
                                     />
                                 </div>
-
-                                <!-- Saldo calculado -->
-                                <div class="flex items-center justify-between text-xs pt-1 text-slate-400">
-                                    <span>Saldo pendiente estimado:</span>
-                                    <span class="font-mono font-bold text-amber-300">{formatCurrency(initialPendingBalance)}</span>
-                                </div>
                             </div>
                         {/if}
                     </div>
                 {/if}
 
-                <!-- TOTAL Y BOTONES -->
-                <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+                <!-- TOTAL, DESGLOSE DE SALDO EN VIVO Y BOTONES -->
+                <div class="pt-3 border-t border-slate-800 space-y-3">
                     {#if hasFinancialAccess}
-                        <div class="text-xs">
-                            <span class="text-slate-400">Total del Pedido: </span>
-                            <span class="font-mono font-bold text-emerald-400 text-base">{formatCurrency(totalAmount)}</span>
-                        </div>
-                    {:else}
-                        <div></div>
+                        {#if !isEditingOrder && orderForm.has_initial_deposit && Number(orderForm.initial_deposit) > 0}
+                            <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+                                <div class="flex justify-between items-center text-slate-400">
+                                    <span>Subtotal / Total del Pedido:</span>
+                                    <span class="font-mono font-bold text-white text-sm">{formatCurrency(totalAmount)}</span>
+                                </div>
+                                <div class="flex justify-between items-center text-emerald-400">
+                                    <span>Abono Inicial (-):</span>
+                                    <span class="font-mono font-bold">- {formatCurrency(orderForm.initial_deposit)}</span>
+                                </div>
+                                <div class="flex justify-between items-center pt-2 border-t border-slate-800 font-bold">
+                                    <span class="text-slate-300">Saldo Faltante a Cobrar:</span>
+                                    <span class="font-mono text-sm {initialPendingBalance > 0 ? 'text-amber-400' : 'text-emerald-400'}">
+                                        {initialPendingBalance > 0 ? formatCurrency(initialPendingBalance) : '✓ Total Cubierto ($0)'}
+                                    </span>
+                                </div>
+                            </div>
+                        {/if}
                     {/if}
 
-                    <div class="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onclick={() => showCreateModal = false}
-                            class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={processing}
-                            class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
-                        >
-                            {processing ? 'Guardando...' : 'Crear Pedido'}
-                        </button>
+                    <div class="flex items-center justify-between">
+                        {#if hasFinancialAccess}
+                            <div class="text-xs">
+                                <span class="text-slate-400">Total del Pedido: </span>
+                                <span class="font-mono font-bold text-emerald-400 text-base">{formatCurrency(totalAmount)}</span>
+                            </div>
+                        {:else}
+                            <div></div>
+                        {/if}
+
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onclick={() => showCreateModal = false}
+                                class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={processing}
+                                class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                            >
+                                {processing ? (isEditingOrder ? 'Guardando...' : 'Creando...') : (isEditingOrder ? 'Guardar Cambios' : 'Crear Pedido')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </form>
@@ -1734,6 +1989,7 @@
                 <div class="space-y-3">
                     {#each dayOrdersModal.orders as order (order.id)}
                         {@const badge = getDerivedStatusBadge(order.derived_status)}
+                        {@const shippingBadge = getShippingTypeBadge(order.shipping_type)}
                         {@const tasks = order.production_tasks || order.tasks || []}
                         <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors space-y-3">
                             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1748,9 +2004,14 @@
                                         <span class="text-[11px] font-mono text-slate-400">📞 {order.customer.phone}</span>
                                     {/if}
                                 </div>
-                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border {badge.color} self-start sm:self-auto">
-                                    {badge.label}
-                                </span>
+                                <div class="flex items-center gap-1.5 self-start sm:self-auto">
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border {badge.color}">
+                                        {badge.label}
+                                    </span>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold border {shippingBadge.color}">
+                                        {shippingBadge.label}
+                                    </span>
+                                </div>
                             </div>
 
                             {#if hasFinancialAccess}
@@ -1775,6 +2036,18 @@
 
                             <!-- Acciones rápidas -->
                             <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800/60">
+                                <button
+                                    type="button"
+                                    onclick={() => {
+                                        dayOrdersModal.open = false;
+                                        openEditOrder(order);
+                                    }}
+                                    class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-1"
+                                    title="Editar pedido"
+                                >
+                                    <span>✏️</span>
+                                    <span>Editar</span>
+                                </button>
                                 <button
                                     type="button"
                                     onclick={() => {
@@ -1842,3 +2115,16 @@
         </div>
     </div>
 {/if}
+
+<!-- MODAL COMPLETO DE PRODUCTO EN CONTEXTO ASYNC (Nota 7, 8, 9) -->
+<ProductFormModal
+    bind:isOpen={productModalOpen}
+    asyncMode={true}
+    {productTypes}
+    {workflows}
+    {rawMaterials}
+    {orthogonalAttributes}
+    {attributes}
+    {unitsOfMeasure}
+    onSuccess={handleProductCreated}
+/>

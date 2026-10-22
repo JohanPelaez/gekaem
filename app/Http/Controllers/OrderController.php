@@ -8,12 +8,18 @@ use App\Actions\Orders\CreateOrderAction;
 use App\Actions\Orders\GetOrdersListAction;
 use App\Actions\Orders\MarkOrderDeliveredAction;
 use App\Actions\Orders\PredictDeliveryDateAction;
+use App\Actions\Orders\UpdateOrderAction;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderPayment;
+use App\Models\OrthogonalAttribute;
 use App\Models\Product;
+use App\Models\ProductType;
 use App\Models\ProductionTask;
+use App\Models\RawMaterial;
 use App\Models\Tenant;
+use App\Models\UnitOfMeasure;
+use App\Models\Workflow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,6 +47,12 @@ class OrderController extends Controller
             ...$listData,
             'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone']),
             'products' => Product::where('is_active', true)->with(['variants', 'workflow', 'materialRequirements.rawMaterial'])->get(),
+            'workflows' => Workflow::with('stages')->orderBy('name')->get(),
+            'productTypes' => ProductType::orderBy('name')->get(['id', 'name']),
+            'rawMaterials' => RawMaterial::orderBy('name')->get(['id', 'name', 'unit_of_measure', 'current_stock', 'reserved_stock']),
+            'orthogonalAttributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
+            'attributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
+            'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
             'wipQueueMinutes' => (int) ProductionTask::whereHas('currentStage', fn ($q) => $q->whereIn('stage_category', ['pending', 'in_progress']))->sum('estimated_minutes'),
             'dailyProductiveMinutes' => $tenant->daily_productive_minutes ?? 480,
             'defaultBufferPercent' => $tenant->default_buffer_percent ?? 20,
@@ -80,6 +92,7 @@ class OrderController extends Controller
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'custom_buffer_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'committed_delivery_at' => ['nullable', 'date'],
+            'shipping_type' => ['nullable', 'string', 'in:contraentrega,envio_incluido'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'initial_deposit' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['nullable', 'string', 'in:cash,transfer,card,other'],
@@ -112,6 +125,27 @@ class OrderController extends Controller
         });
 
         return redirect()->route('orders.index')->with('success', "Pedido #{$order->order_number} registrado y tareas Kanban generadas.");
+    }
+
+    /**
+     * Update an existing order and intelligently sync its Kanban tasks.
+     */
+    public function update(Request $request, Order $order, UpdateOrderAction $updateOrderAction): RedirectResponse
+    {
+        $validated = $request->validate([
+            'customer_id' => ['required', 'integer', 'exists:customers,id'],
+            'committed_delivery_at' => ['required', 'date'],
+            'shipping_type' => ['required', 'string', 'in:contraentrega,envio_incluido'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $updateOrderAction->execute($this->resolveTenant(), $order, $validated);
+
+        return redirect()->route('orders.index')->with('success', "Pedido #{$order->order_number} actualizado con éxito.");
     }
 
     /**

@@ -41,6 +41,7 @@ Route::middleware(['auth'])->group(function (): void {
     Route::prefix('orders')->name('orders.')->group(function (): void {
         Route::get('/', [OrderController::class, 'index'])->name('index');
         Route::post('/', [OrderController::class, 'store'])->name('store');
+        Route::put('/{order}', [OrderController::class, 'update'])->name('update');
         Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
         Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
         Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');
@@ -107,6 +108,7 @@ Route::middleware(['auth'])->group(function (): void {
 
     // Rutas de Creación Rápida en Contexto (Quick Create)
     Route::prefix('quick')->name('quick.')->group(function (): void {
+        Route::post('/products', [ProductController::class, 'quickStore'])->name('products');
         Route::post('/product-types', [QuickCreateController::class, 'productType'])->name('product-types');
         Route::post('/workflows', [QuickCreateController::class, 'workflow'])->name('workflows');
         Route::post('/suppliers', [QuickCreateController::class, 'supplier'])->name('suppliers');

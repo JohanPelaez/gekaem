@@ -114,6 +114,7 @@ class CreateOrderAction
                 'customer_id' => $customer->id,
                 'order_number' => $nextOrderNumber,
                 'derived_status' => 'pending',
+                'shipping_type' => $data['shipping_type'] ?? 'contraentrega',
                 'total_production_minutes' => $prediction['order_production_minutes'],
                 'buffer_minutes' => $prediction['buffer_minutes'],
                 'predicted_delivery_at' => $prediction['predicted_delivery_at'],

@@ -109,4 +109,14 @@ class Product extends Model
     {
         return $this->hasMany(ProductMaterialRequirement::class);
     }
+
+    /**
+     * Alias for materialRequirements to support both conventions.
+     *
+     * @return HasMany<ProductMaterialRequirement>
+     */
+    public function materials(): HasMany
+    {
+        return $this->materialRequirements();
+    }
 }

@@ -17,6 +17,7 @@ use App\Models\Tenant;
 use App\Models\UnitOfMeasure;
 use App\Models\Workflow;
 use App\Support\ProductionTimeConverter;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -69,7 +70,7 @@ class ProductController extends Controller
     /**
      * Store a newly created product with BOM requirements and orthogonal variants.
      */
-    public function store(Request $request, GenerateOrthogonalVariantsAction $variantsAction): RedirectResponse
+    public function store(Request $request, GenerateOrthogonalVariantsAction $variantsAction): RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
@@ -89,7 +90,7 @@ class ProductController extends Controller
             'grouped_options' => ['nullable', 'array'],
         ]);
 
-        DB::transaction(function () use ($validated, $variantsAction): void {
+        $product = DB::transaction(function () use ($validated, $variantsAction): Product {
             $tenant = Tenant::find(session('tenant_id')) ?? auth()->user()?->currentTenant();
             $dailyMinutes = $tenant?->daily_productive_minutes ?? 480;
 
@@ -136,7 +137,21 @@ class ProductController extends Controller
                     'is_active' => true,
                 ]);
             }
+
+            return $product;
         });
+
+        if ($request->wantsJson() || $request->is('quick/*')) {
+            return response()->json([
+                'product' => $product->load([
+                    'variants.attributeOptions.attribute',
+                    'productType',
+                    'workflow',
+                    'materials',
+                    'materialRequirements.rawMaterial',
+                ]),
+            ], 201);
+        }
 
         return redirect()->back()->with('success', 'Producto, receta BOM y variantes guardados con éxito.');
     }
@@ -279,5 +294,64 @@ class ProductController extends Controller
         $orthogonalAttribute->options()->create($validated);
 
         return redirect()->back()->with('success', 'Opción agregada al atributo.');
+    }
+
+    /**
+     * Quick create a product and its default variant, or process full creation if detailed payload is provided.
+     */
+    public function quickStore(Request $request, GenerateOrthogonalVariantsAction $variantsAction): JsonResponse
+    {
+        if ($request->has('time_value') || $request->has('materials') || $request->has('grouped_options')) {
+            /** @var JsonResponse $response */
+            $response = $this->store($request, $variantsAction);
+            return $response;
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+            'product_type_id' => ['nullable', 'integer', 'exists:product_types,id'],
+            'workflow_id' => ['nullable', 'integer', 'exists:workflows,id'],
+            'base_price' => ['required', 'numeric', 'min:0'],
+            'production_time_minutes' => ['nullable', 'numeric', 'min:1'],
+        ]);
+
+        $product = DB::transaction(function () use ($validated): Product {
+            $workflowId = !empty($validated['workflow_id'])
+                ? (int) $validated['workflow_id']
+                : Workflow::first()?->id;
+
+            if (!$workflowId) {
+                abort(422, 'No hay flujos de trabajo configurados en el taller.');
+            }
+
+            $baseMinutes = (int) ($validated['production_time_minutes'] ?? 30);
+
+            /** @var Product $product */
+            $product = Product::create([
+                'name' => Str::title(trim($validated['name'])),
+                'product_type_id' => $validated['product_type_id'] ?? null,
+                'workflow_id' => $workflowId,
+                'base_production_minutes' => $baseMinutes,
+                'production_time_unit' => 'minutes',
+                'buffer_percentage' => 20,
+                'base_price' => $validated['base_price'],
+                'is_active' => true,
+            ]);
+
+            ProductVariant::create([
+                'product_id' => $product->id,
+                'name_label' => 'Estándar',
+                'sku' => "PRD-{$product->id}-STD",
+                'production_minutes_delta' => 0,
+                'price_override' => null,
+                'is_active' => true,
+            ]);
+
+            return $product;
+        });
+
+        return response()->json([
+            'product' => $product->load(['variants.attributeOptions.attribute', 'productType', 'workflow', 'materialRequirements.rawMaterial', 'materials']),
+        ], 201);
     }
 }

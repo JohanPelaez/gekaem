@@ -206,4 +206,55 @@ class OrderManagementTest extends TestCase
 
         $this->assertDatabaseMissing('order_payments', ['id' => $payment->id]);
     }
+
+    public function test_update_order_synchronizes_tasks_and_shipping_type(): void
+    {
+        $user = User::first();
+        $this->actingAs($user);
+
+        $order = Order::with('tasks')->firstOrFail();
+        $initialTask = $order->tasks->first();
+        $customer = Customer::firstOrFail();
+        $variants = ProductVariant::all();
+
+        $variant1 = $variants->first();
+        $variant2 = $variants->count() > 1 ? $variants->get(1) : $variant1;
+
+        $response = $this->put("/orders/{$order->id}", [
+            'customer_id' => $customer->id,
+            'committed_delivery_at' => now()->addDays(7)->toDateTimeString(),
+            'shipping_type' => 'envio_incluido',
+            'notes' => 'Pedido actualizado exitosamente',
+            'items' => [
+                [
+                    'product_variant_id' => $variant1->id,
+                    'quantity' => 5,
+                    'unit_price' => 50000,
+                ],
+                [
+                    'product_variant_id' => $variant2->id,
+                    'quantity' => 2,
+                    'unit_price' => 30000,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect();
+
+        $order->refresh();
+        $this->assertSame('envio_incluido', $order->shipping_type);
+        $this->assertSame('Pedido actualizado exitosamente', $order->notes);
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'shipping_type' => 'envio_incluido',
+        ]);
+
+        // Verify task synchronization
+        $this->assertDatabaseHas('production_tasks', [
+            'order_id' => $order->id,
+            'product_variant_id' => $variant1->id,
+            'quantity' => 5,
+        ]);
+    }
 }
+

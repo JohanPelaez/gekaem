@@ -24,6 +24,7 @@ class Order extends Model
         'customer_id',
         'order_number',
         'derived_status',
+        'shipping_type',
         'total_production_minutes',
         'buffer_minutes',
         'predicted_delivery_at',
