@@ -24,6 +24,7 @@ class Order extends Model
         'customer_id',
         'order_number',
         'derived_status',
+        'order_status_id',
         'shipping_type',
         'total_production_minutes',
         'buffer_minutes',
@@ -57,6 +58,7 @@ class Order extends Model
     {
         return [
             'order_number' => 'integer',
+            'order_status_id' => 'integer',
             'total_production_minutes' => 'integer',
             'buffer_minutes' => 'integer',
             'predicted_delivery_at' => 'datetime',
@@ -176,8 +178,18 @@ class Order extends Model
      *
      * @return HasMany<ProductionTask>
      */
-    public function productionTasks(): HasMany
+     public function productionTasks(): HasMany
+     {
+         return $this->hasMany(ProductionTask::class);
+     }
+
+    /**
+     * Get the order status assigned to this order.
+     *
+     * @return BelongsTo<OrderStatus, Order>
+     */
+    public function orderStatus(): BelongsTo
     {
-        return $this->hasMany(ProductionTask::class);
+        return $this->belongsTo(OrderStatus::class);
     }
 }

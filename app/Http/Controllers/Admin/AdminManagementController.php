@@ -70,6 +70,7 @@ class AdminManagementController extends Controller
                         'default_buffer_percent' => 20,
                         'settings' => ['currency' => 'COP', 'parallel_workers' => 1, 'workdays' => [1, 2, 3, 4, 5, 6]],
                     ]);
+                    \App\Models\OrderStatus::seedDefaultStatusesForTenant($newTenant->id);
                     $tenantId = $newTenant->id;
                 } else {
                     $tenantId = (int) $validated['tenant_id'];

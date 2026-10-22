@@ -8,6 +8,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\KanbanController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderPaymentController;
+use App\Http\Controllers\OrderStatusController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuickCreateController;
@@ -35,6 +36,15 @@ Route::middleware(['auth'])->group(function (): void {
         Route::patch('/tasks/{productionTask}/move', [KanbanController::class, 'moveTask'])->name('tasks.move');
         Route::patch('/tasks/{productionTask}/stage', [KanbanController::class, 'moveTask'])->name('tasks.stage');
         Route::patch('/orders/{order}/macro-status', [KanbanController::class, 'macroStatus'])->name('orders.macro-status');
+        Route::patch('/orders/{order}/status', [KanbanController::class, 'updateOrderStatus'])->name('orders.status');
+    });
+
+    // Estados Personalizables de Pedidos
+    Route::prefix('order-statuses')->name('order-statuses.')->group(function (): void {
+        Route::post('/', [OrderStatusController::class, 'store'])->name('store');
+        Route::put('/{orderStatus}', [OrderStatusController::class, 'update'])->name('update');
+        Route::post('/reorder', [OrderStatusController::class, 'reorder'])->name('reorder');
+        Route::delete('/{orderStatus}', [OrderStatusController::class, 'destroy'])->name('destroy');
     });
 
     // Módulo 1: Pedidos, Calculadora Predictiva de Entrega y Cierre Kanban

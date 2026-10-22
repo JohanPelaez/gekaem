@@ -42,8 +42,30 @@ class SyncOrderDerivedStatusAction
                 $newStatus = 'in_progress';
             }
 
+            $needsSave = false;
             if ($order->derived_status !== $newStatus) {
                 $order->derived_status = $newStatus;
+                $needsSave = true;
+            }
+
+            // Si el pedido no está en un estado personalizado del usuario, sincronizar su order_status_id
+            $currentStatus = $order->orderStatus;
+            $isCustom = $currentStatus && $currentStatus->system_key === 'custom';
+            $targetKey = ($newStatus === 'delivered') ? 'ready' : $newStatus;
+
+            if (!$isCustom && in_array($targetKey, ['pending', 'in_progress', 'blocked', 'ready'], true)) {
+                $matchingStatus = \App\Models\OrderStatus::withoutGlobalScope('tenant')
+                    ->where('tenant_id', $order->tenant_id)
+                    ->where('system_key', $targetKey)
+                    ->first();
+
+                if ($matchingStatus && $order->order_status_id !== $matchingStatus->id) {
+                    $order->order_status_id = $matchingStatus->id;
+                    $needsSave = true;
+                }
+            }
+
+            if ($needsSave) {
                 $order->save();
             }
 

@@ -1,0 +1,682 @@
+<script>
+    import { router } from '@inertiajs/svelte';
+    import CurrencyInput from './CurrencyInput.svelte';
+    import QuickCreateModal from './QuickCreateModal.svelte';
+    import OrderDateSelector from './OrderDateSelector.svelte';
+    import ProductFormModal from './ProductFormModal.svelte';
+
+    /**
+     * Componente reutilizable para creación y edición de pedidos (Sprint 6 & 7).
+     * Usa exclusivamente Runes de Svelte 5.
+     */
+    let {
+        isOpen = $bindable(false),
+        isEditing = false,
+        editingOrder = null,
+        initialDate = '',
+        customers = [],
+        products = [],
+        workflows = [],
+        productTypes = [],
+        rawMaterials = [],
+        orthogonalAttributes = [],
+        attributes = [],
+        unitsOfMeasure = [],
+        allOrdersByDate = {},
+        ordersCountByDate = {},
+        allScheduledOrders = [],
+        hasFinancialAccess = true,
+        onSuccess = () => {},
+        onClose = () => {},
+        onCustomerCreated = () => {},
+        onProductCreated = () => {},
+    } = $props();
+
+    // Sincronización local de clientes y productos para creaciones rápidas en contexto
+    let localCustomers = $state([]);
+    $effect(() => {
+        localCustomers = [...customers];
+    });
+
+    let localProducts = $state([]);
+    $effect(() => {
+        localProducts = [...products];
+    });
+
+    // Modales secundarios
+    let quickCustomerModalOpen = $state(false);
+    let productModalOpen = $state(false);
+    let processing = $state(false);
+
+    // Estado del formulario
+    let orderForm = $state({
+        customer_id: '',
+        committed_delivery_at: '',
+        shipping_type: 'contraentrega',
+        notes: '',
+        items: [],
+        has_initial_deposit: false,
+        initial_deposit: '',
+        payment_method: 'transfer',
+        voucher: null,
+    });
+
+    // Inicializar o resetear formulario cuando cambia isOpen o editingOrder
+    $effect(() => {
+        if (!isOpen) return;
+
+        if (isEditing && editingOrder) {
+            orderForm.customer_id = editingOrder.customer_id || editingOrder.customer?.id || '';
+            orderForm.shipping_type = editingOrder.shipping_type || 'contraentrega';
+            orderForm.notes = editingOrder.notes || '';
+
+            let dt = '';
+            if (editingOrder.committed_delivery_at) {
+                dt = String(editingOrder.committed_delivery_at).replace(' ', 'T').slice(0, 16);
+            } else if (editingOrder.predicted_delivery_at) {
+                dt = String(editingOrder.predicted_delivery_at).replace(' ', 'T').slice(0, 16);
+            }
+            orderForm.committed_delivery_at = dt;
+
+            const tasks = editingOrder.production_tasks || editingOrder.productionTasks || editingOrder.tasks || [];
+            if (tasks.length > 0) {
+                orderForm.items = tasks.map((t) => {
+                    const variant = t.product_variant || t.productVariant;
+                    let prodId = variant?.product_id || variant?.product?.id;
+                    if (!prodId) {
+                        const found = localProducts.find((p) => p.variants?.some((v) => v.id == t.product_variant_id));
+                        prodId = found?.id ?? '';
+                    }
+                    return {
+                        product_id: prodId,
+                        product_variant_id: t.product_variant_id,
+                        quantity: Number(t.quantity || 1),
+                        unit_price: Number(t.unit_price || 0),
+                    };
+                });
+            } else if (localProducts.length > 0) {
+                addItem();
+            }
+
+            orderForm.has_initial_deposit = false;
+            orderForm.initial_deposit = '';
+            orderForm.payment_method = 'transfer';
+            orderForm.voucher = null;
+        } else {
+            orderForm.customer_id = localCustomers[0]?.id ?? '';
+            orderForm.committed_delivery_at = initialDate ? `${initialDate}T17:00` : '';
+            orderForm.shipping_type = 'contraentrega';
+            orderForm.notes = '';
+            orderForm.items = [];
+            orderForm.has_initial_deposit = false;
+            orderForm.initial_deposit = '';
+            orderForm.payment_method = 'transfer';
+            orderForm.voucher = null;
+
+            if (localProducts.length > 0) {
+                addItem();
+            }
+        }
+    });
+
+    function handleQuickCustomerSuccess(created) {
+        if (!created) return;
+        localCustomers = [...localCustomers, created];
+        orderForm.customer_id = created.id;
+        onCustomerCreated(created);
+    }
+
+    function addItem() {
+        if (localProducts.length === 0) return;
+        const firstProd = localProducts[0];
+        const firstVariant = firstProd.variants?.[0] ?? null;
+
+        orderForm.items = [
+            ...orderForm.items,
+            {
+                product_id: firstProd.id,
+                product_variant_id: firstVariant?.id ?? '',
+                quantity: 1,
+                unit_price: Number(firstVariant?.price_override ?? firstProd.base_price ?? 0),
+            },
+        ];
+    }
+
+    function removeItem(index) {
+        orderForm.items = orderForm.items.filter((_, i) => i !== index);
+    }
+
+    function onProductChange(item, productId) {
+        item.product_id = Number(productId);
+        const prod = localProducts.find((p) => p.id === Number(productId));
+        const firstVariant = prod?.variants?.[0] ?? null;
+        item.product_variant_id = firstVariant?.id ?? '';
+        item.unit_price = Number(firstVariant?.price_override ?? prod?.base_price ?? 0);
+    }
+
+    function onVariantChange(item, variantId) {
+        item.product_variant_id = Number(variantId);
+        const prod = localProducts.find((p) => p.id === Number(item.product_id));
+        const variant = prod?.variants?.find((v) => v.id === Number(variantId));
+        if (variant) {
+            item.unit_price = Number(variant.price_override ?? prod?.base_price ?? 0);
+        }
+    }
+
+    function openCreateProductModal() {
+        productModalOpen = true;
+    }
+
+    function handleProductCreated(newProduct) {
+        if (!newProduct) return;
+        if (!localProducts.some((p) => p.id === newProduct.id)) {
+            localProducts = [...localProducts, newProduct];
+        }
+        const defaultVariant = newProduct.variants?.[0] ?? null;
+        const unitPrice = defaultVariant?.price_override !== null && defaultVariant?.price_override !== undefined && defaultVariant?.price_override !== ''
+            ? Number(defaultVariant.price_override)
+            : Number(newProduct.base_price || 0);
+
+        const lastItemIdx = orderForm.items.length - 1;
+        if (lastItemIdx >= 0 && (!orderForm.items[lastItemIdx].product_id || orderForm.items[lastItemIdx].product_id === '')) {
+            orderForm.items[lastItemIdx].product_id = newProduct.id;
+            orderForm.items[lastItemIdx].product_variant_id = defaultVariant?.id ?? '';
+            orderForm.items[lastItemIdx].unit_price = unitPrice;
+        } else {
+            orderForm.items = [
+                ...orderForm.items,
+                {
+                    product_id: newProduct.id,
+                    product_variant_id: defaultVariant?.id ?? '',
+                    quantity: 1,
+                    unit_price: unitPrice,
+                },
+            ];
+        }
+        onProductCreated(newProduct);
+    }
+
+    function onInitialVoucherChange(e) {
+        const file = e.target.files?.[0] ?? null;
+        orderForm.voucher = file;
+    }
+
+    let totalAmount = $derived.by(() => {
+        let sum = 0;
+        for (const item of orderForm.items) {
+            if (!item.product_variant_id || !item.quantity) continue;
+            const prod = localProducts.find((p) => p.id == item.product_id);
+            const variant = prod?.variants?.find((v) => v.id == item.product_variant_id);
+            const price = item.unit_price !== undefined && item.unit_price !== '' && item.unit_price !== null
+                ? Number(item.unit_price)
+                : (variant?.price_override !== null && variant?.price_override !== ''
+                    ? Number(variant.price_override)
+                    : Number(prod?.base_price ?? 0));
+            sum += price * Number(item.quantity);
+        }
+        return sum;
+    });
+
+    let initialPendingBalance = $derived.by(() => {
+        if (!orderForm.has_initial_deposit || !orderForm.initial_deposit) {
+            return totalAmount;
+        }
+        const deposit = Number(orderForm.initial_deposit) || 0;
+        return Math.max(0, totalAmount - deposit);
+    });
+
+    function formatCurrency(val) {
+        return new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'COP',
+            maximumFractionDigits: 0,
+        }).format(val || 0);
+    }
+
+    function getDerivedStatusBadge(status) {
+        switch (status) {
+            case 'pending':
+                return { text: 'Pendiente', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+            case 'in_progress':
+                return { text: 'En Fabricación', color: 'bg-sky-500/10 text-sky-400 border-sky-500/20' };
+            case 'blocked':
+                return { text: 'Bloqueado', color: 'bg-rose-500/10 text-rose-400 border-rose-500/20' };
+            case 'ready':
+                return { text: 'Listo', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+            case 'delivered':
+                return { text: 'Entregado', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' };
+            default:
+                return { text: status, color: 'bg-slate-800 text-slate-300 border-slate-700' };
+        }
+    }
+
+    function closeModal() {
+        isOpen = false;
+        onClose();
+    }
+
+    function handleSubmit(e) {
+        e.preventDefault();
+
+        if (!orderForm.committed_delivery_at) {
+            alert('Por favor selecciona un día en el calendario para comprometer la entrega.');
+            return;
+        }
+
+        if (orderForm.items.length === 0) {
+            alert('Agrega al menos un producto al pedido.');
+            return;
+        }
+
+        if (isEditing && editingOrder) {
+            router.put(`/orders/${editingOrder.id}`, {
+                customer_id: Number(orderForm.customer_id),
+                committed_delivery_at: orderForm.committed_delivery_at,
+                shipping_type: orderForm.shipping_type,
+                notes: orderForm.notes ?? '',
+                items: orderForm.items.map((item) => ({
+                    product_variant_id: Number(item.product_variant_id),
+                    quantity: Number(item.quantity),
+                    unit_price: Number(item.unit_price || 0),
+                })),
+            }, {
+                preserveScroll: true,
+                onStart: () => { processing = true; },
+                onFinish: () => { processing = false; },
+                onSuccess: () => {
+                    closeModal();
+                    onSuccess();
+                },
+            });
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('customer_id', String(orderForm.customer_id));
+        formData.append('committed_delivery_at', orderForm.committed_delivery_at);
+        formData.append('shipping_type', orderForm.shipping_type);
+        formData.append('notes', orderForm.notes ?? '');
+        formData.append('has_initial_deposit', orderForm.has_initial_deposit ? '1' : '0');
+
+        if (orderForm.has_initial_deposit && orderForm.initial_deposit) {
+            formData.append('initial_deposit', String(orderForm.initial_deposit));
+            formData.append('payment_method', orderForm.payment_method);
+            if (orderForm.voucher) {
+                formData.append('voucher', orderForm.voucher);
+            }
+        }
+
+        orderForm.items.forEach((item, index) => {
+            formData.append(`items[${index}][product_id]`, String(item.product_id));
+            formData.append(`items[${index}][product_variant_id]`, String(item.product_variant_id));
+            formData.append(`items[${index}][quantity]`, String(item.quantity));
+            if (item.unit_price !== undefined && item.unit_price !== null) {
+                formData.append(`items[${index}][unit_price]`, String(item.unit_price));
+            }
+        });
+
+        router.post('/orders', formData, {
+            preserveScroll: true,
+            onStart: () => { processing = true; },
+            onFinish: () => { processing = false; },
+            onSuccess: () => {
+                closeModal();
+                onSuccess();
+            },
+        });
+    }
+</script>
+
+{#if isOpen}
+    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                    <h3 class="text-base font-bold text-white">
+                        {isEditing ? `Editar Pedido #${editingOrder?.order_number || editingOrder?.id}` : 'Registrar Nuevo Pedido'}
+                    </h3>
+                    <p class="text-[11px] text-slate-400">
+                        {isEditing ? 'Modifica los productos, entrega y detalles del pedido conservando las etapas en Kanban.' : 'Genera las tarjetas de producción en el Tablero Kanban y programa la entrega.'}
+                    </p>
+                </div>
+                <button type="button" onclick={closeModal} class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+            </div>
+
+            <form onsubmit={handleSubmit} class="space-y-4 text-xs">
+                <!-- CLIENTE Y MODALIDAD DE ENVÍO -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label for="ord-modal-customer" class="font-semibold text-slate-300">Cliente *</label>
+                            <button
+                                type="button"
+                                onclick={() => quickCustomerModalOpen = true}
+                                class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                            >
+                                + Nuevo Cliente
+                            </button>
+                        </div>
+                        <select
+                            id="ord-modal-customer"
+                            bind:value={orderForm.customer_id}
+                            required
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        >
+                            <option value="">-- Selecciona un Cliente --</option>
+                            {#each localCustomers as c}
+                                <option value={c.id}>
+                                    {c.name} {c.city ? `(${c.city}${c.department ? `, ${c.department}` : ''})` : (c.phone ? `(${c.phone})` : '')}
+                                </option>
+                            {/each}
+                        </select>
+                        {#if errors.customer_id}
+                            <p class="text-[10px] text-rose-400 mt-1">{errors.customer_id}</p>
+                        {/if}
+                    </div>
+
+                    <fieldset>
+                        <legend class="block font-semibold text-slate-300 mb-1">Modalidad de Envío *</legend>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-colors {orderForm.shipping_type === 'contraentrega' ? 'bg-slate-800/90 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}">
+                                <input
+                                    type="radio"
+                                    name="order_modal_shipping_type"
+                                    value="contraentrega"
+                                    bind:group={orderForm.shipping_type}
+                                    class="text-emerald-500 focus:ring-0"
+                                />
+                                <span class="font-medium text-[11px] leading-tight">🚚 Contraentrega (Paga cliente)</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-colors {orderForm.shipping_type === 'envio_incluido' ? 'bg-slate-800/90 border-sky-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}">
+                                <input
+                                    type="radio"
+                                    name="order_modal_shipping_type"
+                                    value="envio_incluido"
+                                    bind:group={orderForm.shipping_type}
+                                    class="text-sky-500 focus:ring-0"
+                                />
+                                <span class="font-medium text-[11px] leading-tight">📦 Envío Incluido (Paga empresa)</span>
+                            </label>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <!-- SELECTOR VISUAL DE CALENDARIO -->
+                <div>
+                    <span class="block font-semibold text-slate-300 mb-1">Fecha y Hora de Entrega Comprometida *</span>
+                    <OrderDateSelector
+                        bind:value={orderForm.committed_delivery_at}
+                        {allOrdersByDate}
+                        {ordersCountByDate}
+                        {allScheduledOrders}
+                        {getDerivedStatusBadge}
+                    />
+                </div>
+
+                <!-- RENGLONES DE PRODUCTOS -->
+                <div class="space-y-3 pt-2 border-t border-slate-800">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="font-bold text-white text-xs">Productos del Pedido</span>
+                            <p class="text-[11px] text-slate-500">Agrega las variantes y cantidades solicitadas.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onclick={openCreateProductModal}
+                                class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold text-xs border border-slate-700 flex items-center gap-1 transition-colors"
+                                title="Crear un producto nuevo con receta BOM y variantes"
+                            >
+                                <span>+</span>
+                                <span>Nuevo Producto</span>
+                            </button>
+                            <button
+                                type="button"
+                                onclick={addItem}
+                                disabled={localProducts.length === 0}
+                                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                                <span>+</span>
+                                <span>Agregar Renglón</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {#if orderForm.items.length === 0}
+                        <div class="p-6 text-center border-2 border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                            Agrega al menos un producto al pedido.
+                        </div>
+                    {:else}
+                        <div class="space-y-2">
+                            {#each orderForm.items as item, idx}
+                                {@const selectedProd = localProducts.find((p) => p.id == item.product_id)}
+                                {@const selectedVariant = selectedProd?.variants?.find((v) => v.id == item.product_variant_id)}
+                                {@const unitPrice = selectedVariant?.price_override !== null && selectedVariant?.price_override !== '' && selectedVariant?.price_override !== undefined
+                                    ? Number(selectedVariant.price_override)
+                                    : Number(selectedProd?.base_price ?? 0)}
+                                {@const subtotal = (item.unit_price ? Number(item.unit_price) : unitPrice) * Number(item.quantity || 0)}
+                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 grid grid-cols-12 gap-3 items-end">
+                                    <div class="col-span-12 sm:col-span-4 min-w-0">
+                                        <label for="modal-prod-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Producto</label>
+                                        <select
+                                            id="modal-prod-sel-{idx}"
+                                            bind:value={item.product_id}
+                                            onchange={(e) => onProductChange(item, e.target.value)}
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs truncate"
+                                        >
+                                            {#each localProducts as p}
+                                                <option value={p.id}>{p.name}</option>
+                                            {/each}
+                                        </select>
+                                    </div>
+
+                                    <div class="col-span-6 sm:col-span-2 min-w-0">
+                                        <label for="modal-var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Variante</label>
+                                        <select
+                                            id="modal-var-sel-{idx}"
+                                            bind:value={item.product_variant_id}
+                                            onchange={(e) => onVariantChange(item, e.target.value)}
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono truncate"
+                                        >
+                                            {#each selectedProd?.variants ?? [] as v}
+                                                <option value={v.id}>
+                                                    {v.name_label} {v.price_override ? `(${formatCurrency(v.price_override)})` : ''}
+                                                </option>
+                                            {/each}
+                                        </select>
+                                    </div>
+
+                                    <div class="col-span-6 sm:col-span-2 min-w-0">
+                                        <label for="modal-qty-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Cantidad</label>
+                                        <input
+                                            id="modal-qty-sel-{idx}"
+                                            type="number"
+                                            step="0.01"
+                                            min="0.01"
+                                            bind:value={item.quantity}
+                                            required
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono font-bold"
+                                        />
+                                    </div>
+
+                                    {#if hasFinancialAccess}
+                                        <div class="col-span-5 sm:col-span-2 min-w-0">
+                                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Precio Unit.</span>
+                                            <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 text-xs font-mono font-medium truncate">
+                                                {formatCurrency(item.unit_price ?? unitPrice)}
+                                            </div>
+                                        </div>
+
+                                        <div class="col-span-7 sm:col-span-2 min-w-0 flex items-center gap-2">
+                                            <div class="flex-1 min-w-0">
+                                                <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Subtotal</span>
+                                                <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-emerald-400 text-xs font-mono font-bold truncate">
+                                                    {formatCurrency(subtotal)}
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onclick={() => removeItem(idx)}
+                                                class="p-1.5 text-slate-500 hover:text-rose-400 shrink-0 self-end mb-0.5"
+                                                title="Quitar producto"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    {:else}
+                                        <div class="col-span-12 sm:col-span-4 min-w-0 flex justify-end">
+                                            <button
+                                                type="button"
+                                                onclick={() => removeItem(idx)}
+                                                class="p-2 text-slate-500 hover:text-rose-400 shrink-0"
+                                                title="Quitar producto"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    {/if}
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+                </div>
+
+                <!-- NOTAS -->
+                <div>
+                    <label for="ord-modal-notes" class="block font-semibold text-slate-300 mb-1">Notas / Instrucciones Especiales</label>
+                    <input
+                        id="ord-modal-notes"
+                        type="text"
+                        bind:value={orderForm.notes}
+                        placeholder="Ej. Entregar en portería, medidas especiales..."
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    />
+                </div>
+
+                <!-- SECCIÓN DE ABONO INICIAL (SOLO AL CREAR Y CON PERMISOS FINANCIEROS) -->
+                {#if hasFinancialAccess && !isEditing}
+                    <div class="pt-3 border-t border-slate-800 space-y-3">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                bind:checked={orderForm.has_initial_deposit}
+                                class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0"
+                            />
+                            <span class="font-bold text-white text-xs">Registrar Abono Inicial en este Pedido</span>
+                        </label>
+
+                        {#if orderForm.has_initial_deposit}
+                            <div class="p-4 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="ord-modal-deposit" class="block font-semibold text-slate-300 mb-1">Monto del Abono ($) *</label>
+                                        <CurrencyInput bind:value={orderForm.initial_deposit} id="ord-modal-deposit" required placeholder="0" />
+                                    </div>
+
+                                    <div>
+                                        <label for="ord-modal-method" class="block font-semibold text-slate-300 mb-1">Método de Pago *</label>
+                                        <select
+                                            id="ord-modal-method"
+                                            bind:value={orderForm.payment_method}
+                                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                        >
+                                            <option value="transfer">Transferencia / Nequi / Daviplata</option>
+                                            <option value="cash">Efectivo</option>
+                                            <option value="card">Tarjeta</option>
+                                            <option value="other">Otro medio</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="ord-modal-voucher" class="block font-semibold text-slate-300 mb-1">
+                                        Comprobante o Foto del Pago (Opcional, máx 5MB)
+                                    </label>
+                                    <input
+                                        id="ord-modal-voucher"
+                                        type="file"
+                                        accept="image/*,.pdf"
+                                        onchange={onInitialVoucherChange}
+                                        class="w-full text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
+                                    />
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
+                {/if}
+
+                <!-- TOTAL, DESGLOSE DE SALDO EN VIVO Y BOTONES -->
+                <div class="pt-3 border-t border-slate-800 space-y-3">
+                    {#if hasFinancialAccess}
+                        {#if !isEditing && orderForm.has_initial_deposit && Number(orderForm.initial_deposit) > 0}
+                            <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+                                <div class="flex justify-between items-center text-slate-400">
+                                    <span>Subtotal / Total del Pedido:</span>
+                                    <span class="font-mono font-bold text-white text-sm">{formatCurrency(totalAmount)}</span>
+                                </div>
+                                <div class="flex justify-between items-center text-emerald-400">
+                                    <span>Abono Inicial (-):</span>
+                                    <span class="font-mono font-bold">- {formatCurrency(orderForm.initial_deposit)}</span>
+                                </div>
+                                <div class="flex justify-between items-center pt-2 border-t border-slate-800 font-bold">
+                                    <span class="text-slate-300">Saldo Faltante a Cobrar:</span>
+                                    <span class="font-mono text-sm {initialPendingBalance > 0 ? 'text-amber-400' : 'text-emerald-400'}">
+                                        {initialPendingBalance > 0 ? formatCurrency(initialPendingBalance) : '✓ Total Cubierto ($0)'}
+                                    </span>
+                                </div>
+                            </div>
+                        {/if}
+                    {/if}
+
+                    <div class="flex items-center justify-between">
+                        {#if hasFinancialAccess}
+                            <div class="text-xs">
+                                <span class="text-slate-400">Total del Pedido: </span>
+                                <span class="font-mono font-bold text-emerald-400 text-base">{formatCurrency(totalAmount)}</span>
+                            </div>
+                        {:else}
+                            <div></div>
+                        {/if}
+
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onclick={closeModal}
+                                class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={processing}
+                                class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                            >
+                                {processing ? (isEditing ? 'Guardando...' : 'Creando...') : (isEditing ? 'Guardar Cambios' : 'Crear Pedido')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+{/if}
+
+<!-- MODAL FLOTANTE DE CREACIÓN RÁPIDA DE CLIENTE -->
+<QuickCreateModal
+    bind:isOpen={quickCustomerModalOpen}
+    type="customer"
+    onSuccess={handleQuickCustomerSuccess}
+/>
+
+<!-- MODAL COMPLETO DE PRODUCTO EN CONTEXTO ASYNC (Nota 7, 8, 9) -->
+<ProductFormModal
+    bind:isOpen={productModalOpen}
+    asyncMode={true}
+    {productTypes}
+    {workflows}
+    {rawMaterials}
+    {orthogonalAttributes}
+    {attributes}
+    {unitsOfMeasure}
+    onSuccess={handleProductCreated}
+/>

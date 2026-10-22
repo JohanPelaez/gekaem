@@ -3,29 +3,46 @@
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import { csrfFetch } from '../../Utils/csrfFetch';
     import { canViewPrices } from '../../Utils/permissions';
+    import OrderFormModal from '../../Components/OrderFormModal.svelte';
+    import OrderStatusModal from './OrderStatusModal.svelte';
+    import OrderDetailModal from './OrderDetailModal.svelte';
+    import ProductionTaskDetailModal from './ProductionTaskDetailModal.svelte';
+    import ProductFormModal from '../../Components/ProductFormModal.svelte';
 
     let {
         workflows = [],
         orders = [],
+        orderStatuses = [],
+        allScheduledOrders = [],
+        ordersCountByDate = {},
         customers = [],
         products = [],
         productTypes = [],
+        rawMaterials = [],
+        orthogonalAttributes = [],
+        attributes = [],
+        unitsOfMeasure = [],
         selectedOrderId = null,
     } = $props();
 
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
+    let isOwnerOrAdmin = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner'));
 
     // Copia local de pedidos para optimismo reactivo
     let localOrders = $state([]);
-
     $effect(() => {
         localOrders = JSON.parse(JSON.stringify(orders));
     });
 
+    // Copia local de estados de pedido ordenados por posición
+    let localStatuses = $state([]);
+    $effect(() => {
+        localStatuses = JSON.parse(JSON.stringify(orderStatuses)).sort((a, b) => (a.position || 0) - (b.position || 0));
+    });
+
     // ID del pedido actualmente abierto en vista aislada
     let activeOrderId = $state(null);
-
     $effect(() => {
         if (selectedOrderId) {
             activeOrderId = Number(selectedOrderId);
@@ -38,7 +55,7 @@
     // Filtros progresivos reactivos
     let filters = $state({
         customerId: '',
-        status: 'all', // 'all' | 'pending' | 'in_progress' | 'blocked' | 'ready'
+        status: 'all',
         dateRange: 'all', // 'all' | 'late' | 'today' | 'week'
         workflowId: '',
         productId: '',
@@ -46,16 +63,35 @@
         search: '',
     });
 
-    // Estado Drag & Drop para Pedidos Macro y Tareas de Flujo
+    // Drag & Drop para Pedidos Macro y Tareas de Flujo
     let draggedOrderId = $state(null);
-    let dragOverMacroStatus = $state(null);
+    let dragOverMacroStatusId = $state(null);
     let draggedTaskId = $state(null);
     let dragOverStageId = $state(null);
     let isMoving = $state(false);
 
-    // --- FUNCIONES HELPER SEGURAS (SOPORTAN snake_case Y camelCase) ---
+    // Modales
+    let isStatusModalOpen = $state(false);
+    let isOrderFormOpen = $state(false);
+    let isEditingOrder = $state(false);
+    let editingOrder = $state(null);
+
+    // Modal de Detalle Completo de Pedido (Punto 18)
+    let isDetailModalOpen = $state(false);
+    let selectedOrderForDetail = $state(null);
+    let highlightedTaskId = $state(null);
+
+    // Modal de Ficha Técnica de Producción al tocar una card de Producto (Punto 2)
+    let selectedTaskDetail = $state(null);
+    let isTaskDetailModalOpen = $state(false);
+
+    // Modal de Edición de Receta / Producto
+    let editingProductForBOM = $state(null);
+    let isProductFormOpen = $state(false);
+
+    // --- FUNCIONES HELPER SEGURAS ---
     function getOrderTasks(order) {
-        return order?.production_tasks ?? order?.productionTasks ?? [];
+        return order?.production_tasks ?? order?.productionTasks ?? order?.tasks ?? [];
     }
 
     function getTaskVariant(task) {
@@ -73,6 +109,39 @@
     function getTaskWorkflowId(task) {
         return Number(task?.workflow_id ?? task?.workflow?.id ?? getTaskProduct(task)?.workflow_id ?? 0);
     }
+
+    function getOrderDateKey(ord) {
+        if (!ord) return '';
+        if (ord.delivery_date_key && /^\d{4}-\d{2}-\d{2}$/.test(ord.delivery_date_key)) {
+            return ord.delivery_date_key;
+        }
+        const raw = ord.committed_delivery_at || ord.predicted_delivery_at || ord.delivery_date || '';
+        if (!raw) return '';
+        const match = String(raw).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : '';
+    }
+
+    // Mapa reactivo de pedidos por fecha para el mini-calendario
+    let allOrdersByDate = $derived.by(() => {
+        const map = {};
+        const combined = [
+            ...(Array.isArray(allScheduledOrders) ? allScheduledOrders : []),
+            ...(Array.isArray(localOrders) ? localOrders : []),
+        ];
+
+        const seenIds = new Set();
+        for (const ord of combined) {
+            if (!ord || seenIds.has(ord.id)) continue;
+            seenIds.add(ord.id);
+            const key = getOrderDateKey(ord);
+            if (!key) continue;
+            if (!map[key]) {
+                map[key] = [];
+            }
+            map[key].push(ord);
+        }
+        return map;
+    });
 
     // Pedido actualmente seleccionado en el Nivel 2
     let activeOrder = $derived(
@@ -101,7 +170,6 @@
             }
         }
 
-        // Si ninguna tarea mapeó a un flujo pero hay flujos disponibles en el tenant
         if (map.size === 0 && workflows.length > 0) {
             const fallbackWf = workflows.find((w) => w.is_default) ?? workflows[0];
             map.set(Number(fallbackWf.id), {
@@ -127,76 +195,88 @@
         return orderWorkflows[0];
     });
 
-    let activeOrderStages = $derived(
-        activeOrderWorkflow?.stages ?? [],
-    );
+    // Etapas ordenadas del flujo activo del pedido
+    let activeOrderStages = $derived.by(() => {
+        if (!activeOrderWorkflow) return [];
+        const stages = activeOrderWorkflow.stages ?? [];
+        return [...stages].sort((a, b) => (a.position || 0) - (b.position || 0));
+    });
 
-    // Tareas del pedido activo en el flujo seleccionado
+    // Tareas del pedido que corresponden al flujo seleccionado
     let activeOrderTasks = $derived.by(() => {
-        if (!activeOrder) return [];
+        if (!activeOrder || !activeOrderWorkflow) return [];
         const tasks = getOrderTasks(activeOrder);
-        if (!activeOrderWorkflow) return tasks;
+        const activeWfId = Number(activeOrderWorkflow.id);
+
         return tasks.filter((t) => {
-            const wfId = getTaskWorkflowId(t);
-            return wfId === Number(activeOrderWorkflow.id) || (wfId === 0 && orderWorkflows.length === 1);
+            const taskWfId = getTaskWorkflowId(t);
+            return taskWfId === activeWfId || (!taskWfId && activeOrderWorkflowsCount === 1);
         });
     });
 
-    // Comprobador de si una tarea individual coincide con los filtros específicos de producto
+    let activeOrderWorkflowsCount = $derived(orderWorkflows.length);
+
+    // Evalúa si una tarea individual coincide con los filtros específicos de producto
     function taskMatchesSpecificFilters(task) {
-        if (filters.workflowId) {
-            const wfId = getTaskWorkflowId(task);
-            if (String(wfId) !== String(filters.workflowId)) {
-                return false;
-            }
+        if (filters.workflowId && getTaskWorkflowId(task) !== Number(filters.workflowId)) {
+            return false;
         }
+
+        const variant = getTaskVariant(task);
+        const product = getTaskProduct(task);
+
         if (filters.productTypeId) {
-            const prod = getTaskProduct(task);
-            if (!prod || String(prod.product_type_id) !== String(filters.productTypeId)) {
+            const pType = product?.product_type_id ?? product?.productType?.id ?? variant?.product?.product_type_id;
+            if (Number(pType) !== Number(filters.productTypeId)) {
                 return false;
             }
         }
+
         if (filters.productId) {
-            const prod = getTaskProduct(task);
-            if (!prod || String(prod.id) !== String(filters.productId)) {
+            const prodId = product?.id ?? variant?.product_id;
+            if (Number(prodId) !== Number(filters.productId)) {
                 return false;
             }
         }
+
         return true;
     }
 
-    // Filtrado de pedidos
+    // Filtrado reactivo de pedidos para el Tablero General
     let filteredOrders = $derived.by(() => {
         const now = new Date();
         now.setHours(0, 0, 0, 0);
 
         const endOfWeek = new Date(now);
-        endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
+        endOfWeek.setDate(now.getDate() + (7 - (now.getDay() === 0 ? 7 : now.getDay())));
+        endOfWeek.setHours(23, 59, 59, 999);
 
         return localOrders.filter((order) => {
             const tasks = getOrderTasks(order);
 
-            // Buscador general (número o cliente)
+            // Búsqueda textual por número de pedido o nombre de cliente
             if (filters.search.trim()) {
-                const q = filters.search.toLowerCase().trim();
-                const numStr = String(order.order_number);
-                const custName = (order.customer?.name ?? '').toLowerCase();
-                if (!numStr.includes(q) && !custName.includes(q)) {
+                const term = filters.search.toLowerCase().trim();
+                const numStr = String(order.order_number || '');
+                const clientName = (order.customer?.name || '').toLowerCase();
+                if (!numStr.includes(term) && !clientName.includes(term)) {
                     return false;
                 }
             }
 
-            // Filtro por cliente
-            if (filters.customerId && String(order.customer_id) !== String(filters.customerId)) {
+            // Filtro por Cliente
+            if (filters.customerId && Number(order.customer_id) !== Number(filters.customerId)) {
                 return false;
             }
 
-            // Filtro por estado macro del pedido
-            if (filters.status !== 'all' && order.derived_status !== filters.status) {
-                return false;
+            // Filtro por Estado (por ID o por derived_status legacy)
+            if (filters.status !== 'all') {
+                const matches = (Number(order.order_status_id) === Number(filters.status)) ||
+                    (order.derived_status === filters.status);
+                if (!matches) return false;
             }
 
-            // Filtro por fecha de entrega comprometida
+            // Filtro por Fecha de Entrega
             if (filters.dateRange !== 'all' && order.committed_delivery_at) {
                 const deliveryDate = new Date(order.committed_delivery_at);
                 deliveryDate.setHours(0, 0, 0, 0);
@@ -210,9 +290,6 @@
                 }
             }
 
-            // En Vista Tabla de Producción:
-            // Si hay filtros específicos (flujo, tipo o producto), el pedido se conserva si AL MENOS UN producto cumple.
-            // NUNCA se oculta el pedido completo si solo un producto del pedido coincide.
             if (generalViewMode === 'table') {
                 const hasSpecificFilters = Boolean(
                     filters.workflowId || filters.productTypeId || filters.productId
@@ -227,31 +304,30 @@
         });
     });
 
-    // Columnas macro fijas para pedidos
-    const MACRO_COLUMNS = [
-        { key: 'pending', title: 'Pendientes', color: '#f59e0b', desc: 'Sin iniciar o en cola WIP' },
-        { key: 'in_progress', title: 'En Fabricación', color: '#38bdf8', desc: 'Con tareas operativas en curso' },
-        { key: 'blocked', title: 'Bloqueados', color: '#ef4444', desc: 'En pausa o con impedimentos' },
-        { key: 'ready', title: 'Listos para Entrega', color: '#10b981', desc: 'Todas las tareas terminadas' },
-    ];
+    // Pedidos agrupados dinámicamente por order_status_id (Punto 1)
+    let ordersByStatusId = $derived.by(() => {
+        const map = new Map();
+        for (const st of localStatuses) {
+            map.set(st.id, []);
+        }
 
-    // Pedidos agrupados por columna macro
-    let ordersByMacroColumn = $derived.by(() => {
-        const groups = {
-            pending: [],
-            in_progress: [],
-            blocked: [],
-            ready: [],
-        };
+        const firstStatusId = localStatuses[0]?.id;
+
         for (const order of filteredOrders) {
-            const status = order.derived_status;
-            if (groups[status]) {
-                groups[status].push(order);
-            } else {
-                groups.pending.push(order);
+            let targetId = order.order_status_id;
+            if (!targetId || !map.has(targetId)) {
+                const found = localStatuses.find((s) => s.system_key === order.derived_status);
+                targetId = found ? found.id : firstStatusId;
+            }
+
+            if (targetId && map.has(targetId)) {
+                map.get(targetId).push(order);
+            } else if (firstStatusId && map.has(firstStatusId)) {
+                map.get(firstStatusId).push(order);
             }
         }
-        return groups;
+
+        return map;
     });
 
     // Tareas individuales para la vista de tabla con filtrado directo sobre productos
@@ -260,7 +336,6 @@
         for (const order of filteredOrders) {
             const tasks = getOrderTasks(order);
             for (const task of tasks) {
-                // Filtrado directo sobre cada producto/tarea individual
                 if (!taskMatchesSpecificFilters(task)) {
                     continue;
                 }
@@ -277,6 +352,7 @@
                     committed_delivery_at: order.committed_delivery_at,
                     current_stage: stage,
                     workflow: wf,
+                    rawOrder: order,
                 });
             }
         }
@@ -286,7 +362,6 @@
     function setGeneralViewMode(mode) {
         generalViewMode = mode;
         if (mode === 'kanban') {
-            // Al volver al tablero visual, limpiamos los filtros específicos de producto
             filters.workflowId = '';
             filters.productTypeId = '';
             filters.productId = '';
@@ -332,44 +407,110 @@
         window.history.pushState({}, '', url);
     }
 
-    // --- ACCIONES MACRO PARA PEDIDOS ---
+    // --- MODALES ---
+    function openNewOrderModal() {
+        isEditingOrder = false;
+        editingOrder = null;
+        isOrderFormOpen = true;
+    }
+
+    function openEditOrderModal(order) {
+        isEditingOrder = true;
+        editingOrder = order;
+        isOrderFormOpen = true;
+    }
+
+    function openDetailModal(order, taskId = null) {
+        selectedOrderForDetail = order;
+        highlightedTaskId = taskId;
+        isDetailModalOpen = true;
+    }
+
+    function openTaskDetailModal(task) {
+        selectedTaskDetail = task;
+        isTaskDetailModalOpen = true;
+    }
+
+    function closeTaskDetailModal() {
+        isTaskDetailModalOpen = false;
+        selectedTaskDetail = null;
+    }
+
+    function handleEditProductRecipe(productToEdit) {
+        editingProductForBOM = productToEdit;
+        isProductFormOpen = true;
+    }
+
+    // --- ACCIONES MACRO PARA PEDIDOS (DRAG & DROP DINÁMICO) ---
     function handleMacroDragStart(e, orderId) {
         draggedOrderId = orderId;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(orderId));
     }
 
-    function handleMacroDragOver(e, statusKey) {
+    function handleMacroDragOver(e, statusId) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        dragOverMacroStatus = statusKey;
+        dragOverMacroStatusId = statusId;
     }
 
-    function handleMacroDrop(e, targetStatus) {
+    function handleMacroDrop(e, targetStatusId) {
         e.preventDefault();
-        dragOverMacroStatus = null;
+        dragOverMacroStatusId = null;
         if (!draggedOrderId) return;
 
-        updateOrderMacroStatus(draggedOrderId, targetStatus);
+        updateOrderStatus(draggedOrderId, targetStatusId);
         draggedOrderId = null;
     }
 
-    function updateOrderMacroStatus(orderId, newStatus) {
+    async function updateOrderStatus(orderId, newStatusId) {
         const order = localOrders.find((o) => o.id === orderId);
-        if (!order || order.derived_status === newStatus) return;
+        if (!order) return;
+
+        const targetStatus = localStatuses.find((s) => s.id === Number(newStatusId));
+        if (!targetStatus) return;
 
         // Actualización optimista
-        order.derived_status = newStatus;
+        order.order_status_id = targetStatus.id;
+        if (targetStatus.system_key && targetStatus.system_key !== 'custom') {
+            order.derived_status = targetStatus.system_key;
+        }
+
+        if (selectedOrderForDetail && selectedOrderForDetail.id === orderId) {
+            selectedOrderForDetail.order_status_id = targetStatus.id;
+            if (targetStatus.system_key && targetStatus.system_key !== 'custom') {
+                selectedOrderForDetail.derived_status = targetStatus.system_key;
+            }
+        }
 
         isMoving = true;
-        router.patch(
-            `/kanban/orders/${orderId}/macro-status`,
-            { status: newStatus },
-            {
-                preserveScroll: true,
-                onFinish: () => { isMoving = false; },
-            },
-        );
+        try {
+            const res = await csrfFetch(`/kanban/orders/${orderId}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_status_id: targetStatus.id }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Error al actualizar estado del pedido');
+            }
+
+            const data = await res.json().catch(() => null);
+            if (data?.order) {
+                const idx = localOrders.findIndex((o) => o.id === orderId);
+                if (idx !== -1) {
+                    localOrders[idx] = { ...localOrders[idx], ...data.order };
+                }
+                if (selectedOrderForDetail && selectedOrderForDetail.id === orderId) {
+                    selectedOrderForDetail = { ...selectedOrderForDetail, ...data.order };
+                }
+            }
+        } catch (err) {
+            console.error('Error al actualizar estado de pedido:', err);
+            router.reload({ preserveScroll: true });
+        } finally {
+            isMoving = false;
+        }
     }
 
     // --- ACCIONES DE MOVIMIENTO DE TAREAS DENTRO DE UN FLUJO ---
@@ -398,7 +539,6 @@
         const targetStage = activeOrderStages.find((s) => Number(s.id) === Number(targetStageId));
         if (!targetStage) return;
 
-        // Optimismo reactivo en el pedido activo
         if (activeOrder) {
             const tasks = getOrderTasks(activeOrder);
             for (const task of tasks) {
@@ -414,6 +554,25 @@
             }
         }
 
+        if (selectedOrderForDetail) {
+            const tasks = getOrderTasks(selectedOrderForDetail);
+            const task = tasks.find((t) => t.id === taskId);
+            if (task) {
+                task.current_stage_id = targetStageId;
+                task.current_stage = targetStage;
+                task.currentStage = targetStage;
+            }
+        }
+
+        if (selectedTaskDetail && selectedTaskDetail.id === taskId) {
+            selectedTaskDetail.current_stage_id = targetStageId;
+            selectedTaskDetail.current_stage = targetStage;
+            selectedTaskDetail.currentStage = targetStage;
+            if (targetStage.stage_category === 'in_progress') {
+                selectedTaskDetail.materials_consumed = true;
+            }
+        }
+
         isMoving = true;
         router.patch(
             `/kanban/tasks/${taskId}/move`,
@@ -425,31 +584,20 @@
         );
     }
 
-    // ID de la tarea que se encuentra actualizando su etapa en la tabla de producción
-    let updatingTaskId = $state(null);
-
-    // Obtener las etapas disponibles para el flujo de una tarea
-    function getTaskWorkflowStages(task) {
-        const wfId = getTaskWorkflowId(task);
-        const wf = workflows.find((w) => Number(w.id) === wfId) ?? task.workflow;
-        return wf?.stages ?? wf?.workflow_stages ?? [];
-    }
-
-    // Modificación directa e inmediata de etapa en la tabla de producción
+    // Modificación directa e inmediata de etapa en la tabla de producción o modal de detalle
     async function handleTableTaskStageChange(task, newStageId) {
         const stageId = Number(newStageId);
-        if (!stageId || stageId === Number(task.current_stage_id ?? task.current_stage?.id)) {
-            return;
-        }
+        if (!stageId) return;
 
-        const targetWorkflowStages = getTaskWorkflowStages(task);
-        const targetStage = targetWorkflowStages.find((s) => Number(s.id) === stageId);
+        const wfId = getTaskWorkflowId(task);
+        const wf = workflows.find((w) => Number(w.id) === wfId) ?? task.workflow;
+        const stages = wf?.stages ?? wf?.workflow_stages ?? [];
+        const targetStage = stages.find((s) => Number(s.id) === stageId);
         if (!targetStage) return;
 
         const previousStage = task.current_stage;
         const previousStageId = task.current_stage_id;
 
-        // Optimismo reactivo en el estado local
         for (const order of localOrders) {
             if (order.id === task.order_id) {
                 const tasks = getOrderTasks(order);
@@ -465,8 +613,6 @@
                 break;
             }
         }
-
-        updatingTaskId = task.id;
 
         try {
             const response = await csrfFetch(`/kanban/tasks/${task.id}/stage`, {
@@ -489,7 +635,6 @@
             }
         } catch (err) {
             console.error('Error updating task stage:', err);
-            // Rollback en caso de error
             for (const order of localOrders) {
                 if (order.id === task.order_id) {
                     const tasks = getOrderTasks(order);
@@ -502,8 +647,6 @@
                     break;
                 }
             }
-        } finally {
-            updatingTaskId = null;
         }
     }
 
@@ -565,12 +708,36 @@
                         <h1 class="text-2xl font-bold tracking-tight text-white">Tablero de Producción por Pedidos</h1>
                     </div>
                     <p class="text-xs text-slate-400 mt-1">
-                        Monitorea el avance integral de cada pedido ("US") y abre su tablero aislado para gestionar sus productos y flujos de trabajo.
+                        Monitorea el avance integral de cada pedido ("US") con columnas dinámicas personalizables y abre el detalle completo al tocar cualquier card.
                     </p>
                 </div>
 
-                <!-- SELECTOR DE VISTA: TABLERO / TABLA -->
-                <div class="flex items-center gap-2 shrink-0 self-start md:self-auto">
+                <!-- ACCIONES DE CABECERA: BOTÓN NUEVO PEDIDO + CONFIGURACIÓN DE ESTADOS + SELECTOR DE VISTA -->
+                <div class="flex items-center gap-2 shrink-0 self-start md:self-auto flex-wrap">
+                    <!-- Botón Crear Nuevo Pedido directamente en Kanban (Punto 2) -->
+                    <button
+                        type="button"
+                        onclick={openNewOrderModal}
+                        class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
+                    >
+                        <span>➕</span>
+                        <span>Nuevo Pedido</span>
+                    </button>
+
+                    <!-- Botón Configuración de Estados (Visible para Dueño y Admin - Punto 1) -->
+                    {#if isOwnerOrAdmin}
+                        <button
+                            type="button"
+                            onclick={() => isStatusModalOpen = true}
+                            class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1.5"
+                            title="Gestionar y reordenar estados de pedidos con Drag & Drop"
+                        >
+                            <span>⚙️</span>
+                            <span>Estados de Pedidos</span>
+                        </button>
+                    {/if}
+
+                    <!-- SELECTOR DE VISTA: TABLERO / TABLA -->
                     <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center">
                         <button
                             type="button"
@@ -596,16 +763,15 @@
 
                     <Link
                         href="/orders"
-                        class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+                        class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors"
                     >
                         Gestionar Pedidos ➔
                     </Link>
                 </div>
             </div>
 
-            <!-- BARRA DE FILTROS PROGRESIVOS (DE LO GENERAL A LO ESPECÍFICO) -->
+            <!-- BARRA DE FILTROS PROGRESIVOS -->
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-sm">
-                <!-- Nivel 1: Filtros Generales -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <!-- Buscador rápido -->
                     <div>
@@ -634,7 +800,7 @@
                         </select>
                     </div>
 
-                    <!-- Estado del Pedido -->
+                    <!-- Estado del Pedido (Dinámico con localStatuses) -->
                     <div>
                         <label for="filter-status" class="block text-[11px] font-semibold text-slate-400 mb-1">Estado del Pedido</label>
                         <select
@@ -643,10 +809,9 @@
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
                         >
                             <option value="all">Todos los Estados</option>
-                            <option value="pending">Pendientes</option>
-                            <option value="in_progress">En Fabricación</option>
-                            <option value="blocked">Bloqueados</option>
-                            <option value="ready">Listos para Entrega</option>
+                            {#each localStatuses as st (st.id)}
+                                <option value={st.id}>{st.name}</option>
+                            {/each}
                         </select>
                     </div>
 
@@ -666,10 +831,9 @@
                     </div>
                 </div>
 
-                <!-- Nivel 2: Filtros Específicos (Flujo, Tipo de Producto y Producto - Solo visibles en Tabla de Producción) -->
+                <!-- Nivel 2: Filtros Específicos para Tabla de Producción -->
                 {#if generalViewMode === 'table'}
                     <div class="pt-2 border-t border-slate-800/80 flex items-center gap-3 w-full flex-wrap text-xs">
-                        <!-- Flujo de Trabajo -->
                         <div class="flex items-center gap-2">
                             <label for="filter-kb-workflow" class="text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</label>
                             <select
@@ -684,7 +848,6 @@
                             </select>
                         </div>
 
-                        <!-- Tipo de Producto -->
                         <div class="flex items-center gap-2">
                             <label for="filter-kb-type" class="text-slate-400 font-semibold text-[11px] shrink-0">Tipo:</label>
                             <select
@@ -699,7 +862,6 @@
                             </select>
                         </div>
 
-                        <!-- Producto -->
                         <div class="flex items-center gap-2">
                             <label for="filter-kb-product" class="text-slate-400 font-semibold text-[11px] shrink-0">Producto:</label>
                             <select
@@ -722,7 +884,7 @@
                         {#if generalViewMode === 'table'}
                             {filteredTableTasks.length} producto(s) en {filteredOrders.length} pedido(s)
                         {:else}
-                            {filteredOrders.length} pedido(s) encontrado(s)
+                            {filteredOrders.length} pedido(s) encontrado(s) en {localStatuses.length} columnas
                         {/if}
                     </span>
                     {#if hasActiveFilters}
@@ -737,38 +899,40 @@
                 </div>
             </div>
 
-            <!-- VISTA A: TABLERO KANBAN MACRO (4 COLUMNAS DE PEDIDOS) -->
+            <!-- VISTA A: TABLERO KANBAN MACRO (COLUMNAS DINÁMICAS POR ESTADOS DE PEDIDO — PUNTOS 1 Y 18) -->
             {#if generalViewMode === 'kanban'}
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
-                    {#each MACRO_COLUMNS as col (col.key)}
-                        {@const colOrders = ordersByMacroColumn[col.key] || []}
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
+                    {#each localStatuses as col (col.id)}
+                        {@const colOrders = ordersByStatusId.get(col.id) || []}
                         <div
-                            class="bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {dragOverMacroStatus === col.key ? 'ring-2 ring-sky-500 bg-slate-900' : ''}"
-                            style="border-top: 4px solid {col.color};"
-                            ondragover={(e) => handleMacroDragOver(e, col.key)}
-                            ondrop={(e) => handleMacroDrop(e, col.key)}
+                            class="bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {dragOverMacroStatusId === col.id ? 'ring-2 ring-sky-500 bg-slate-900' : ''}"
+                            style="border-top: 4px solid {col.color || '#64748b'};"
+                            ondragover={(e) => handleMacroDragOver(e, col.id)}
+                            ondrop={(e) => handleMacroDrop(e, col.id)}
                             role="region"
-                            aria-label={`Columna ${col.title}`}
+                            aria-label={`Columna ${col.name}`}
                         >
-                            <!-- Cabecera de la Columna Macro -->
+                            <!-- Cabecera de la Columna Dinámica -->
                             <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-2.5 h-2.5 rounded-full" style="background-color: {col.color};"></div>
-                                    <h3 class="text-sm font-bold text-white tracking-wide">{col.title}</h3>
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <div class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {col.color || '#64748b'};"></div>
+                                    <h3 class="text-sm font-bold text-white tracking-wide truncate" title={col.name}>
+                                        {col.name}
+                                    </h3>
                                 </div>
                                 <span
-                                    class="px-2 py-0.5 rounded-full text-xs font-mono font-bold"
-                                    style="background-color: {col.color}22; color: {col.color}; border: 1px solid {col.color}44;"
+                                    class="px-2 py-0.5 rounded-full text-xs font-mono font-bold shrink-0"
+                                    style="background-color: {col.color || '#64748b'}22; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}44;"
                                 >
                                     {colOrders.length}
                                 </span>
                             </div>
 
-                            <!-- Lista de Pedidos en esta Columna -->
+                            <!-- Lista de Tarjetas de Pedido en esta Columna -->
                             <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[780px]">
                                 {#if colOrders.length === 0}
                                     <div class="py-12 text-center text-slate-600 text-xs italic">
-                                        No hay pedidos en esta etapa.
+                                        No hay pedidos en este estado.
                                     </div>
                                 {:else}
                                     {#each colOrders as order (order.id)}
@@ -778,10 +942,14 @@
                                         {@const delivBadge = getDeliveryBadge(order.committed_delivery_at, order.derived_status)}
 
                                         <div
-                                            class="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl p-3.5 space-y-3 shadow transition-all cursor-grab active:cursor-grabbing group"
+                                            class="bg-slate-950 border border-slate-800 hover:border-sky-500/50 rounded-xl p-3.5 space-y-3 shadow transition-all cursor-pointer group"
                                             draggable="true"
                                             ondragstart={(e) => handleMacroDragStart(e, order.id)}
-                                            role="article"
+                                            onclick={() => openDetailModal(order)}
+                                            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDetailModal(order); }}
+                                            role="button"
+                                            tabindex="0"
+                                            title="Toca para ver el detalle completo del pedido"
                                         >
                                             <!-- Encabezado de la Tarjeta del Pedido -->
                                             <div class="flex items-start justify-between gap-2">
@@ -826,12 +994,12 @@
                                                 <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
                                                     <div
                                                         class="h-full rounded-full transition-all duration-300"
-                                                        style="width: {progressPercent}%; background-color: {col.color};"
+                                                        style="width: {progressPercent}%; background-color: {col.color || '#38bdf8'};"
                                                     ></div>
                                                 </div>
                                             </div>
 
-                                            <!-- Resumen de Productos con sus Etapas Coloreadas (Punto 6) -->
+                                            <!-- Resumen de Productos con sus Etapas Coloreadas -->
                                             <div class="space-y-1.5 pt-2 border-t border-slate-900">
                                                 {#each tasks.slice(0, 3) as task}
                                                     {@const stage = getTaskStage(task)}
@@ -857,14 +1025,18 @@
                                                 {/if}
                                             </div>
 
-                                            <!-- Botón Destacado: Abrir Tablero del Pedido -->
-                                            <div class="pt-2">
+                                            <!-- Pie de la Tarjeta: Botón Flujo Aislado -->
+                                            <div class="flex items-center justify-end pt-2 border-t border-slate-900">
                                                 <button
                                                     type="button"
-                                                    onclick={() => openOrderBoard(order.id)}
-                                                    class="w-full py-2 rounded-xl bg-slate-900 hover:bg-sky-950/60 border border-slate-800 hover:border-sky-500/50 text-sky-400 hover:text-sky-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm group-hover:border-sky-500/40"
+                                                    onclick={(e) => {
+                                                        e.stopPropagation();
+                                                        openOrderBoard(order.id);
+                                                    }}
+                                                    class="py-1 px-2.5 rounded-lg bg-slate-900 hover:bg-sky-950/60 border border-slate-800 hover:border-sky-500/50 text-sky-400 text-[10px] font-bold transition-all flex items-center gap-1"
+                                                    title="Ver tareas y flujos exclusivos de este pedido"
                                                 >
-                                                    <span>Abrir Tablero del Pedido</span>
+                                                    <span>Flujo</span>
                                                     <span>➔</span>
                                                 </button>
                                             </div>
@@ -902,75 +1074,66 @@
                                     </tr>
                                 {:else}
                                     {#each filteredTableTasks as task (task.id)}
-                                        {@const taskStages = getTaskWorkflowStages(task)}
-                                        {@const curStage = task.current_stage ?? getTaskStage(task)}
-                                        {@const curColor = curStage?.color || '#64748b'}
-                                        <tr class="hover:bg-slate-800/30 transition-colors">
+                                        {@const currentStage = task.current_stage}
+                                        {@const targetWorkflowStages = task.workflow?.stages ?? []}
+                                        {@const delivBadge = getDeliveryBadge(task.committed_delivery_at, task.order_status)}
+
+                                        <tr
+                                            class="hover:bg-slate-800/40 transition-colors cursor-pointer"
+                                            onclick={() => openDetailModal(task.rawOrder, task.id)}
+                                        >
                                             <td class="p-3.5 font-mono font-bold text-sky-400">
                                                 #{task.order_number}
                                             </td>
-                                            <td class="p-3.5 font-semibold text-white">
+                                            <td class="p-3.5 text-white font-medium">
                                                 {task.customer_name}
                                             </td>
                                             <td class="p-3.5 text-slate-200">
-                                                <div class="font-medium">{task.item_name_snapshot}</div>
-                                                <div class="text-[10px] text-slate-500 font-mono">Cant: {task.quantity}</div>
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="font-bold text-white">{task.quantity}x</span>
+                                                    <span>{task.item_name_snapshot}</span>
+                                                </div>
                                             </td>
                                             <td class="p-3.5 text-slate-400">
-                                                {task.workflow?.name ?? 'No asignado'}
+                                                {task.workflow?.name ?? 'Sin Flujo'}
                                             </td>
-                                            <td class="p-3.5">
-                                                {#if taskStages.length > 0}
-                                                    <div class="relative inline-flex items-center">
-                                                        <select
-                                                            value={task.current_stage_id ?? curStage?.id}
-                                                            onchange={(e) => handleTableTaskStageChange(task, e.target.value)}
-                                                            disabled={updatingTaskId === task.id}
-                                                            class="pl-2.5 pr-7 py-1.5 rounded-xl text-[11px] font-bold transition-all focus:outline-none cursor-pointer border shadow-sm appearance-none disabled:opacity-60 disabled:cursor-wait"
-                                                            style="background-color: {curColor}1c; color: {curColor}; border-color: {curColor}55;"
-                                                            title="Modificar etapa de producción"
-                                                        >
-                                                            {#each taskStages as st (st.id)}
-                                                                <option
-                                                                    value={st.id}
-                                                                    class="bg-slate-900 text-white font-medium py-1"
-                                                                    style="color: {st.color || '#fff'};"
-                                                                >
-                                                                    ● {st.name}
-                                                                </option>
-                                                            {/each}
-                                                        </select>
-                                                        <!-- Flecha o Spinner interactivo -->
-                                                        <div class="pointer-events-none absolute right-2 flex items-center" style="color: {curColor};">
-                                                            {#if updatingTaskId === task.id}
-                                                                <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                                                                </svg>
-                                                            {:else}
-                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
-                                                                </svg>
-                                                            {/if}
-                                                        </div>
-                                                    </div>
-                                                {:else}
-                                                    <span class="text-slate-600 italic text-[11px]">Sin etapas</span>
-                                                {/if}
+                                            <td class="p-3.5" onclick={(e) => e.stopPropagation()}>
+                                                <label for="table-stage-sel-{task.id}" class="sr-only">Etapa de la tarea</label>
+                                                <select
+                                                    id="table-stage-sel-{task.id}"
+                                                    value={task.current_stage_id}
+                                                    onchange={(e) => handleTableTaskStageChange(task, e.target.value)}
+                                                    class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:outline-none focus:border-sky-500"
+                                                    style="border-left: 4px solid {currentStage?.color || '#64748b'};"
+                                                >
+                                                    {#each targetWorkflowStages as stage}
+                                                        <option value={stage.id}>{stage.name}</option>
+                                                    {/each}
+                                                </select>
                                             </td>
                                             <td class="p-3.5 font-mono text-amber-300">
-                                                ⏱ {task.estimated_minutes ?? 0} min
+                                                ⏱ {task.estimated_minutes} min
                                             </td>
-                                            <td class="p-3.5 text-slate-300 font-medium">
-                                                {formatDate(task.committed_delivery_at)}
+                                            <td class="p-3.5">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="text-slate-300">{formatDate(task.committed_delivery_at)}</span>
+                                                    {#if delivBadge}
+                                                        <span
+                                                            class="px-1.5 py-0.5 rounded text-[9px] font-bold"
+                                                            style="background-color: {delivBadge.color}22; color: {delivBadge.color}; border: 1px solid {delivBadge.color}44;"
+                                                        >
+                                                            {delivBadge.text}
+                                                        </span>
+                                                    {/if}
+                                                </div>
                                             </td>
-                                            <td class="p-3.5 text-right">
+                                            <td class="p-3.5 text-right" onclick={(e) => e.stopPropagation()}>
                                                 <button
                                                     type="button"
                                                     onclick={() => openOrderBoard(task.order_id)}
-                                                    class="px-2.5 py-1 rounded-lg bg-sky-950/60 hover:bg-sky-900/60 border border-sky-800/60 text-sky-400 text-xs font-semibold transition-colors"
+                                                    class="px-2.5 py-1 rounded-lg bg-sky-950/70 hover:bg-sky-900/70 text-sky-400 text-xs font-bold border border-sky-800/70 transition-colors"
                                                 >
-                                                    Abrir Pedido ➔
+                                                    Abrir Pedido
                                                 </button>
                                             </td>
                                         </tr>
@@ -998,6 +1161,14 @@
                 </button>
 
                 <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onclick={() => openDetailModal(activeOrder)}
+                        class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5"
+                    >
+                        <span>👁️</span>
+                        <span>Ver Ficha Completa</span>
+                    </button>
                     <span class="text-slate-500 text-xs">Tablero Aislado del Pedido:</span>
                     <span class="font-mono text-sm font-black text-sky-400">#{activeOrder.order_number}</span>
                 </div>
@@ -1026,23 +1197,23 @@
                         </div>
                     </div>
 
-                    <!-- SELECTOR RÁPIDO DE ESTADO MACRO DEL PEDIDO -->
+                    <!-- SELECTOR RÁPIDO DE ESTADO DEL PEDIDO (CON ESTADOS DINÁMICOS) -->
                     <div class="flex items-center gap-2 self-start lg:self-auto">
-                        <span class="text-xs text-slate-400 font-semibold">Estado del Pedido:</span>
+                        <label for="isolated-order-st" class="text-xs text-slate-400 font-semibold">Estado del Pedido:</label>
                         <select
-                            value={activeOrder.derived_status}
-                            onchange={(e) => updateOrderMacroStatus(activeOrder.id, e.target.value)}
+                            id="isolated-order-st"
+                            value={activeOrder.order_status_id}
+                            onchange={(e) => updateOrderStatus(activeOrder.id, Number(e.target.value))}
                             class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs font-semibold focus:outline-none focus:border-sky-500"
                         >
-                            <option value="pending">Pendiente</option>
-                            <option value="in_progress">En Fabricación</option>
-                            <option value="blocked">Bloqueado</option>
-                            <option value="ready">Listo para Entrega</option>
+                            {#each localStatuses as st}
+                                <option value={st.id}>{st.name}</option>
+                            {/each}
                         </select>
                     </div>
                 </div>
 
-                <!-- PESTAÑAS DE FLUJO AISLADAS: SOLO LOS FLUJOS PRESENTES EN ESTE PEDIDO -->
+                <!-- PESTAÑAS DE FLUJO AISLADAS -->
                 {#if orderWorkflows.length > 1}
                     <div class="pt-3 border-t border-slate-800 flex items-center gap-2 overflow-x-auto">
                         <span class="text-xs text-slate-400 font-semibold shrink-0">Flujos en este Pedido:</span>
@@ -1105,10 +1276,14 @@
                                 {:else}
                                     {#each stageTasks as task (task.id)}
                                         <div
-                                            class="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl p-3 space-y-2.5 shadow transition-all cursor-grab active:cursor-grabbing group"
+                                            class="bg-slate-950 border border-slate-800 hover:border-sky-500/50 rounded-xl p-3 space-y-2.5 shadow transition-all cursor-pointer group"
                                             draggable="true"
                                             ondragstart={(e) => handleTaskDragStart(e, task.id)}
-                                            role="article"
+                                            onclick={() => openTaskDetailModal(task)}
+                                            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openTaskDetailModal(task); }}
+                                            role="button"
+                                            tabindex="0"
+                                            title="Toca para ver la ficha técnica y receta del producto"
                                         >
                                             <div class="flex items-start justify-between gap-1.5">
                                                 <h4 class="text-xs font-bold text-white group-hover:text-sky-300 transition-colors">
@@ -1128,19 +1303,6 @@
                                                     </span>
                                                 {/if}
                                             </div>
-
-                                            <!-- Selector / Controles de Movimiento de Etapa -->
-                                            <div class="pt-2 border-t border-slate-900 flex items-center justify-between gap-1 text-[11px]">
-                                                <select
-                                                    value={task.current_stage_id ?? getTaskStage(task)?.id}
-                                                    onchange={(e) => moveTask(task.id, Number(e.target.value))}
-                                                    class="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-300 text-[10px] font-medium focus:outline-none focus:border-sky-500"
-                                                >
-                                                    {#each activeOrderStages as st}
-                                                        <option value={st.id}>{st.name}</option>
-                                                    {/each}
-                                                </select>
-                                            </div>
                                         </div>
                                     {/each}
                                 {/if}
@@ -1152,3 +1314,96 @@
         {/if}
     </div>
 </AppLayout>
+
+<!-- MODAL DE CREACIÓN / EDICIÓN DE PEDIDO DIRECTAMENTE DESDE KANBAN (PUNTO 2) -->
+<OrderFormModal
+    bind:isOpen={isOrderFormOpen}
+    isEditing={isEditingOrder}
+    editingOrder={editingOrder}
+    {customers}
+    {products}
+    {workflows}
+    {productTypes}
+    {rawMaterials}
+    {orthogonalAttributes}
+    {attributes}
+    {unitsOfMeasure}
+    {allOrdersByDate}
+    {ordersCountByDate}
+    {allScheduledOrders}
+    {hasFinancialAccess}
+    onSuccess={() => {
+        isOrderFormOpen = false;
+        router.reload({ preserveScroll: true });
+    }}
+    onClose={() => {
+        isOrderFormOpen = false;
+        editingOrder = null;
+        isEditingOrder = false;
+    }}
+/>
+
+<!-- MODAL DE CONFIGURACIÓN DE ESTADOS DE PEDIDO (PUNTO 1) -->
+<OrderStatusModal
+    bind:isOpen={isStatusModalOpen}
+    {orderStatuses}
+    onStatusesChanged={() => {
+        router.reload({ preserveScroll: true, only: ['orderStatuses', 'orders'] });
+    }}
+/>
+
+<!-- MODAL DE DETALLE COMPLETO AL TOCAR CUALQUIER CARD EN EL TABLERO (PUNTO 18) -->
+<OrderDetailModal
+    bind:isOpen={isDetailModalOpen}
+    order={selectedOrderForDetail}
+    {highlightedTaskId}
+    {orderStatuses}
+    {workflows}
+    {hasFinancialAccess}
+    isIsolatedView={Boolean(activeOrder)}
+    onStatusChange={(ordId, newStatusId) => updateOrderStatus(ordId, newStatusId)}
+    onTaskStageChange={(taskId, newStageId) => {
+        const t = filteredTableTasks.find((item) => item.id === taskId) || { id: taskId, order_id: selectedOrderForDetail?.id };
+        handleTableTaskStageChange(t, newStageId);
+    }}
+    onEditOrder={(ord) => openEditOrderModal(ord)}
+    onOpenIsolatedBoard={(ordId) => openOrderBoard(ordId)}
+    onClose={() => {
+        selectedOrderForDetail = null;
+        highlightedTaskId = null;
+    }}
+/>
+
+<!-- MODAL DE FICHA TÉCNICA DEL PRODUCTO / RECETA BOM (PUNTO 2) -->
+<ProductionTaskDetailModal
+    isOpen={isTaskDetailModalOpen}
+    task={selectedTaskDetail}
+    order={activeOrder ?? selectedTaskDetail?.order}
+    stages={selectedTaskDetail?.workflow?.stages ?? activeOrderStages}
+    {rawMaterials}
+    canManageCatalog={isOwnerOrAdmin}
+    onStageChange={(taskId, newStageId) => moveTask(taskId, newStageId)}
+    onEditProduct={(prod) => handleEditProductRecipe(prod)}
+    onClose={closeTaskDetailModal}
+/>
+
+<!-- MODAL DE EDICIÓN RÁPIDA DE RECETA / PRODUCTO -->
+<ProductFormModal
+    bind:isOpen={isProductFormOpen}
+    product={editingProductForBOM}
+    {productTypes}
+    {workflows}
+    {rawMaterials}
+    {orthogonalAttributes}
+    {attributes}
+    {unitsOfMeasure}
+    onSuccess={() => {
+        isProductFormOpen = false;
+        editingProductForBOM = null;
+        router.reload({ preserveScroll: true });
+    }}
+    onClose={() => {
+        isProductFormOpen = false;
+        editingProductForBOM = null;
+    }}
+/>

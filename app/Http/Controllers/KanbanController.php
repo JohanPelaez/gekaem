@@ -7,9 +7,13 @@ namespace App\Http\Controllers;
 use App\Actions\Kanban\MoveProductionTaskAction;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\OrderStatus;
+use App\Models\OrthogonalAttribute;
 use App\Models\Product;
 use App\Models\ProductType;
 use App\Models\ProductionTask;
+use App\Models\RawMaterial;
+use App\Models\UnitOfMeasure;
 use App\Models\Workflow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -26,16 +30,27 @@ class KanbanController extends Controller
     public function index(Request $request): Response
     {
         $selectedOrderId = $request->integer('order_id') ?: null;
+        $tenant = auth()->user()?->currentTenant();
 
-        $workflows = Workflow::with(['stages' => fn ($q) => $q->orderBy('position')])->get();
+        $workflows = Workflow::with(['stages' => fn ($q) => $q->orderBy('position')])->orderBy('name')->get();
         if ($workflows->isNotEmpty()) {
             $this->repairTasksIfNeeded($workflows);
+        }
+
+        $orderStatuses = OrderStatus::orderBy('position')->get();
+        if ($orderStatuses->isEmpty() && $tenant) {
+            $orderStatuses = $this->seedDefaultStatuses($tenant->id);
         }
 
         $orders = Order::where('derived_status', '!=', 'delivered')
             ->with([
                 'customer',
+                'orderStatus',
+                'payments',
                 'productionTasks.productVariant.product.productType',
+                'productionTasks.productVariant.product.materials.rawMaterial',
+                'productionTasks.productVariant.attributeOptions.attribute',
+                'productionTasks.productVariant.materialRequirements.rawMaterial',
                 'productionTasks.workflow.stages' => fn ($q) => $q->orderBy('position'),
                 'productionTasks.currentStage',
             ])
@@ -43,12 +58,44 @@ class KanbanController extends Controller
             ->orderBy('committed_delivery_at')
             ->get();
 
+        $allScheduledOrders = Order::query()
+            ->where(function ($q): void {
+                $q->whereNotNull('committed_delivery_at')->orWhereNotNull('predicted_delivery_at');
+            })
+            ->where('derived_status', '!=', 'delivered')
+            ->with([
+                'customer:id,name',
+                'orderStatus',
+                'productionTasks:id,order_id,quantity,item_name_snapshot,current_stage_id',
+                'productionTasks.currentStage:id,name,color,stage_category',
+            ])
+            ->select('id', 'order_number', 'customer_id', 'order_status_id', 'committed_delivery_at', 'predicted_delivery_at', 'derived_status', 'shipping_type')
+            ->orderByRaw('COALESCE(committed_delivery_at, predicted_delivery_at) ASC')
+            ->get();
+
+        $ordersCountByDate = Order::query()
+            ->where(function ($q): void {
+                $q->whereNotNull('committed_delivery_at')->orWhereNotNull('predicted_delivery_at');
+            })
+            ->where('derived_status', '!=', 'delivered')
+            ->selectRaw('DATE(COALESCE(committed_delivery_at, predicted_delivery_at)) as date_key, COUNT(*) as aggregate_count')
+            ->groupBy('date_key')
+            ->pluck('aggregate_count', 'date_key')
+            ->all();
+
         return Inertia::render('Kanban/Index', [
             'workflows' => $workflows,
             'orders' => $orders,
-            'customers' => Customer::orderBy('name')->get(['id', 'name']),
-            'products' => Product::orderBy('name')->get(['id', 'name']),
+            'orderStatuses' => $orderStatuses,
+            'allScheduledOrders' => $allScheduledOrders,
+            'ordersCountByDate' => $ordersCountByDate,
+            'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone', 'email', 'tax_id', 'department', 'city', 'neighborhood', 'address']),
+            'products' => Product::where('is_active', true)->with(['variants.attributeOptions.attribute', 'workflow', 'materialRequirements.rawMaterial', 'productType'])->orderBy('name')->get(),
             'productTypes' => ProductType::orderBy('name')->get(['id', 'name']),
+            'rawMaterials' => RawMaterial::orderBy('name')->get(['id', 'name', 'unit_of_measure', 'current_stock', 'reserved_stock']),
+            'orthogonalAttributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
+            'attributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
+            'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
             'selectedOrderId' => $selectedOrderId,
         ]);
     }
@@ -77,6 +124,31 @@ class KanbanController extends Controller
                 }
             }
         }
+    }
+
+    /**
+     * Seed default statuses if none exist for tenant.
+     */
+    private function seedDefaultStatuses(int $tenantId)
+    {
+        $defaults = [
+            ['name' => 'Pendiente', 'system_key' => 'pending', 'color' => '#64748b', 'position' => 1],
+            ['name' => 'En Producción', 'system_key' => 'in_progress', 'color' => '#3b82f6', 'position' => 2],
+            ['name' => 'Bloqueado', 'system_key' => 'blocked', 'color' => '#ef4444', 'position' => 3],
+            ['name' => 'Listo para Entrega', 'system_key' => 'ready', 'color' => '#10b981', 'position' => 4],
+        ];
+
+        foreach ($defaults as $def) {
+            OrderStatus::create([
+                'tenant_id' => $tenantId,
+                'name' => $def['name'],
+                'system_key' => $def['system_key'],
+                'color' => $def['color'],
+                'position' => $def['position'],
+            ]);
+        }
+
+        return OrderStatus::orderBy('position')->get();
     }
 
     /**
@@ -109,7 +181,7 @@ class KanbanController extends Controller
                 'success' => true,
                 'message' => 'Etapa actualizada correctamente.',
                 'task' => $updatedTask->load(['currentStage', 'workflow']),
-                'order' => $updatedTask->order,
+                'order' => $updatedTask->order->fresh(['orderStatus', 'customer']),
             ]);
         }
 
@@ -117,31 +189,72 @@ class KanbanController extends Controller
     }
 
     /**
-     * Update an order's macro status and advance its underlying tasks.
+     * Update an order's status and optionally advance its underlying tasks.
+     */
+    public function updateOrderStatus(
+        Request $request,
+        Order $order,
+        MoveProductionTaskAction $moveAction
+    ): JsonResponse|RedirectResponse {
+        $validated = $request->validate([
+            'order_status_id' => ['nullable', 'integer', 'exists:order_statuses,id'],
+            'status_id' => ['nullable', 'integer', 'exists:order_statuses,id'],
+            'status' => ['nullable', 'string'],
+        ]);
+
+        $statusId = $validated['order_status_id'] ?? $validated['status_id'] ?? null;
+        /** @var OrderStatus|null $orderStatus */
+        $orderStatus = null;
+
+        if ($statusId) {
+            $orderStatus = OrderStatus::find($statusId);
+        } elseif (!empty($validated['status'])) {
+            $orderStatus = OrderStatus::where('system_key', $validated['status'])->first();
+        }
+
+        if (!$orderStatus) {
+            return response()->json(['error' => 'Estado de pedido no encontrado.'], 422);
+        }
+
+        DB::transaction(function () use ($order, $orderStatus, $moveAction): void {
+            $order->order_status_id = $orderStatus->id;
+
+            if ($orderStatus->system_key && in_array($orderStatus->system_key, ['pending', 'in_progress', 'blocked', 'ready'], true)) {
+                $targetStatus = $orderStatus->system_key;
+                $targetCategory = ($targetStatus === 'ready') ? 'done' : $targetStatus;
+
+                $tasks = $order->productionTasks()->with('workflow.stages')->get();
+                foreach ($tasks as $task) {
+                    $stage = $task->workflow?->stages->firstWhere('stage_category', $targetCategory);
+                    if ($stage && $task->current_stage_id !== $stage->id) {
+                        $moveAction->execute($task, $stage->id, 0);
+                    }
+                }
+                $order->derived_status = $targetStatus;
+            }
+
+            $order->save();
+        });
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Estado del pedido #{$order->order_number} actualizado.",
+                'order' => $order->fresh(['orderStatus', 'customer', 'payments']),
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Estado del pedido #{$order->order_number} actualizado.");
+    }
+
+    /**
+     * Legacy helper to update an order's macro status and advance its underlying tasks.
      */
     public function macroStatus(
         Request $request,
         Order $order,
         MoveProductionTaskAction $moveAction
-    ): RedirectResponse {
-        $validated = $request->validate([
-            'status' => ['required', 'in:pending,in_progress,blocked,ready'],
-        ]);
-
-        $status = $validated['status'];
-        $targetCategory = ($status === 'ready') ? 'done' : $status;
-
-        DB::transaction(function () use ($order, $status, $targetCategory, $moveAction): void {
-            $tasks = $order->productionTasks()->with('workflow.stages')->get();
-            foreach ($tasks as $task) {
-                $stage = $task->workflow?->stages->firstWhere('stage_category', $targetCategory);
-                if ($stage && $task->current_stage_id !== $stage->id) {
-                    $moveAction->execute($task, $stage->id, 0);
-                }
-            }
-            $order->update(['derived_status' => $status]);
-        });
-
-        return redirect()->back()->with('success', "Estado del pedido #{$order->order_number} actualizado.");
+    ): RedirectResponse|JsonResponse {
+        return $this->updateOrderStatus($request, $order, $moveAction);
     }
 }

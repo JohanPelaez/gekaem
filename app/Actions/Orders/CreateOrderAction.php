@@ -108,12 +108,21 @@ class CreateOrderAction
                 }
             }
 
+            $initialStatus = \App\Models\OrderStatus::withoutGlobalScope('tenant')
+                ->where('tenant_id', $tenant->id)
+                ->where('system_key', 'pending')
+                ->first() ?? \App\Models\OrderStatus::withoutGlobalScope('tenant')
+                ->where('tenant_id', $tenant->id)
+                ->orderBy('position')
+                ->first();
+
             /** @var Order $order */
             $order = Order::withoutGlobalScope('tenant')->create([
                 'tenant_id' => $tenant->id,
                 'customer_id' => $customer->id,
                 'order_number' => $nextOrderNumber,
                 'derived_status' => 'pending',
+                'order_status_id' => $initialStatus?->id,
                 'shipping_type' => $data['shipping_type'] ?? 'contraentrega',
                 'total_production_minutes' => $prediction['order_production_minutes'],
                 'buffer_minutes' => $prediction['buffer_minutes'],

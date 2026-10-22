@@ -10,6 +10,7 @@ use App\Actions\Kanban\SyncOrderDerivedStatusAction;
 use App\Actions\Orders\CreateOrderAction;
 use App\Actions\Orders\PredictDeliveryDateAction;
 use App\Models\Customer;
+use App\Models\OrderStatus;
 use App\Models\OrthogonalAttribute;
 use App\Models\OrthogonalAttributeOption;
 use App\Models\Product;
@@ -48,6 +49,8 @@ class DatabaseSeeder extends Seeder
                 ],
             ]
         );
+
+        OrderStatus::seedDefaultStatusesForTenant($tenant->id);
 
         // 2. Usuarios de Demostración (Admin, Dueño, Trabajador)
         // a) SuperAdmin Gekaem
@@ -110,6 +113,8 @@ class DatabaseSeeder extends Seeder
                 ],
             ]
         );
+
+        OrderStatus::seedDefaultStatusesForTenant($tenant2->id);
 
         $owner2 = User::updateOrCreate(
             ['email' => 'roble@gekaem.test'],
