@@ -22,6 +22,9 @@
         phone: '',
         email: '',
         tax_id: '',
+        department: '',
+        city: '',
+        neighborhood: '',
         address: '',
         notes: '',
     });
@@ -31,6 +34,9 @@
         form.phone = '';
         form.email = '';
         form.tax_id = '';
+        form.department = '';
+        form.city = '';
+        form.neighborhood = '';
         form.address = '';
         form.notes = '';
     }
@@ -69,6 +75,9 @@
         form.phone = customer.phone ?? '';
         form.email = customer.email ?? '';
         form.tax_id = customer.tax_id ?? '';
+        form.department = customer.department ?? '';
+        form.city = customer.city ?? '';
+        form.neighborhood = customer.neighborhood ?? '';
         form.address = customer.address ?? '';
         form.notes = customer.notes ?? '';
         showModal = true;
@@ -139,7 +148,9 @@
         <!-- BUSCADOR -->
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-3">
             <span class="text-slate-400 text-sm">🔍</span>
+            <label for="c-search" class="sr-only">Buscar cliente</label>
             <input
+                id="c-search"
                 type="text"
                 bind:value={search}
                 oninput={handleSearchInput}
@@ -206,8 +217,13 @@
                                     <td class="p-4 font-mono text-slate-400">
                                         {customer.tax_id ?? 'N/A'}
                                     </td>
-                                    <td class="p-4 text-slate-400 max-w-xs truncate">
-                                        {customer.address ?? 'Sin dirección'}
+                                    <td class="p-4 text-slate-400 max-w-xs">
+                                        <div class="truncate text-slate-200">{customer.address ?? 'Sin dirección'}</div>
+                                        {#if customer.city || customer.department || customer.neighborhood}
+                                            <div class="text-[11px] text-slate-400 truncate">
+                                                {[customer.neighborhood, customer.city, customer.department].filter(Boolean).join(', ')}
+                                            </div>
+                                        {/if}
                                     </td>
                                     <td class="p-4 text-center">
                                         <span class="px-2.5 py-1 rounded-full font-mono font-bold text-xs {customer.orders_count > 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'}">
@@ -254,10 +270,13 @@
                                                     <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block border-b border-slate-800 pb-1">
                                                         Ubicación y Entregas
                                                     </span>
-                                                    <div class="text-xs text-slate-300 pt-1">
-                                                        <p class="font-medium text-white">{customer.address ?? 'Sin dirección registrada.'}</p>
+                                                    <div class="text-xs text-slate-300 pt-1 space-y-1">
+                                                        <div><span class="text-slate-500">Dirección:</span> <span class="font-medium text-white">{customer.address ?? 'Sin dirección registrada.'}</span></div>
+                                                        <div class="flex justify-between"><span class="text-slate-500">Barrio:</span> <span class="font-medium text-slate-200">{customer.neighborhood ?? 'N/A'}</span></div>
+                                                        <div class="flex justify-between"><span class="text-slate-500">Ciudad:</span> <span class="font-medium text-slate-200">{customer.city ?? 'N/A'}</span></div>
+                                                        <div class="flex justify-between"><span class="text-slate-500">Departamento:</span> <span class="font-medium text-slate-200">{customer.department ?? 'N/A'}</span></div>
                                                         {#if customer.notes}
-                                                            <p class="text-[11px] text-slate-400 mt-2 italic">"{customer.notes}"</p>
+                                                            <p class="text-[11px] text-slate-400 mt-2 italic pt-1 border-t border-slate-800">"{customer.notes}"</p>
                                                         {/if}
                                                     </div>
                                                 </div>
@@ -328,6 +347,14 @@
                                     <span class="text-slate-400">Dirección:</span>
                                     <span class="text-slate-300 truncate max-w-[170px]">{customer.address ?? 'N/A'}</span>
                                 </div>
+                                {#if customer.city || customer.neighborhood}
+                                    <div class="flex justify-between items-center text-[11px]">
+                                        <span class="text-slate-500">Ubicación:</span>
+                                        <span class="text-slate-400 truncate max-w-[170px]">
+                                            {[customer.neighborhood, customer.city].filter(Boolean).join(', ')}
+                                        </span>
+                                    </div>
+                                {/if}
                             </div>
 
                             {#if customer.notes}
@@ -461,7 +488,40 @@
                             id="c-address"
                             type="text"
                             bind:value={form.address}
-                            placeholder="Calle 10 # 40-50, Ciudad"
+                            placeholder="Calle 10 # 40-50"
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label for="c-dept" class="block font-semibold text-slate-300 mb-1">Departamento</label>
+                        <input
+                            id="c-dept"
+                            type="text"
+                            bind:value={form.department}
+                            placeholder="Ej. Antioquia"
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        />
+                    </div>
+                    <div>
+                        <label for="c-city" class="block font-semibold text-slate-300 mb-1">Ciudad / Municipio</label>
+                        <input
+                            id="c-city"
+                            type="text"
+                            bind:value={form.city}
+                            placeholder="Ej. Medellín"
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        />
+                    </div>
+                    <div>
+                        <label for="c-neigh" class="block font-semibold text-slate-300 mb-1">Barrio</label>
+                        <input
+                            id="c-neigh"
+                            type="text"
+                            bind:value={form.neighborhood}
+                            placeholder="Ej. El Poblado"
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
                         />
                     </div>

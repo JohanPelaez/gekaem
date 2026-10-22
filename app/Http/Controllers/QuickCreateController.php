@@ -40,13 +40,18 @@ class QuickCreateController extends Controller
     }
 
     /**
-     * Quick create a Workflow with basic default stages.
+     * Quick create a Workflow with basic default or custom stages.
      */
     public function workflow(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:500'],
+            'stages' => ['nullable', 'array'],
+            'stages.*.name' => ['required', 'string', 'max:80'],
+            'stages.*.color' => ['nullable', 'string', 'max:20'],
+            'stages.*.stage_category' => ['nullable', 'string'],
+            'stages.*.stage_type' => ['nullable', 'string'],
         ]);
 
         $workflow = DB::transaction(function () use ($validated): Workflow {
@@ -55,38 +60,46 @@ class QuickCreateController extends Controller
                 'description' => $validated['description'] ?? null,
                 'is_default' => false,
             ]);
+            $this->createWorkflowStages($wf, $validated['stages'] ?? null);
 
-            WorkflowStage::create([
-                'workflow_id' => $wf->id,
-                'name' => 'Pendiente',
-                'color' => '#64748b',
-                'position' => 1,
-                'stage_category' => 'pending',
-            ]);
-
-            WorkflowStage::create([
-                'workflow_id' => $wf->id,
-                'name' => 'En Proceso',
-                'color' => '#3b82f6',
-                'position' => 2,
-                'stage_category' => 'in_progress',
-            ]);
-
-            WorkflowStage::create([
-                'workflow_id' => $wf->id,
-                'name' => 'Terminado',
-                'color' => '#10b981',
-                'position' => 3,
-                'stage_category' => 'done',
-            ]);
-
-            return $wf;
+            return $wf->load('stages');
         });
 
         return response()->json([
             'id' => $workflow->id,
             'name' => $workflow->name,
+            'description' => $workflow->description,
+            'stages' => $workflow->stages,
         ], 201);
+    }
+
+    /**
+     * Create stages for a workflow.
+     *
+     * @param array<int, array<string, mixed>>|null $stagesInput
+     */
+    private function createWorkflowStages(Workflow $workflow, ?array $stagesInput): void
+    {
+        $stages = !empty($stagesInput) ? $stagesInput : [
+            ['name' => 'Pendiente', 'color' => '#64748b', 'stage_category' => 'pending'],
+            ['name' => 'En Proceso', 'color' => '#3b82f6', 'stage_category' => 'in_progress'],
+            ['name' => 'Terminado', 'color' => '#10b981', 'stage_category' => 'done'],
+        ];
+
+        foreach ($stages as $index => $stageData) {
+            $cat = $stageData['stage_category'] ?? $stageData['stage_type'] ?? 'in_progress';
+            $category = in_array($cat === 'completed' ? 'done' : $cat, ['pending', 'in_progress', 'blocked', 'done'], true)
+                ? ($cat === 'completed' ? 'done' : $cat)
+                : 'in_progress';
+
+            WorkflowStage::create([
+                'workflow_id' => $workflow->id,
+                'name' => trim((string) $stageData['name']),
+                'color' => !empty($stageData['color']) ? $stageData['color'] : '#64748b',
+                'position' => $index + 1,
+                'stage_category' => $category,
+            ]);
+        }
     }
 
     /**
@@ -123,18 +136,24 @@ class QuickCreateController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:100'],
+            'tax_id' => ['nullable', 'string', 'max:50'],
+            'department' => ['nullable', 'string', 'max:100'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'neighborhood' => ['nullable', 'string', 'max:100'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $customer = Customer::create([
-            'name' => Str::title(trim($validated['name'])),
-            'phone' => $validated['phone'] ?? null,
-            'email' => $validated['email'] ?? null,
-        ]);
+        $validated['name'] = Str::title(trim($validated['name']));
+        foreach (['department', 'city', 'neighborhood'] as $field) {
+            if (!empty($validated[$field])) {
+                $validated[$field] = Str::title(trim($validated[$field]));
+            }
+        }
 
-        return response()->json([
-            'id' => $customer->id,
-            'name' => $customer->name,
-        ], 201);
+        $customer = Customer::create($validated);
+
+        return response()->json($customer, 201);
     }
 
     /**

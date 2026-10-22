@@ -671,8 +671,9 @@
                     <div class="pt-2 border-t border-slate-800/80 flex items-center gap-3 w-full flex-wrap text-xs">
                         <!-- Flujo de Trabajo -->
                         <div class="flex items-center gap-2">
-                            <span class="text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</span>
+                            <label for="filter-kb-workflow" class="text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</label>
                             <select
+                                id="filter-kb-workflow"
                                 bind:value={filters.workflowId}
                                 class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500"
                             >
@@ -685,8 +686,9 @@
 
                         <!-- Tipo de Producto -->
                         <div class="flex items-center gap-2">
-                            <span class="text-slate-400 font-semibold text-[11px] shrink-0">Tipo:</span>
+                            <label for="filter-kb-type" class="text-slate-400 font-semibold text-[11px] shrink-0">Tipo:</label>
                             <select
+                                id="filter-kb-type"
                                 bind:value={filters.productTypeId}
                                 class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500 max-w-[180px] truncate"
                             >
@@ -699,8 +701,9 @@
 
                         <!-- Producto -->
                         <div class="flex items-center gap-2">
-                            <span class="text-slate-400 font-semibold text-[11px] shrink-0">Producto:</span>
+                            <label for="filter-kb-product" class="text-slate-400 font-semibold text-[11px] shrink-0">Producto:</label>
                             <select
+                                id="filter-kb-product"
                                 bind:value={filters.productId}
                                 class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500 max-w-[200px] truncate"
                             >

@@ -24,6 +24,9 @@ class Customer extends Model
         'phone',
         'email',
         'tax_id',
+        'department',
+        'city',
+        'neighborhood',
         'address',
         'notes',
     ];

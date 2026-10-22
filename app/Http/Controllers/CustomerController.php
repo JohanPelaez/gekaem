@@ -26,7 +26,10 @@ class CustomerController extends Controller
                     $sub->where('name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
-                        ->orWhere('tax_id', 'like', "%{$search}%");
+                        ->orWhere('tax_id', 'like', "%{$search}%")
+                        ->orWhere('city', 'like', "%{$search}%")
+                        ->orWhere('department', 'like', "%{$search}%")
+                        ->orWhere('neighborhood', 'like', "%{$search}%");
                 });
             })
             ->withCount('orders')
@@ -45,16 +48,7 @@ class CustomerController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:150'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'email' => ['nullable', 'email', 'max:100'],
-            'tax_id' => ['nullable', 'string', 'max:50'],
-            'address' => ['nullable', 'string', 'max:255'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $validated['name'] = Str::title(trim($validated['name']));
+        $validated = $this->validateCustomer($request);
         Customer::create($validated);
 
         return redirect()->back()->with('success', 'Cliente registrado con éxito.');
@@ -65,19 +59,43 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $customer): RedirectResponse
     {
+        $validated = $this->validateCustomer($request);
+        $customer->update($validated);
+
+        return redirect()->back()->with('success', 'Cliente actualizado con éxito.');
+    }
+
+    /**
+     * Validate and normalize customer input.
+     *
+     * @return array<string, mixed>
+     */
+    private function validateCustomer(Request $request): array
+    {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:100'],
             'tax_id' => ['nullable', 'string', 'max:50'],
+            'department' => ['nullable', 'string', 'max:100'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'neighborhood' => ['nullable', 'string', 'max:100'],
             'address' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $validated['name'] = Str::title(trim($validated['name']));
-        $customer->update($validated);
+        if (!empty($validated['department'])) {
+            $validated['department'] = Str::title(trim($validated['department']));
+        }
+        if (!empty($validated['city'])) {
+            $validated['city'] = Str::title(trim($validated['city']));
+        }
+        if (!empty($validated['neighborhood'])) {
+            $validated['neighborhood'] = Str::title(trim($validated['neighborhood']));
+        }
 
-        return redirect()->back()->with('success', 'Cliente actualizado con éxito.');
+        return $validated;
     }
 
     /**

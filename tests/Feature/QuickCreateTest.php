@@ -69,18 +69,60 @@ class QuickCreateTest extends TestCase
         $this->assertDatabaseHas('suppliers', ['name' => 'Hilos Y Botones Del Norte']);
     }
 
+    public function test_quick_create_workflow_with_custom_stages(): void
+    {
+        $response = $this->postJson('/quick/workflows', [
+            'name' => 'flujo personalizado',
+            'description' => 'Flujo con etapas a medida',
+            'stages' => [
+                ['name' => 'Corte', 'color' => '#f59e0b', 'stage_category' => 'pending'],
+                ['name' => 'Estampado', 'color' => '#3b82f6', 'stage_category' => 'in_progress'],
+                ['name' => 'Control Calidad', 'color' => '#ef4444', 'stage_category' => 'blocked'],
+                ['name' => 'Empaque Final', 'color' => '#10b981', 'stage_category' => 'done'],
+            ],
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonStructure(['id', 'name', 'stages'])
+            ->assertJson(['name' => 'Flujo Personalizado']);
+
+        $workflowId = $response->json('id');
+        $this->assertDatabaseHas('workflows', ['id' => $workflowId, 'name' => 'Flujo Personalizado']);
+        $this->assertDatabaseHas('workflow_stages', ['workflow_id' => $workflowId, 'name' => 'Corte', 'position' => 1, 'stage_category' => 'pending']);
+        $this->assertDatabaseHas('workflow_stages', ['workflow_id' => $workflowId, 'name' => 'Estampado', 'position' => 2, 'stage_category' => 'in_progress']);
+        $this->assertDatabaseHas('workflow_stages', ['workflow_id' => $workflowId, 'name' => 'Control Calidad', 'position' => 3, 'stage_category' => 'blocked']);
+        $this->assertDatabaseHas('workflow_stages', ['workflow_id' => $workflowId, 'name' => 'Empaque Final', 'position' => 4, 'stage_category' => 'done']);
+    }
+
     public function test_quick_create_customer(): void
     {
         $response = $this->postJson('/quick/customers', [
             'name' => 'tienda la 80',
             'phone' => '3119876543',
+            'department' => 'antioquia',
+            'city' => 'medellin',
+            'neighborhood' => 'laureles',
+            'address' => 'Circular 4 # 73-10',
+            'notes' => 'Tocar timbre 201',
         ]);
 
         $response->assertStatus(201)
-            ->assertJsonStructure(['id', 'name'])
-            ->assertJson(['name' => 'Tienda La 80']);
+            ->assertJsonStructure(['id', 'name', 'phone', 'department', 'city', 'neighborhood', 'address', 'notes'])
+            ->assertJson([
+                'name' => 'Tienda La 80',
+                'department' => 'Antioquia',
+                'city' => 'Medellin',
+                'neighborhood' => 'Laureles',
+                'address' => 'Circular 4 # 73-10',
+                'notes' => 'Tocar timbre 201',
+            ]);
 
-        $this->assertDatabaseHas('customers', ['name' => 'Tienda La 80']);
+        $this->assertDatabaseHas('customers', [
+            'name' => 'Tienda La 80',
+            'department' => 'Antioquia',
+            'city' => 'Medellin',
+            'neighborhood' => 'Laureles',
+        ]);
     }
 
     public function test_quick_create_raw_material(): void

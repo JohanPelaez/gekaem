@@ -35,16 +35,16 @@ class RawMaterialController extends Controller
             ->when(!empty($supplierId), fn ($q) => $q->whereHas('suppliers', fn ($s) => $s->where('suppliers.id', (int) $supplierId)))
             ->when($lowStock, fn ($q) => $q->whereColumn('current_stock', '<=', 'min_stock_alert'))
             ->with(['suppliers' => fn ($q) => $q->withPivot('purchase_price', 'is_preferred')])
-            ->orderBy('name')
+            ->orderBy('name', 'asc')
             ->paginate(15)
             ->withQueryString();
 
-        $allSuppliers = Supplier::orderBy('name')->get(['id', 'name']);
+        $allSuppliers = Supplier::orderBy('name', 'asc')->get(['id', 'name']);
 
         return Inertia::render('RawMaterials/Index', [
             'rawMaterials' => $rawMaterials,
             'allSuppliers' => $allSuppliers,
-            'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
+            'unitsOfMeasure' => UnitOfMeasure::orderBy('name', 'asc')->get(['id', 'name', 'abbreviation']),
             'filters' => [
                 'search' => $search,
                 'unit_of_measure' => $unit,

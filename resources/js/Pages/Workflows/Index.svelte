@@ -5,8 +5,16 @@
     let { workflows = [], errors = {} } = $props();
 
     let selectedWorkflowId = $state(null);
+    let localWorkflows = $state([]);
+    $effect(() => {
+        localWorkflows = workflows.map((wf) => ({
+            ...wf,
+            stages: [...(wf.stages || [])],
+        }));
+    });
+
     let selectedWorkflow = $derived(
-        workflows.find((w) => w.id === selectedWorkflowId) ?? workflows[0] ?? null,
+        localWorkflows.find((w) => w.id === selectedWorkflowId) ?? localWorkflows[0] ?? null,
     );
 
     let showCreateWorkflowModal = $state(false);
@@ -62,11 +70,10 @@
         showEditWorkflowModal = true;
     }
 
-    // Formulario para nueva/editar etapa en Svelte 5 Rune
+    // Formulario para nueva/editar etapa en Svelte 5 Rune (Posición automática)
     let stageForm = $state({
         name: '',
         color: '#38bdf8',
-        position: 1,
         stage_category: 'in_progress',
         wip_limit: '',
     });
@@ -74,7 +81,6 @@
     function resetStageForm() {
         stageForm.name = '';
         stageForm.color = '#38bdf8';
-        stageForm.position = 1;
         stageForm.stage_category = 'in_progress';
         stageForm.wip_limit = '';
     }
@@ -115,10 +121,8 @@
 
     function openCreateStage(wf) {
         selectedWorkflowId = wf.id;
-        const nextPos = (wf.stages?.length ?? 0) + 1;
         stageForm.name = '';
         stageForm.color = '#38bdf8';
-        stageForm.position = nextPos;
         stageForm.stage_category = 'in_progress';
         stageForm.wip_limit = '';
         editingStage = null;
@@ -130,7 +134,6 @@
         editingStage = stage;
         stageForm.name = stage.name;
         stageForm.color = stage.color || '#38bdf8';
-        stageForm.position = stage.position;
         stageForm.stage_category = stage.stage_category;
         stageForm.wip_limit = stage.wip_limit ?? '';
         showCreateStageModal = true;
@@ -170,6 +173,83 @@
         }
     }
 
+    // Estado y handlers para Drag & Drop de Columnas (Punto 16)
+    let draggedStageId = $state(null);
+    let draggedWorkflowId = $state(null);
+    let dragOverStageId = $state(null);
+
+    function handleDragStart(e, stage, wf) {
+        draggedStageId = stage.id;
+        draggedWorkflowId = wf.id;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(stage.id));
+    }
+
+    function handleDragOver(e, stage, wf) {
+        if (draggedWorkflowId !== wf.id || draggedStageId === stage.id) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragEnter(stage, wf) {
+        if (draggedWorkflowId === wf.id && draggedStageId !== stage.id) {
+            dragOverStageId = stage.id;
+        }
+    }
+
+    function handleDragLeave(stage) {
+        if (dragOverStageId === stage.id) {
+            dragOverStageId = null;
+        }
+    }
+
+    function handleDragEnd() {
+        draggedStageId = null;
+        draggedWorkflowId = null;
+        dragOverStageId = null;
+    }
+
+    function handleDrop(e, targetStage, wf) {
+        e.preventDefault();
+        if (draggedWorkflowId !== wf.id || !draggedStageId || draggedStageId === targetStage.id) {
+            handleDragEnd();
+            return;
+        }
+
+        const stagesList = [...(wf.stages || [])];
+        const sourceIndex = stagesList.findIndex((s) => s.id === draggedStageId);
+        const targetIndex = stagesList.findIndex((s) => s.id === targetStage.id);
+
+        if (sourceIndex === -1 || targetIndex === -1) {
+            handleDragEnd();
+            return;
+        }
+
+        // Reordenamiento visual instantáneo en el cliente
+        const [moved] = stagesList.splice(sourceIndex, 1);
+        stagesList.splice(targetIndex, 0, moved);
+
+        // Actualizar posiciones visuales
+        stagesList.forEach((s, i) => {
+            s.position = i + 1;
+        });
+        wf.stages = stagesList;
+
+        const stageIds = stagesList.map((s) => s.id);
+        handleDragEnd();
+
+        // Persistir inmediatamente el nuevo orden en el servidor
+        reorderProcessing = true;
+        router.post(
+            `/workflows/${wf.id}/stages/reorder`,
+            { stage_ids: stageIds },
+            {
+                preserveScroll: true,
+                onFinish: () => { reorderProcessing = false; },
+            },
+        );
+    }
+
     function moveStage(wf, stageIndex, direction) {
         const stagesList = [...(wf.stages || [])];
         const targetIndex = stageIndex + direction;
@@ -178,6 +258,11 @@
         const currentStageItem = stagesList[stageIndex];
         stagesList[stageIndex] = stagesList[targetIndex];
         stagesList[targetIndex] = currentStageItem;
+
+        stagesList.forEach((s, i) => {
+            s.position = i + 1;
+        });
+        wf.stages = stagesList;
 
         const stageIds = stagesList.map((s) => s.id);
 
@@ -250,7 +335,7 @@
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
-                                    <span>Editar Flujo</span>
+                                    <span>Editar</span>
                                 </button>
                             </div>
                             <p class="text-xs text-slate-400 mt-1">{wf.description ?? 'Sin descripción'}</p>
@@ -276,7 +361,7 @@
                                 Columnas en el Tablero Kanban ({wf.stages?.length ?? 0})
                             </span>
                             <span class="text-[11px] text-slate-500">
-                                Usa los botones ◀ ▶ para reordenar las etapas
+                                Arrastra las columnas o usa los botones ◀ ▶ para reordenar
                             </span>
                         </div>
 
@@ -288,13 +373,23 @@
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3">
                                 {#each wf.stages as stage, idx (stage.id)}
                                     <div
-                                        class="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between group hover:border-slate-700 transition-colors shadow-sm"
+                                        role="group"
+                                        aria-label="Columna: {stage.name}"
+                                        draggable="true"
+                                        ondragstart={(e) => handleDragStart(e, stage, wf)}
+                                        ondragover={(e) => handleDragOver(e, stage, wf)}
+                                        ondragenter={() => handleDragEnter(stage, wf)}
+                                        ondragleave={() => handleDragLeave(stage)}
+                                        ondragend={handleDragEnd}
+                                        ondrop={(e) => handleDrop(e, stage, wf)}
+                                        class="rounded-xl p-3.5 flex flex-col justify-between group transition-all shadow-sm cursor-grab active:cursor-grabbing select-none {draggedStageId === stage.id ? 'opacity-30 scale-95 border-2 border-dashed border-emerald-400 bg-slate-900/50' : dragOverStageId === stage.id ? 'border-2 border-emerald-400 bg-emerald-950/50 scale-[1.03] shadow-lg shadow-emerald-950/60 ring-2 ring-emerald-500/30' : 'bg-slate-950/70 border border-slate-800 hover:border-slate-700'}"
                                         style="border-top: 3px solid {stage.color || '#64748b'};"
                                     >
                                         <div>
                                             <!-- Barra de posición y controles de ordenamiento -->
                                             <div class="flex items-center justify-between text-xs mb-2">
                                                 <div class="flex items-center gap-1.5">
+                                                    <span class="text-slate-600 group-hover:text-slate-400 text-xs font-mono select-none" title="Arrastra para mover">⋮⋮</span>
                                                     <div
                                                         class="w-3 h-3 rounded-full shadow-sm"
                                                         style="background-color: {stage.color || '#64748b'};"
@@ -307,7 +402,7 @@
                                                     <button
                                                         type="button"
                                                         disabled={idx === 0 || reorderProcessing}
-                                                        onclick={() => moveStage(wf, idx, -1)}
+                                                        onclick={(e) => { e.stopPropagation(); moveStage(wf, idx, -1); }}
                                                         class="p-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 text-[10px] font-bold transition-opacity"
                                                         title="Mover columna a la izquierda"
                                                     >
@@ -316,7 +411,7 @@
                                                     <button
                                                         type="button"
                                                         disabled={idx === wf.stages.length - 1 || reorderProcessing}
-                                                        onclick={() => moveStage(wf, idx, 1)}
+                                                        onclick={(e) => { e.stopPropagation(); moveStage(wf, idx, 1); }}
                                                         class="p-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 text-[10px] font-bold transition-opacity"
                                                         title="Mover columna a la derecha"
                                                     >
@@ -518,7 +613,7 @@
 
             <form onsubmit={submitStage} class="space-y-4 text-xs">
                 <div>
-                    <label for="stage-name" class="block font-semibold text-slate-300 mb-1">Nombre de la Columna / Etapa *</label>
+                    <label for="stage-name" class="block font-semibold text-slate-300 mb-1">Nombre de la Etapa *</label>
                     <input
                         id="stage-name"
                         type="text"
@@ -532,33 +627,23 @@
                     {/if}
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label for="stage-pos" class="block font-semibold text-slate-300 mb-1">Posición en Kanban *</label>
+                <div>
+                    <label for="stage-color" class="block font-semibold text-slate-300 mb-1">Color Identificador</label>
+                    <div class="flex items-center gap-2">
                         <input
-                            id="stage-pos"
-                            type="number"
-                            min="1"
-                            bind:value={stageForm.position}
-                            required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                            id="stage-color"
+                            type="color"
+                            bind:value={stageForm.color}
+                            class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                            title="Seleccionar color"
                         />
-                    </div>
-                    <div>
-                        <label for="stage-color" class="block font-semibold text-slate-300 mb-1">Color Identificador</label>
-                        <div class="flex items-center gap-2">
-                            <input
-                                id="stage-color"
-                                type="color"
-                                bind:value={stageForm.color}
-                                class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
-                            />
-                            <input
-                                type="text"
-                                bind:value={stageForm.color}
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-white text-xs font-mono"
-                            />
-                        </div>
+                        <label for="stage-color-hex" class="sr-only">Código Hexadecimal</label>
+                        <input
+                            id="stage-color-hex"
+                            type="text"
+                            bind:value={stageForm.color}
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-1.5 text-white text-xs font-mono"
+                        />
                     </div>
                 </div>
 
@@ -579,7 +664,7 @@
                 </div>
 
                 <div>
-                    <label for="stage-cat" class="block font-semibold text-slate-300 mb-1">Categoría Interna de Estado *</label>
+                    <label for="stage-cat" class="block font-semibold text-slate-300 mb-1">Comportamiento / Estado en Sistema *</label>
                     <select
                         id="stage-cat"
                         bind:value={stageForm.stage_category}

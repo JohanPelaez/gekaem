@@ -62,12 +62,13 @@
         <!-- Prueba interactiva de Runes en Svelte 5 -->
         <div class="space-y-4">
             <div>
-                <label class="block text-sm text-slate-300 mb-1">
+                <label for="sim-prod-time" class="block text-sm text-slate-300 mb-1">
                     Tiempo de producción del nuevo producto: <strong
                         >{minutosProducto} min</strong
                     >
                 </label>
                 <input
+                    id="sim-prod-time"
                     type="range"
                     min="10"
                     max="240"
@@ -77,10 +78,11 @@
             </div>
 
             <div>
-                <label class="block text-sm text-slate-300 mb-1">
+                <label for="sim-buffer" class="block text-sm text-slate-300 mb-1">
                     Tiempo de holgura: <strong>{porcentajeHolgura}%</strong>
                 </label>
                 <input
+                    id="sim-buffer"
                     type="range"
                     min="0"
                     max="100"

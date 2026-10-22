@@ -61,6 +61,21 @@
         localAttributes = Array.isArray(orthogonalAttributes) ? [...orthogonalAttributes] : [];
     });
 
+    // Listas ordenadas alfabéticamente (A-Z) mediante $derived
+    let sortedRawMaterials = $derived(
+        localRawMaterials.toSorted((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
+    );
+    let sortedUnitsOfMeasure = $derived(
+        unitsOfMeasure.toSorted((a, b) => {
+            const nameA = typeof a === 'object' && a !== null ? (a.name || '') : String(a || '');
+            const nameB = typeof b === 'object' && b !== null ? (b.name || '') : String(b || '');
+            return nameA.localeCompare(nameB, 'es');
+        })
+    );
+    let sortedWorkflows = $derived(
+        localWorkflows.toSorted((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
+    );
+
     // Estado para agregar opciones inline a atributos
     let activeAddOptionAttrId = $state(null);
     let newOptionValue = $state('');
@@ -333,14 +348,14 @@
     }
 
     function addMaterialRow() {
-        if (localRawMaterials.length === 0) {
+        if (sortedRawMaterials.length === 0) {
             openQuickCreate('raw-material');
             return;
         }
         productForm.materials = [
             ...productForm.materials,
             {
-                raw_material_id: localRawMaterials[0].id,
+                raw_material_id: sortedRawMaterials[0].id,
                 quantity_required: 1,
                 waste_percent: 0,
             },
@@ -530,7 +545,9 @@
             <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
                 <div class="flex-1 bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl flex items-center gap-2">
                     <span class="text-slate-500 text-xs">🔍</span>
+                    <label for="search-products" class="sr-only">Buscar producto</label>
                     <input
+                        id="search-products"
                         type="text"
                         bind:value={search}
                         oninput={handleSearchInput}
@@ -543,7 +560,9 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <label for="filter-product-type" class="sr-only">Filtrar por tipo de producto</label>
                     <select
+                        id="filter-product-type"
                         bind:value={productTypeFilter}
                         onchange={applyFilters}
                         class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
@@ -554,7 +573,9 @@
                         {/each}
                     </select>
 
+                    <label for="filter-workflow" class="sr-only">Filtrar por flujo</label>
                     <select
+                        id="filter-workflow"
                         bind:value={workflowFilter}
                         onchange={applyFilters}
                         class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
@@ -1063,7 +1084,7 @@
                             required
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
                         >
-                            {#each localWorkflows as wf}
+                            {#each sortedWorkflows as wf}
                                 <option value={wf.id}>{wf.name}</option>
                             {/each}
                         </select>
@@ -1084,7 +1105,9 @@
                             <p class="text-[11px] text-slate-400">Genera correlativos automáticos o ingresa un código existente.</p>
                         </div>
                         <div class="flex items-center gap-2">
+                            <label for="p-barcode-fmt" class="text-[11px] font-semibold text-slate-300">Formato:</label>
                             <select
+                                id="p-barcode-fmt"
                                 bind:value={productForm.barcode_format}
                                 class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-[11px] font-mono focus:border-sky-500 focus:outline-none"
                             >
@@ -1110,8 +1133,10 @@
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
-                        <div class="space-y-1.5">
+                        <div class="space-y-1">
+                            <label for="p-barcode" class="block font-semibold text-slate-300 text-xs mb-1">Código / SKU Base</label>
                             <input
+                                id="p-barcode"
                                 type="text"
                                 bind:value={productForm.barcode}
                                 placeholder="Ingresa o genera código de barras"
@@ -1208,7 +1233,7 @@
                                 onclick={() => openQuickCreate('raw-material')}
                                 class="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold"
                             >
-                                + Nueva Materia Prima
+                                + Nuevo Material
                             </button>
                             <button
                                 type="button"
@@ -1227,28 +1252,31 @@
                         </div>
                     {:else}
                         <div class="space-y-2">
+                            <!-- Cabecera de columnas para receta BOM -->
+                            <div class="hidden sm:grid sm:grid-cols-12 gap-2 px-3 py-1 text-[11px] font-semibold text-slate-400 border-b border-slate-800/60">
+                                <div class="sm:col-span-6">Materia Prima *</div>
+                                <div class="sm:col-span-3">Cantidad por unidad *</div>
+                                <div class="sm:col-span-2">Merma (%)</div>
+                                <div class="sm:col-span-1 text-center">Acción</div>
+                            </div>
                             {#each productForm.materials as matRow, idx}
-                                <div class="flex items-center gap-2 p-2 bg-slate-950 rounded-xl border border-slate-800">
-                                    <div class="flex-1 flex items-center gap-1.5">
+                                <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                                    <div class="sm:col-span-6">
+                                        <label for="bom-mat-{idx}" class="sm:hidden block font-semibold text-slate-400 text-[10px] mb-1">Materia Prima *</label>
                                         <select
+                                            id="bom-mat-{idx}"
                                             bind:value={matRow.raw_material_id}
                                             class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
                                         >
-                                            {#each localRawMaterials as m}
+                                            {#each sortedRawMaterials as m}
                                                 <option value={m.id}>{m.name} ({m.unit_of_measure})</option>
                                             {/each}
                                         </select>
-                                        <button
-                                            type="button"
-                                            onclick={() => openQuickCreate('raw-material', idx)}
-                                            class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-lg text-[11px] shrink-0 border border-slate-700 whitespace-nowrap transition-colors"
-                                            title="Crear nueva materia prima"
-                                        >
-                                            + Nuevo Material
-                                        </button>
                                     </div>
-                                    <div class="w-28">
+                                    <div class="sm:col-span-3">
+                                        <label for="bom-qty-{idx}" class="sm:hidden block font-semibold text-slate-400 text-[10px] mb-1">Cantidad por unidad *</label>
                                         <input
+                                            id="bom-qty-{idx}"
                                             type="number"
                                             step="0.001"
                                             min="0.001"
@@ -1258,24 +1286,28 @@
                                             class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono"
                                         />
                                     </div>
-                                    <div class="w-24">
+                                    <div class="sm:col-span-2">
+                                        <label for="bom-waste-{idx}" class="sm:hidden block font-semibold text-slate-400 text-[10px] mb-1">Merma (%)</label>
                                         <input
+                                            id="bom-waste-{idx}"
                                             type="number"
                                             step="0.1"
                                             min="0"
-                                            placeholder="Desperdicio %"
+                                            placeholder="Merma %"
                                             bind:value={matRow.waste_percent}
                                             class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-300 text-xs font-mono"
                                         />
                                     </div>
-                                    <button
-                                        type="button"
-                                        onclick={() => removeMaterialRow(idx)}
-                                        class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400"
-                                        title="Quitar de receta"
-                                    >
-                                        ✕
-                                    </button>
+                                    <div class="sm:col-span-1 flex justify-center">
+                                        <button
+                                            type="button"
+                                            onclick={() => removeMaterialRow(idx)}
+                                            class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400"
+                                            title="Quitar de receta"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
                                 </div>
                             {/each}
                         </div>
@@ -1344,22 +1376,26 @@
                                     </div>
 
                                     {#if activeAddOptionAttrId === attr.id}
-                                        <div class="flex items-center gap-2 pt-2 border-t border-slate-800/80 animate-fade-in">
-                                            <input
-                                                type="text"
-                                                bind:value={newOptionValue}
-                                                placeholder="Nueva opción (ej. XL o Verde)"
-                                                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                                                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveOptionInline(attr); } }}
-                                            />
-                                            <button
-                                                type="button"
-                                                onclick={() => handleSaveOptionInline(attr)}
-                                                disabled={optionInlineLoading || !newOptionValue.trim()}
-                                                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shrink-0"
-                                            >
-                                                {optionInlineLoading ? '...' : 'Guardar'}
-                                            </button>
+                                        <div class="space-y-1.5 pt-2 border-t border-slate-800/80 animate-fade-in">
+                                            <label for="inline-opt-{attr.id}" class="block text-[11px] font-semibold text-slate-300">Nombre de la nueva opción *</label>
+                                            <div class="flex items-center gap-2">
+                                                <input
+                                                    id="inline-opt-{attr.id}"
+                                                    type="text"
+                                                    bind:value={newOptionValue}
+                                                    placeholder="Nueva opción (ej. XL o Verde)"
+                                                    class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                                                    onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveOptionInline(attr); } }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onclick={() => handleSaveOptionInline(attr)}
+                                                    disabled={optionInlineLoading || !newOptionValue.trim()}
+                                                    class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shrink-0"
+                                                >
+                                                    {optionInlineLoading ? '...' : 'Guardar'}
+                                                </button>
+                                            </div>
                                         </div>
                                     {/if}
                                 </div>
@@ -1367,34 +1403,45 @@
                         </div>
                     {:else}
                         <div class="space-y-2">
-                            {#each productForm.variants as vRow}
-                                <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex flex-wrap items-center gap-3">
-                                    <div class="w-36 font-bold text-white text-xs">{vRow.name_label}</div>
-                                    <div class="w-28">
-                                        <input
-                                            type="text"
-                                            placeholder="SKU"
-                                            bind:value={vRow.sku}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs font-mono"
-                                        />
+                            {#each productForm.variants as vRow, vIdx}
+                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-bold text-white text-xs">{vRow.name_label}</span>
+                                        <span class="text-[10px] text-slate-500 font-mono">Variante #{vIdx + 1}</span>
                                     </div>
-                                    <div class="w-28">
-                                        <input
-                                            type="number"
-                                            placeholder="+/- min delta"
-                                            bind:value={vRow.production_minutes_delta}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-amber-300 text-xs font-mono"
-                                            title="Delta de minutos respecto al producto base"
-                                        />
-                                    </div>
-                                    {#if hasFinancialAccess}
-                                        <div class="w-36">
-                                            <CurrencyInput
-                                                bind:value={vRow.price_override}
-                                                placeholder="Sobrescribir precio"
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+                                        <div>
+                                            <label for="v-sku-{vIdx}" class="block font-semibold text-slate-400 text-[11px] mb-1">Código / SKU</label>
+                                            <input
+                                                id="v-sku-{vIdx}"
+                                                type="text"
+                                                placeholder="Ej. SKU-VAR-01"
+                                                bind:value={vRow.sku}
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono"
                                             />
                                         </div>
-                                    {/if}
+                                        <div>
+                                            <label for="v-delta-{vIdx}" class="block font-semibold text-slate-400 text-[11px] mb-1">Tiempo de producción (min)</label>
+                                            <input
+                                                id="v-delta-{vIdx}"
+                                                type="number"
+                                                placeholder="0"
+                                                bind:value={vRow.production_minutes_delta}
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-amber-300 text-xs font-mono font-bold"
+                                                title="Delta de minutos (+/-) respecto al producto base"
+                                            />
+                                        </div>
+                                        {#if hasFinancialAccess}
+                                            <div>
+                                                <label for="v-price-{vIdx}" class="block font-semibold text-slate-400 text-[11px] mb-1">Precio variante ($)</label>
+                                                <CurrencyInput
+                                                    id="v-price-{vIdx}"
+                                                    bind:value={vRow.price_override}
+                                                    placeholder="Precio personalizado"
+                                                />
+                                            </div>
+                                        {/if}
+                                    </div>
                                 </div>
                             {/each}
                         </div>
@@ -1523,6 +1570,6 @@
 <QuickCreateModal
     bind:isOpen={quickModalOpen}
     type={quickModalType}
-    unitsOfMeasure={unitsOfMeasure}
+    unitsOfMeasure={sortedUnitsOfMeasure}
     onSuccess={handleQuickSuccess}
 />

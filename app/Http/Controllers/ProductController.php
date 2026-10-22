@@ -53,11 +53,11 @@ class ProductController extends Controller
 
         return Inertia::render('Products/Index', [
             'products' => $products,
-            'productTypes' => ProductType::orderBy('name')->get(['id', 'name']),
-            'workflows' => Workflow::orderBy('name')->get(['id', 'name']),
-            'rawMaterials' => RawMaterial::orderBy('name')->get(['id', 'name', 'unit_of_measure', 'current_stock', 'reserved_stock']),
-            'orthogonalAttributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
-            'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
+            'productTypes' => ProductType::orderBy('name', 'asc')->get(['id', 'name']),
+            'workflows' => Workflow::orderBy('name', 'asc')->get(['id', 'name']),
+            'rawMaterials' => RawMaterial::orderBy('name', 'asc')->get(['id', 'name', 'unit_of_measure', 'current_stock', 'reserved_stock']),
+            'orthogonalAttributes' => OrthogonalAttribute::with('options')->orderBy('name', 'asc')->get(),
+            'unitsOfMeasure' => UnitOfMeasure::orderBy('name', 'asc')->get(['id', 'name', 'abbreviation']),
             'filters' => [
                 'search' => $search,
                 'product_type_id' => $typeId ? (int) $typeId : '',

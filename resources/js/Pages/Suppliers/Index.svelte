@@ -136,7 +136,9 @@
         <!-- BUSCADOR -->
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-3">
             <span class="text-slate-400 text-sm">🔍</span>
+            <label for="s-search" class="sr-only">Buscar proveedor</label>
             <input
+                id="s-search"
                 type="text"
                 bind:value={search}
                 oninput={handleSearchInput}

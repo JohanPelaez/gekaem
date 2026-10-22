@@ -651,7 +651,9 @@
                 <!-- Buscador por #pedido o cliente -->
                 <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl w-full md:w-72">
                     <span class="text-slate-500 text-xs">🔍</span>
+                    <label for="search-orders" class="sr-only">Buscar por # o cliente</label>
                     <input
+                        id="search-orders"
                         type="text"
                         bind:value={search}
                         oninput={handleSearchInput}
@@ -668,8 +670,9 @@
             <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-800/80 text-xs">
                 <!-- Filtro por Cliente -->
                 <div class="flex items-center gap-1.5">
-                    <span class="text-slate-500 font-semibold text-[11px]">Cliente:</span>
+                    <label for="filter-ord-cust" class="text-slate-500 font-semibold text-[11px]">Cliente:</label>
                     <select
+                        id="filter-ord-cust"
                         bind:value={customerFilter}
                         onchange={applyFilters}
                         class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
@@ -684,8 +687,9 @@
                 <!-- Filtro por Estado de Pago (SOLO SI TIENE PERMISOS FINANCIEROS) -->
                 {#if hasFinancialAccess}
                     <div class="flex items-center gap-1.5">
-                        <span class="text-slate-500 font-semibold text-[11px]">Estado de Pago:</span>
+                        <label for="filter-ord-pay" class="text-slate-500 font-semibold text-[11px]">Estado de Pago:</label>
                         <select
+                            id="filter-ord-pay"
                             bind:value={paymentStatusFilter}
                             onchange={applyFilters}
                             class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
@@ -700,8 +704,9 @@
 
                 <!-- Filtro por Rango de Entrega -->
                 <div class="flex items-center gap-1.5">
-                    <span class="text-slate-500 font-semibold text-[11px]">Entrega:</span>
+                    <label for="filter-ord-delivery" class="text-slate-500 font-semibold text-[11px]">Entrega:</label>
                     <select
+                        id="filter-ord-delivery"
                         bind:value={deliveryRangeFilter}
                         onchange={applyFilters}
                         class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
@@ -1231,6 +1236,11 @@
                         <div class="space-y-2">
                             {#each orderForm.items as item, idx}
                                 {@const selectedProd = products.find((p) => p.id == item.product_id)}
+                                {@const selectedVariant = selectedProd?.variants?.find((v) => v.id == item.product_variant_id)}
+                                {@const unitPrice = selectedVariant?.price_override !== null && selectedVariant?.price_override !== ''
+                                    ? Number(selectedVariant.price_override)
+                                    : Number(selectedProd?.base_price ?? 0)}
+                                {@const subtotal = unitPrice * Number(item.quantity || 0)}
                                 <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center gap-2.5">
                                     <div class="flex-1">
                                         <label for="prod-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Producto</label>
@@ -1273,6 +1283,22 @@
                                             class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono font-bold"
                                         />
                                     </div>
+
+                                    {#if hasFinancialAccess}
+                                        <div class="w-28 sm:w-32">
+                                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Precio Unitario</span>
+                                            <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs font-mono font-medium truncate">
+                                                {formatCurrency(unitPrice)}
+                                            </div>
+                                        </div>
+
+                                        <div class="w-28 sm:w-32">
+                                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Subtotal</span>
+                                            <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-emerald-400 text-xs font-mono font-bold truncate">
+                                                {formatCurrency(subtotal)}
+                                            </div>
+                                        </div>
+                                    {/if}
 
                                     <button
                                         type="button"

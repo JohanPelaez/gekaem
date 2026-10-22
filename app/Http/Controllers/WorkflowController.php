@@ -88,18 +88,27 @@ class WorkflowController extends Controller
      */
     public function storeStage(Request $request, Workflow $workflow): RedirectResponse
     {
+        if ($request->has('stage_type') && !$request->has('stage_category')) {
+            $request->merge(['stage_category' => $request->input('stage_type')]);
+        }
+        if ($request->input('stage_category') === 'completed') {
+            $request->merge(['stage_category' => 'done']);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:80'],
             'color' => ['nullable', 'string', 'max:20'],
-            'position' => ['required', 'integer', 'min:1'],
+            'position' => ['nullable', 'integer', 'min:1'],
             'stage_category' => ['required', 'in:pending,in_progress,blocked,done'],
             'wip_limit' => ['nullable', 'integer', 'min:1'],
         ]);
 
+        $maxPos = (int) $workflow->stages()->max('position');
+
         $workflow->stages()->create([
             'name' => $validated['name'],
             'color' => $validated['color'] ?? '#64748b',
-            'position' => $validated['position'],
+            'position' => $validated['position'] ?? ($maxPos + 1),
             'stage_category' => $validated['stage_category'],
             'wip_limit' => $validated['wip_limit'] ?? null,
         ]);

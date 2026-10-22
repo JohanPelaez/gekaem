@@ -17,7 +17,7 @@ class UnitOfMeasureController extends Controller
      */
     public function index(): JsonResponse
     {
-        $units = UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']);
+        $units = UnitOfMeasure::orderBy('name', 'asc')->get(['id', 'name', 'abbreviation']);
 
         return response()->json($units);
     }
