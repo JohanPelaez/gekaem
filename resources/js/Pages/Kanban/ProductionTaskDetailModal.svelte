@@ -1,5 +1,7 @@
 <script>
     import { fade, scale } from 'svelte/transition';
+    import JsBarcode from 'jsbarcode';
+    import { downloadBarcodeAsPng, validateBarcodeForFormat } from '../../Utils/barcodeHelper.js';
 
     let {
         isOpen = false,
@@ -13,6 +15,10 @@
         onClose = () => {}
     } = $props();
 
+    // Referencias y estado para el código de barras dinámico
+    let barcodeSvg = $state(null);
+    let barcodeError = $state(null);
+
     // Etapa actual de la tarea
     let currentStage = $derived.by(() => {
         if (!task) return null;
@@ -23,6 +29,60 @@
     let variant = $derived(task?.product_variant || task?.productVariant);
     let product = $derived(variant?.product);
     let productType = $derived(product?.product_type || product?.productType);
+
+    // Código de barras, formato y nombre para descarga
+    let barcodeValue = $derived(variant?.barcode || product?.barcode || '');
+    let barcodeFormat = $derived(product?.barcode_format || 'CODE128');
+    let barcodeProductName = $derived.by(() => {
+        if (variant?.name_label && variant?.name_label !== product?.name) {
+            return `${product?.name ?? ''} (${variant.name_label})`;
+        }
+        return product?.name ?? task?.item_name_snapshot ?? 'Producto';
+    });
+
+    // Renderizar código de barras con JsBarcode sobre el SVG
+    $effect(() => {
+        if (!isOpen || !task) return;
+
+        const code = barcodeValue ? String(barcodeValue).trim() : '';
+        if (!code || !barcodeSvg) {
+            barcodeError = null;
+            return;
+        }
+
+        const validation = validateBarcodeForFormat(code, barcodeFormat);
+        if (!validation.valid) {
+            barcodeError = validation.message;
+            return;
+        }
+
+        try {
+            barcodeError = null;
+            JsBarcode(barcodeSvg, code, {
+                format: barcodeFormat,
+                width: 1.8,
+                height: 48,
+                displayValue: true,
+                font: 'monospace',
+                fontOptions: 'bold',
+                textAlign: 'center',
+                textPosition: 'bottom',
+                textMargin: 4,
+                fontSize: 12,
+                background: '#ffffff',
+                lineColor: '#000000',
+                textColor: '#0f172a',
+                margin: 8,
+            });
+        } catch (err) {
+            barcodeError = err?.message || 'Código incompatible con el formato seleccionado';
+        }
+    });
+
+    function handleDownloadBarcode() {
+        if (!barcodeValue) return;
+        downloadBarcodeAsPng(barcodeValue, barcodeFormat, barcodeProductName);
+    }
 
     // Atributos y opciones de la variante
     let attributeOptions = $derived.by(() => {
@@ -150,9 +210,9 @@
             <!-- CUERPO DEL MODAL -->
             <div class="p-6 space-y-6 max-h-[calc(85vh-130px)] overflow-y-auto">
 
-                <!-- SELECTOR DE ETAPA Y CÓDIGO DE BARRAS / SKU -->
+                <!-- SELECTOR DE ETAPA Y SKU -->
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-4 p-4 rounded-2xl bg-slate-950/70 border border-slate-800/80 items-center">
-                    <div class="sm:col-span-6 space-y-1">
+                    <div class="sm:col-span-8 space-y-1">
                         <label for="modal-task-stage-select" class="block text-xs font-semibold text-slate-300">
                             Etapa actual en el flujo de producción:
                         </label>
@@ -174,16 +234,7 @@
                         </div>
                     </div>
 
-                    <div class="sm:col-span-6 flex flex-wrap sm:justify-end gap-2 text-xs">
-                        {#if variant?.barcode || product?.barcode}
-                            <div class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
-                                <span class="text-[10px] text-slate-500 block uppercase font-bold">Código de Barras</span>
-                                <span class="font-mono font-bold text-white">{variant?.barcode || product?.barcode}</span>
-                                {#if product?.barcode_format}
-                                    <span class="text-[10px] text-slate-400 block font-sans">({product.barcode_format})</span>
-                                {/if}
-                            </div>
-                        {/if}
+                    <div class="sm:col-span-4 flex flex-wrap sm:justify-end gap-2 text-xs">
                         {#if variant?.sku || product?.sku}
                             <div class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300">
                                 <span class="text-[10px] text-slate-500 block uppercase font-bold">SKU</span>
@@ -192,6 +243,48 @@
                         {/if}
                     </div>
                 </div>
+
+                <!-- BLOQUE VISUAL DEL CÓDIGO DE BARRAS Y DESCARGA (SPRINT 7) -->
+                {#if barcodeValue}
+                    <div class="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                    <span>🏷️</span>
+                                    <span>Código de Barras</span>
+                                </span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-950 text-sky-400 border border-sky-800/80">
+                                    Formato: {barcodeFormat}
+                                </span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-slate-300 border border-slate-800">
+                                    {barcodeValue}
+                                </span>
+                            </div>
+
+                            <button
+                                type="button"
+                                onclick={handleDownloadBarcode}
+                                class="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all shadow-md shadow-sky-600/20 flex items-center gap-1.5 shrink-0"
+                                title="Descargar código de barras en formato PNG de alta resolución"
+                            >
+                                <span>📥</span>
+                                <span>Descargar Código de Barras (PNG)</span>
+                            </button>
+                        </div>
+
+                        <!-- Renderizado del código de barras con JsBarcode -->
+                        <div class="flex flex-col items-center justify-center p-3 rounded-xl bg-white border border-slate-200 shadow-sm overflow-x-auto">
+                            {#if barcodeError}
+                                <div class="text-xs text-amber-700 font-mono py-1.5 px-3 bg-amber-50 border border-amber-300 rounded-lg flex items-center gap-1.5 text-center">
+                                    <span>⚠️</span>
+                                    <span>{barcodeError}</span>
+                                </div>
+                            {:else}
+                                <svg bind:this={barcodeSvg} class="max-w-full overflow-visible"></svg>
+                            {/if}
+                        </div>
+                    </div>
+                {/if}
 
                 <!-- ATRIBUTOS ORTOGONALES Y CONFIGURACIÓN EXACTA -->
                 {#if attributeOptions.length > 0}

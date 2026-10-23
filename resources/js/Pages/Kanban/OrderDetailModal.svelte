@@ -13,7 +13,9 @@
         onStatusChange = () => {},
         onTaskStageChange = () => {},
         onEditOrder = () => {},
-        onOpenIsolatedBoard = () => {},
+        onOpenIsolatedBoard = (ordId) => {
+            router.visit(`/kanban?order_id=${ordId}`);
+        },
         onClose = () => {},
     } = $props();
 
@@ -553,17 +555,23 @@
                         <span>Editar Pedido</span>
                     </button>
 
-                    {#if !isIsolatedView}
+                    {#if !isIsolatedView && order}
                         <button
                             type="button"
                             onclick={() => {
+                                const targetId = order.id;
                                 closeModal();
-                                onOpenIsolatedBoard(order.id);
+                                if (onOpenIsolatedBoard) {
+                                    onOpenIsolatedBoard(targetId);
+                                } else {
+                                    router.visit(`/kanban?order_id=${targetId}`);
+                                }
                             }}
                             class="px-3.5 py-2 rounded-xl bg-sky-950/70 hover:bg-sky-900/70 text-sky-400 font-semibold text-xs border border-sky-800/70 transition-colors flex items-center gap-1.5"
+                            title="Ir al tablero exclusivo del pedido #{order.order_number}"
                         >
                             <span>📋</span>
-                            <span>Ir al Tablero Exclusivo</span>
+                            <span>Ir al Tablero Exclusivo del Pedido</span>
                         </button>
                     {/if}
                 </div>

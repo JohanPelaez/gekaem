@@ -46,6 +46,12 @@
     $effect(() => {
         if (selectedOrderId) {
             activeOrderId = Number(selectedOrderId);
+        } else if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const ordId = params.get('order_id');
+            if (ordId) {
+                activeOrderId = Number(ordId);
+            }
         }
     });
 
@@ -145,7 +151,7 @@
 
     // Pedido actualmente seleccionado en el Nivel 2
     let activeOrder = $derived(
-        activeOrderId ? localOrders.find((o) => o.id === activeOrderId) ?? null : null,
+        activeOrderId ? localOrders.find((o) => Number(o.id) === Number(activeOrderId)) ?? null : null,
     );
 
     // Flujos únicos presentes en las tareas del pedido activo
@@ -392,19 +398,22 @@
     });
 
     function openOrderBoard(orderId) {
-        activeOrderId = orderId;
+        if (!orderId) return;
+        activeOrderId = Number(orderId);
         selectedOrderWorkflowId = null;
-        const url = new URL(window.location.href);
-        url.searchParams.set('order_id', orderId);
-        window.history.pushState({}, '', url);
+        router.visit(`/kanban?order_id=${orderId}`, {
+            preserveState: true,
+            preserveScroll: true,
+        });
     }
 
     function closeOrderBoard() {
         activeOrderId = null;
         selectedOrderWorkflowId = null;
-        const url = new URL(window.location.href);
-        url.searchParams.delete('order_id');
-        window.history.pushState({}, '', url);
+        router.visit('/kanban', {
+            preserveState: true,
+            preserveScroll: true,
+        });
     }
 
     // --- MODALES ---
