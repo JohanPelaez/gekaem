@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
 
@@ -15,9 +16,12 @@
     let activeTab = $state('profile');
 
     $effect(() => {
-        if (initialTab && (initialTab === 'profile' || (canManageTenant && ['tenant', 'team'].includes(initialTab)))) {
-            activeTab = initialTab;
-        }
+        const tab = initialTab;
+        untrack(() => {
+            if (tab && (tab === 'profile' || (canManageTenant && ['tenant', 'team'].includes(tab)))) {
+                activeTab = tab;
+            }
+        });
     });
 
     // Estados de procesamiento
@@ -33,10 +37,15 @@
         email: '',
     });
 
+    let prevProfileUserId = null;
     $effect(() => {
-        if (profileUser) {
-            profileForm.name = profileUser.name ?? '';
-            profileForm.email = profileUser.email ?? '';
+        const curId = profileUser?.id ?? null;
+        if (curId && curId !== prevProfileUserId) {
+            prevProfileUserId = curId;
+            untrack(() => {
+                profileForm.name = profileUser.name ?? '';
+                profileForm.email = profileUser.email ?? '';
+            });
         }
     });
 
@@ -57,14 +66,19 @@
         currency: 'COP',
     });
 
+    let prevTenantId = null;
     $effect(() => {
-        if (tenant) {
-            settingsForm.name = tenant.name ?? '';
-            settingsForm.daily_hours = tenant.daily_hours ?? 8;
-            settingsForm.default_buffer_percent = tenant.default_buffer_percent ?? 20;
-            settingsForm.parallel_workers = tenant.settings?.parallel_workers ?? 1;
-            settingsForm.workdays = tenant.settings?.workdays ?? [1, 2, 3, 4, 5, 6];
-            settingsForm.currency = tenant.settings?.currency ?? 'COP';
+        const curTId = tenant?.id ?? null;
+        if (curTId && curTId !== prevTenantId) {
+            prevTenantId = curTId;
+            untrack(() => {
+                settingsForm.name = tenant.name ?? '';
+                settingsForm.daily_hours = tenant.daily_hours ?? 8;
+                settingsForm.default_buffer_percent = tenant.default_buffer_percent ?? 20;
+                settingsForm.parallel_workers = tenant.settings?.parallel_workers ?? 1;
+                settingsForm.workdays = tenant.settings?.workdays ?? [1, 2, 3, 4, 5, 6];
+                settingsForm.currency = tenant.settings?.currency ?? 'COP';
+            });
         }
     });
 

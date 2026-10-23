@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
 
@@ -20,9 +21,12 @@
     });
 
     $effect(() => {
-        if (tenants.length > 0 && !userForm.tenant_id) {
-            userForm.tenant_id = tenants[0].id;
-        }
+        const incomingTenants = tenants;
+        untrack(() => {
+            if (incomingTenants.length > 0 && !userForm.tenant_id) {
+                userForm.tenant_id = incomingTenants[0].id;
+            }
+        });
     });
 
     function resetUserForm() {

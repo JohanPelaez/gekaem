@@ -1,4 +1,6 @@
 <script>
+    import { untrack } from 'svelte';
+
     /**
      * OrderDateSelector Component (Svelte 5 Runes)
      * Interactive mini-calendar for selecting committed delivery date with daily workshop load visualization
@@ -106,40 +108,61 @@
     let selectedDate = $state(initial.dateStr); // YYYY-MM-DD
     let selectedTime = $state(initial.timeStr); // HH:MM
 
-    // Sincronizar hacia afuera cuando cambie fecha u hora
+    let internalUpdating = false;
+
+    // Sincronizar hacia afuera cuando cambie fecha u hora local
     $effect(() => {
-        if (selectedDate) {
-            const fullVal = `${selectedDate}T${selectedTime || '17:00'}`;
-            if (value !== fullVal) {
-                value = fullVal;
+        const d = selectedDate;
+        const t = selectedTime;
+        untrack(() => {
+            if (internalUpdating) return;
+            if (d) {
+                const fullVal = `${d}T${t || '17:00'}`;
+                if (value !== fullVal) {
+                    internalUpdating = true;
+                    value = fullVal;
+                    internalUpdating = false;
+                }
+            } else if (value !== '') {
+                internalUpdating = true;
+                value = '';
+                internalUpdating = false;
             }
-        } else if (value !== '') {
-            value = '';
-        }
+        });
     });
 
     // Sincronizar hacia adentro si value cambia desde afuera
     $effect(() => {
-        if (value) {
-            const clean = normalizeDateKey(value);
-            if (clean && clean !== selectedDate) {
-                selectedDate = clean;
-                const [y, m] = clean.split('-').map(Number);
-                viewYear = y;
-                viewMonth = m - 1;
+        const extVal = value;
+        untrack(() => {
+            if (internalUpdating) return;
+            if (extVal) {
+                const clean = normalizeDateKey(extVal);
+                if (clean && clean !== selectedDate) {
+                    internalUpdating = true;
+                    selectedDate = clean;
+                    const [y, m] = clean.split('-').map(Number);
+                    viewYear = y;
+                    viewMonth = m - 1;
+                    internalUpdating = false;
+                }
+                let timePart = '';
+                if (String(extVal).includes('T')) {
+                    timePart = String(extVal).split('T')[1]?.slice(0, 5);
+                } else if (String(extVal).includes(' ')) {
+                    timePart = String(extVal).split(' ')[1]?.slice(0, 5);
+                }
+                if (timePart && timePart !== selectedTime) {
+                    internalUpdating = true;
+                    selectedTime = timePart;
+                    internalUpdating = false;
+                }
+            } else if (selectedDate !== '') {
+                internalUpdating = true;
+                selectedDate = '';
+                internalUpdating = false;
             }
-            let timePart = '';
-            if (String(value).includes('T')) {
-                timePart = String(value).split('T')[1]?.slice(0, 5);
-            } else if (String(value).includes(' ')) {
-                timePart = String(value).split(' ')[1]?.slice(0, 5);
-            }
-            if (timePart && timePart !== selectedTime) {
-                selectedTime = timePart;
-            }
-        } else {
-            selectedDate = '';
-        }
+        });
     });
 
     // Mapa unificado de pedidos por fecha exacta

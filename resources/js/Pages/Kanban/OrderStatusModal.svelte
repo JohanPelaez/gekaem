@@ -1,16 +1,21 @@
 <script>
+    import { untrack } from 'svelte';
     import { csrfFetch } from '../../Utils/csrfFetch.js';
 
     let {
         isOpen = $bindable(false),
         orderStatuses = [],
+        errors = {},
         onStatusesChanged = () => {},
     } = $props();
 
     // Copia local para reordenar y editar
     let localStatuses = $state([]);
     $effect(() => {
-        localStatuses = JSON.parse(JSON.stringify(orderStatuses)).sort((a, b) => (a.position || 0) - (b.position || 0));
+        const incoming = orderStatuses;
+        untrack(() => {
+            localStatuses = JSON.parse(JSON.stringify(incoming || [])).toSorted((a, b) => (a.position || 0) - (b.position || 0));
+        });
     });
 
     // Formulario de creación

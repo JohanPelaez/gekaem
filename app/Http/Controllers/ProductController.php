@@ -32,6 +32,11 @@ class ProductController extends Controller
      */
     public function index(Request $request): Response
     {
+        $tenant = auth()->user()?->currentTenant();
+        if ($tenant) {
+            Tenant::ensureDefaultData($tenant->id);
+        }
+
         $search = $request->string('search')->trim()->value();
         $typeId = $request->input('product_type_id');
         $wfId = $request->input('workflow_id');

@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router } from '@inertiajs/svelte';
     import CurrencyInput from './CurrencyInput.svelte';
     import QuickCreateModal from './QuickCreateModal.svelte';
@@ -26,6 +27,7 @@
         ordersCountByDate = {},
         allScheduledOrders = [],
         hasFinancialAccess = true,
+        errors = {},
         onSuccess = () => {},
         onClose = () => {},
         onCustomerCreated = () => {},
@@ -35,12 +37,18 @@
     // Sincronización local de clientes y productos para creaciones rápidas en contexto
     let localCustomers = $state([]);
     $effect(() => {
-        localCustomers = [...customers];
+        const incoming = customers;
+        untrack(() => {
+            localCustomers = [...(incoming || [])];
+        });
     });
 
     let localProducts = $state([]);
     $effect(() => {
-        localProducts = [...products];
+        const incoming = products;
+        untrack(() => {
+            localProducts = [...(incoming || [])];
+        });
     });
 
     // Modales secundarios
@@ -61,61 +69,76 @@
         voucher: null,
     });
 
-    // Inicializar o resetear formulario cuando cambia isOpen o editingOrder
+    let prevIsOpen = false;
+    let prevEditingOrder = null;
+
+    // Inicializar o resetear formulario exclusivamente cuando cambia el estado de apertura o el pedido a editar
     $effect(() => {
-        if (!isOpen) return;
+        const currentlyOpen = isOpen;
+        const currentOrder = editingOrder;
 
-        if (isEditing && editingOrder) {
-            orderForm.customer_id = editingOrder.customer_id || editingOrder.customer?.id || '';
-            orderForm.shipping_type = editingOrder.shipping_type || 'contraentrega';
-            orderForm.notes = editingOrder.notes || '';
+        if (currentlyOpen && (!prevIsOpen || currentOrder !== prevEditingOrder)) {
+            prevIsOpen = currentlyOpen;
+            prevEditingOrder = currentOrder;
 
-            let dt = '';
-            if (editingOrder.committed_delivery_at) {
-                dt = String(editingOrder.committed_delivery_at).replace(' ', 'T').slice(0, 16);
-            } else if (editingOrder.predicted_delivery_at) {
-                dt = String(editingOrder.predicted_delivery_at).replace(' ', 'T').slice(0, 16);
-            }
-            orderForm.committed_delivery_at = dt;
+            untrack(() => {
+                if (isEditing && currentOrder) {
+                    orderForm.customer_id = currentOrder.customer_id || currentOrder.customer?.id || '';
+                    orderForm.shipping_type = currentOrder.shipping_type || 'contraentrega';
+                    orderForm.notes = currentOrder.notes || '';
 
-            const tasks = editingOrder.production_tasks || editingOrder.productionTasks || editingOrder.tasks || [];
-            if (tasks.length > 0) {
-                orderForm.items = tasks.map((t) => {
-                    const variant = t.product_variant || t.productVariant;
-                    let prodId = variant?.product_id || variant?.product?.id;
-                    if (!prodId) {
-                        const found = localProducts.find((p) => p.variants?.some((v) => v.id == t.product_variant_id));
-                        prodId = found?.id ?? '';
+                    let dt = '';
+                    if (currentOrder.committed_delivery_at) {
+                        dt = String(currentOrder.committed_delivery_at).replace(' ', 'T').slice(0, 16);
+                    } else if (currentOrder.predicted_delivery_at) {
+                        dt = String(currentOrder.predicted_delivery_at).replace(' ', 'T').slice(0, 16);
                     }
-                    return {
-                        product_id: prodId,
-                        product_variant_id: t.product_variant_id,
-                        quantity: Number(t.quantity || 1),
-                        unit_price: Number(t.unit_price || 0),
-                    };
-                });
-            } else if (localProducts.length > 0) {
-                addItem();
-            }
+                    orderForm.committed_delivery_at = dt;
 
-            orderForm.has_initial_deposit = false;
-            orderForm.initial_deposit = '';
-            orderForm.payment_method = 'transfer';
-            orderForm.voucher = null;
-        } else {
-            orderForm.customer_id = localCustomers[0]?.id ?? '';
-            orderForm.committed_delivery_at = initialDate ? `${initialDate}T17:00` : '';
-            orderForm.shipping_type = 'contraentrega';
-            orderForm.notes = '';
-            orderForm.items = [];
-            orderForm.has_initial_deposit = false;
-            orderForm.initial_deposit = '';
-            orderForm.payment_method = 'transfer';
-            orderForm.voucher = null;
+                    const tasks = currentOrder.production_tasks || currentOrder.productionTasks || currentOrder.tasks || [];
+                    if (tasks.length > 0) {
+                        orderForm.items = tasks.map((t) => {
+                            const variant = t.product_variant || t.productVariant;
+                            let prodId = variant?.product_id || variant?.product?.id;
+                            if (!prodId) {
+                                const found = localProducts.find((p) => p.variants?.some((v) => v.id == t.product_variant_id));
+                                prodId = found?.id ?? '';
+                            }
+                            return {
+                                product_id: prodId,
+                                product_variant_id: t.product_variant_id,
+                                quantity: Number(t.quantity || 1),
+                                unit_price: Number(t.unit_price || 0),
+                            };
+                        });
+                    } else if (localProducts.length > 0) {
+                        orderForm.items = [];
+                        addItem();
+                    }
 
-            if (localProducts.length > 0) {
-                addItem();
-            }
+                    orderForm.has_initial_deposit = false;
+                    orderForm.initial_deposit = '';
+                    orderForm.payment_method = 'transfer';
+                    orderForm.voucher = null;
+                } else {
+                    orderForm.customer_id = localCustomers[0]?.id ?? '';
+                    orderForm.committed_delivery_at = initialDate ? `${initialDate}T17:00` : '';
+                    orderForm.shipping_type = 'contraentrega';
+                    orderForm.notes = '';
+                    orderForm.items = [];
+                    orderForm.has_initial_deposit = false;
+                    orderForm.initial_deposit = '';
+                    orderForm.payment_method = 'transfer';
+                    orderForm.voucher = null;
+
+                    if (localProducts.length > 0) {
+                        addItem();
+                    }
+                }
+            });
+        } else if (!currentlyOpen) {
+            prevIsOpen = false;
+            prevEditingOrder = null;
         }
     });
 
@@ -369,7 +392,7 @@
                                 </option>
                             {/each}
                         </select>
-                        {#if errors.customer_id}
+                        {#if errors?.customer_id}
                             <p class="text-[10px] text-rose-400 mt-1">{errors.customer_id}</p>
                         {/if}
                     </div>
@@ -678,5 +701,6 @@
     {orthogonalAttributes}
     {attributes}
     {unitsOfMeasure}
+    {errors}
     onSuccess={handleProductCreated}
 />

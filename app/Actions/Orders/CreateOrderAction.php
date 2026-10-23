@@ -111,10 +111,18 @@ class CreateOrderAction
             $initialStatus = \App\Models\OrderStatus::withoutGlobalScope('tenant')
                 ->where('tenant_id', $tenant->id)
                 ->where('system_key', 'pending')
-                ->first() ?? \App\Models\OrderStatus::withoutGlobalScope('tenant')
-                ->where('tenant_id', $tenant->id)
-                ->orderBy('position')
                 ->first();
+
+            if ($initialStatus === null) {
+                Tenant::ensureDefaultData($tenant->id);
+                $initialStatus = \App\Models\OrderStatus::withoutGlobalScope('tenant')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('system_key', 'pending')
+                    ->first() ?? \App\Models\OrderStatus::withoutGlobalScope('tenant')
+                    ->where('tenant_id', $tenant->id)
+                    ->orderBy('position')
+                    ->first();
+            }
 
             /** @var Order $order */
             $order = Order::withoutGlobalScope('tenant')->create([
@@ -149,9 +157,24 @@ class CreateOrderAction
                     ->first();
 
                 if ($initialStage === null) {
-                    throw new InvalidArgumentException(
-                        "El flujo '{$product->workflow?->name}' no tiene etapas definidas."
-                    );
+                    Tenant::ensureDefaultData($tenant->id);
+                    $defaultWf = \App\Models\Workflow::withoutGlobalScope('tenant')
+                        ->where('tenant_id', $tenant->id)
+                        ->where('is_default', true)
+                        ->with('stages')
+                        ->first();
+
+                    if ($defaultWf && $defaultWf->stages->isNotEmpty()) {
+                        $product->workflow_id = $defaultWf->id;
+                        $product->save();
+                        $initialStage = $defaultWf->stages->sortBy('position')->first();
+                    }
+
+                    if ($initialStage === null) {
+                        throw new InvalidArgumentException(
+                            "El flujo '{$product->workflow?->name}' no tiene etapas definidas."
+                        );
+                    }
                 }
 
                 $unitMinutes = (int) $product->base_production_minutes + (int) $variant->production_minutes_delta;

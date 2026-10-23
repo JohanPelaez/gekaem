@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router } from '@inertiajs/svelte';
     import CurrencyInput from '../../Components/CurrencyInput.svelte';
 
@@ -10,6 +11,7 @@
         workflows = [],
         hasFinancialAccess = true,
         isIsolatedView = false,
+        errors = {},
         onStatusChange = () => {},
         onTaskStageChange = () => {},
         onEditOrder = () => {},
@@ -29,16 +31,24 @@
     let isSavingPayment = $state(false);
     let paymentError = $state('');
 
+    let prevOrderId = null;
+
     // Resetear formulario de abono cuando cambia el pedido
     $effect(() => {
-        if (order) {
-            paymentAmount = order.pending_balance > 0 ? Number(order.pending_balance) : '';
-            paymentDate = new Date().toISOString().slice(0, 10);
-            paymentMethod = 'transfer';
-            paymentNotes = '';
-            paymentVoucher = null;
-            showNewPaymentForm = false;
-            paymentError = '';
+        const curOrderId = order?.id ?? null;
+        if (curOrderId && curOrderId !== prevOrderId) {
+            prevOrderId = curOrderId;
+            untrack(() => {
+                paymentAmount = order.pending_balance > 0 ? Number(order.pending_balance) : '';
+                paymentDate = new Date().toISOString().slice(0, 10);
+                paymentMethod = 'transfer';
+                paymentNotes = '';
+                paymentVoucher = null;
+                showNewPaymentForm = false;
+                paymentError = '';
+            });
+        } else if (!curOrderId) {
+            prevOrderId = null;
         }
     });
 

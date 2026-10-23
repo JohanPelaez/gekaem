@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import { csrfFetch } from '../../Utils/csrfFetch';
@@ -23,6 +24,7 @@
         attributes = [],
         unitsOfMeasure = [],
         selectedOrderId = null,
+        errors = {},
     } = $props();
 
     let authUser = $derived(page.props.auth?.user);
@@ -32,27 +34,36 @@
     // Copia local de pedidos para optimismo reactivo
     let localOrders = $state([]);
     $effect(() => {
-        localOrders = JSON.parse(JSON.stringify(orders));
+        const incoming = orders;
+        untrack(() => {
+            localOrders = JSON.parse(JSON.stringify(incoming || []));
+        });
     });
 
     // Copia local de estados de pedido ordenados por posición
     let localStatuses = $state([]);
     $effect(() => {
-        localStatuses = JSON.parse(JSON.stringify(orderStatuses)).sort((a, b) => (a.position || 0) - (b.position || 0));
+        const incoming = orderStatuses;
+        untrack(() => {
+            localStatuses = JSON.parse(JSON.stringify(incoming || [])).toSorted((a, b) => (a.position || 0) - (b.position || 0));
+        });
     });
 
     // ID del pedido actualmente abierto en vista aislada
     let activeOrderId = $state(null);
     $effect(() => {
-        if (selectedOrderId) {
-            activeOrderId = Number(selectedOrderId);
-        } else if (typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            const ordId = params.get('order_id');
-            if (ordId) {
-                activeOrderId = Number(ordId);
+        const incomingId = selectedOrderId;
+        untrack(() => {
+            if (incomingId) {
+                activeOrderId = Number(incomingId);
+            } else if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                const ordId = params.get('order_id');
+                if (ordId) {
+                    activeOrderId = Number(ordId);
+                }
             }
-        }
+        });
     });
 
     // Vista general: 'kanban' (Macro Pedidos) | 'table' (Tabla de Tareas)
@@ -1341,6 +1352,7 @@
     {ordersCountByDate}
     {allScheduledOrders}
     {hasFinancialAccess}
+    {errors}
     onSuccess={() => {
         isOrderFormOpen = false;
         router.reload({ preserveScroll: true });
@@ -1406,6 +1418,7 @@
     {orthogonalAttributes}
     {attributes}
     {unitsOfMeasure}
+    {errors}
     onSuccess={() => {
         isProductFormOpen = false;
         editingProductForBOM = null;

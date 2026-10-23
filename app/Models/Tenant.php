@@ -163,12 +163,70 @@ class Tenant extends Model
     }
 
     /**
+     * Get the order statuses belonging to the tenant.
+     *
+     * @return HasMany<OrderStatus>
+     */
+    public function orderStatuses(): HasMany
+    {
+        return $this->hasMany(OrderStatus::class);
+    }
+
+    /**
+     * Ensure default base data (OrderStatuses, Workflows & Stages, UnitsOfMeasure) exists for a tenant.
+     */
+    public static function ensureDefaultData(int $tenantId): void
+    {
+        if ($tenantId <= 0) {
+            return;
+        }
+
+        // 1. Estados de Pedido (OrderStatus): Si tiene 0 registros, crear los 4 por defecto
+        $statusCount = OrderStatus::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenantId)
+            ->count();
+
+        if ($statusCount === 0) {
+            OrderStatus::seedDefaultStatusesForTenant($tenantId);
+        }
+
+        // 2. Flujo Kanban Base (Workflow) y Etapas (WorkflowStage): Si tiene 0 registros, crear flujo inicial
+        $workflowCount = Workflow::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenantId)
+            ->count();
+
+        if ($workflowCount === 0) {
+            $workflow = Workflow::withoutGlobalScope('tenant')->create([
+                'tenant_id' => $tenantId,
+                'name' => 'Flujo General de Producción',
+                'description' => 'Flujo inicial por defecto para el taller.',
+                'is_default' => true,
+            ]);
+
+            $workflow->stages()->createMany([
+                ['name' => 'Pendiente', 'color' => '#64748b', 'position' => 1, 'stage_category' => 'pending'],
+                ['name' => 'En Proceso', 'color' => '#3b82f6', 'position' => 2, 'stage_category' => 'in_progress'],
+                ['name' => 'Terminado', 'color' => '#10b981', 'position' => 3, 'stage_category' => 'done'],
+            ]);
+        }
+
+        // 3. Unidades de Medida Base (UnitOfMeasure): Si tiene 0 registros, crear las unidades básicas
+        $unitCount = UnitOfMeasure::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenantId)
+            ->count();
+
+        if ($unitCount === 0) {
+            UnitOfMeasure::seedDefaultsForTenant($tenantId);
+        }
+    }
+
+    /**
      * The "booted" method of the model.
      */
     protected static function booted(): void
     {
         static::created(function (Tenant $tenant): void {
-            UnitOfMeasure::seedDefaultsForTenant($tenant->id);
+            static::ensureDefaultData($tenant->id);
         });
     }
 }

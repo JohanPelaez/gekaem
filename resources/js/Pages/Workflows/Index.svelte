@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
 
@@ -7,10 +8,13 @@
     let selectedWorkflowId = $state(null);
     let localWorkflows = $state([]);
     $effect(() => {
-        localWorkflows = workflows.map((wf) => ({
-            ...wf,
-            stages: [...(wf.stages || [])],
-        }));
+        const incoming = workflows;
+        untrack(() => {
+            localWorkflows = (incoming || []).map((wf) => ({
+                ...wf,
+                stages: [...(wf.stages || [])],
+            }));
+        });
     });
 
     let selectedWorkflow = $derived(

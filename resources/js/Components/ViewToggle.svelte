@@ -1,4 +1,6 @@
 <script>
+    import { untrack } from 'svelte';
+
     /**
      * ViewToggle Component (Svelte 5 Runes)
      * Compact selector for toggling between 'table' and 'cards' view with localStorage persistence.
@@ -13,17 +15,20 @@
 
     // Sincronizar con localStorage en el cliente
     $effect(() => {
-        if (typeof window !== 'undefined' && storageKey) {
-            const saved = localStorage.getItem(storageKey);
-            if (saved === 'cards' || saved === 'table' || (showCalendar && saved === 'calendar')) {
-                if (mode !== saved) {
-                    mode = saved;
+        const key = storageKey;
+        untrack(() => {
+            if (typeof window !== 'undefined' && key) {
+                const saved = localStorage.getItem(key);
+                if (saved === 'cards' || saved === 'table' || (showCalendar && saved === 'calendar')) {
+                    if (mode !== saved) {
+                        mode = saved;
+                    }
+                } else {
+                    localStorage.setItem(key, 'table');
+                    mode = 'table';
                 }
-            } else {
-                localStorage.setItem(storageKey, 'table');
-                mode = 'table';
             }
-        }
+        });
     });
 
     function setView(newMode) {

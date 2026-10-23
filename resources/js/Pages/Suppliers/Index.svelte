@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router, Link } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import ViewToggle from '../../Components/ViewToggle.svelte';
@@ -7,7 +8,10 @@
 
     let search = $state('');
     $effect(() => {
-        search = filters.search ?? '';
+        const incoming = filters;
+        untrack(() => {
+            search = incoming.search ?? '';
+        });
     });
 
     let viewMode = $state('table'); // 'table' | 'cards'

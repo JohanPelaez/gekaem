@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import ViewToggle from '../../Components/ViewToggle.svelte';
@@ -34,9 +35,12 @@
     let workflowFilter = $state('');
 
     $effect(() => {
-        search = filters.search ?? '';
-        productTypeFilter = filters.product_type_id ? String(filters.product_type_id) : '';
-        workflowFilter = filters.workflow_id ? String(filters.workflow_id) : '';
+        const incoming = filters;
+        untrack(() => {
+            search = incoming.search ?? '';
+            productTypeFilter = incoming.product_type_id ? String(incoming.product_type_id) : '';
+            workflowFilter = incoming.workflow_id ? String(incoming.workflow_id) : '';
+        });
     });
 
     let viewMode = $state('table'); // 'table' | 'cards'
@@ -50,16 +54,28 @@
     let localAttributes = $state([]);
 
     $effect(() => {
-        localProductTypes = [...productTypes];
+        const incoming = productTypes;
+        untrack(() => {
+            localProductTypes = [...(incoming || [])];
+        });
     });
     $effect(() => {
-        localWorkflows = [...workflows];
+        const incoming = workflows;
+        untrack(() => {
+            localWorkflows = [...(incoming || [])];
+        });
     });
     $effect(() => {
-        localRawMaterials = [...rawMaterials];
+        const incoming = rawMaterials;
+        untrack(() => {
+            localRawMaterials = [...(incoming || [])];
+        });
     });
     $effect(() => {
-        localAttributes = Array.isArray(orthogonalAttributes) ? [...orthogonalAttributes] : [];
+        const incoming = orthogonalAttributes;
+        untrack(() => {
+            localAttributes = Array.isArray(incoming) ? [...incoming] : [];
+        });
     });
 
     // Listas ordenadas alfabéticamente (A-Z) mediante $derived
@@ -838,6 +854,7 @@
     {rawMaterials}
     {orthogonalAttributes}
     {unitsOfMeasure}
+    {errors}
 />
 
 <!-- MODAL CREAR TIPO DE PRODUCTO -->

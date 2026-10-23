@@ -41,6 +41,9 @@ class OrderController extends Controller
     public function index(Request $request, GetOrdersListAction $getOrdersListAction): Response
     {
         $tenant = $this->resolveTenant();
+        if ($tenant) {
+            Tenant::ensureDefaultData($tenant->id);
+        }
         $listData = $getOrdersListAction->execute($request);
 
         return Inertia::render('Orders/Index', [
@@ -99,8 +102,11 @@ class OrderController extends Controller
             'voucher' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ]);
 
-        $order = DB::transaction(function () use ($validated, $request): Order {
-            $order = $this->createOrderAction->execute($this->resolveTenant(), $validated);
+        $tenant = $this->resolveTenant();
+        Tenant::ensureDefaultData($tenant->id);
+
+        $order = DB::transaction(function () use ($validated, $request, $tenant): Order {
+            $order = $this->createOrderAction->execute($tenant, $validated);
 
             $depositAmount = isset($validated['initial_deposit']) ? (float) $validated['initial_deposit'] : 0.0;
             if ($depositAmount > 0) {

@@ -57,6 +57,25 @@ class UnitOfMeasure extends Model
      */
     public static function seedDefaultsForTenant(int $tenantId): void
     {
+        $existingCount = static::withoutGlobalScope('tenant')->where('tenant_id', $tenantId)->count();
+        if ($existingCount > 0) {
+            return;
+        }
+
+        $basicUnits = [
+            ['name' => 'Unidad', 'abbreviation' => 'und'],
+            ['name' => 'Metro', 'abbreviation' => 'm'],
+            ['name' => 'Centímetro', 'abbreviation' => 'cm'],
+            ['name' => 'Kilogramo', 'abbreviation' => 'kg'],
+            ['name' => 'Gramo', 'abbreviation' => 'g'],
+            ['name' => 'Litro', 'abbreviation' => 'L'],
+            ['name' => 'Par', 'abbreviation' => 'par'],
+            ['name' => 'Docena', 'abbreviation' => 'doc'],
+            ['name' => 'Rollo', 'abbreviation' => 'rollo'],
+            ['name' => 'Mililitro', 'abbreviation' => 'ml'],
+            ['name' => 'Paquete', 'abbreviation' => 'paq'],
+        ];
+
         $now = now();
         $rows = array_map(fn (array $unit) => [
             'tenant_id' => $tenantId,
@@ -64,7 +83,7 @@ class UnitOfMeasure extends Model
             'abbreviation' => $unit['abbreviation'],
             'created_at' => $now,
             'updated_at' => $now,
-        ], self::DEFAULT_UNITS);
+        ], $basicUnits);
 
         static::insert($rows);
     }

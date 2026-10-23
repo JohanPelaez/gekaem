@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router, page } from '@inertiajs/svelte';
     import BarcodeViewer from './BarcodeViewer.svelte';
     import CurrencyInput from './CurrencyInput.svelte';
@@ -27,6 +28,7 @@
         attributes = [],
         unitsOfMeasure = [],
         asyncMode = false,
+        errors = {},
         onSuccess = () => {},
         onClose = () => {},
     } = $props();
@@ -34,6 +36,7 @@
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
     let pageErrors = $derived(page.props.errors || {});
+    let formErrors = $derived(errors && Object.keys(errors).length > 0 ? errors : pageErrors);
 
     // Listas locales sincronizadas para permitir creación rápida en contexto sin resetear
     let localProductTypes = $state([]);
@@ -42,22 +45,33 @@
     let localAttributes = $state([]);
 
     $effect(() => {
-        localProductTypes = [...productTypes];
+        const incomingTypes = productTypes;
+        untrack(() => {
+            localProductTypes = [...(incomingTypes || [])];
+        });
     });
     $effect(() => {
-        localWorkflows = [...workflows];
-        if (!productForm.workflow_id && localWorkflows.length > 0) {
-            productForm.workflow_id = localWorkflows[0].id;
-        }
+        const incomingWfs = workflows;
+        untrack(() => {
+            localWorkflows = [...(incomingWfs || [])];
+            if (!productForm.workflow_id && localWorkflows.length > 0) {
+                productForm.workflow_id = localWorkflows[0].id;
+            }
+        });
     });
     $effect(() => {
-        localRawMaterials = [...rawMaterials];
+        const incomingMats = rawMaterials;
+        untrack(() => {
+            localRawMaterials = [...(incomingMats || [])];
+        });
     });
     $effect(() => {
         const incomingAttrs = (Array.isArray(orthogonalAttributes) && orthogonalAttributes.length > 0)
             ? orthogonalAttributes
             : (Array.isArray(attributes) ? attributes : []);
-        localAttributes = [...incomingAttrs];
+        untrack(() => {
+            localAttributes = [...incomingAttrs];
+        });
     });
 
     // Listas ordenadas alfabéticamente (A-Z)
@@ -102,52 +116,66 @@
             : { valid: false, message: '' }
     );
 
+    let prevIsOpen = false;
+    let prevProduct = null;
+
     // Sincronización al abrir el modal para creación o edición
     $effect(() => {
-        if (!isOpen) return;
+        const currentlyOpen = isOpen;
+        const currentProd = product;
 
-        if (product) {
-            productForm.name = product.name ?? '';
-            productForm.product_type_id = product.product_type_id ?? '';
-            productForm.workflow_id = product.workflow_id ?? '';
-            productForm.barcode = product.barcode ?? '';
-            productForm.barcode_format = product.barcode_format || (product.barcode && /^\d{13}$/.test(product.barcode) ? 'EAN13' : 'CODE128');
-            productForm.production_time_unit = product.production_time_unit ?? 'minutes';
+        if (currentlyOpen && (!prevIsOpen || currentProd !== prevProduct)) {
+            prevIsOpen = currentlyOpen;
+            prevProduct = currentProd;
 
-            const unit = product.production_time_unit ?? 'minutes';
-            const mins = product.base_production_minutes ?? 0;
-            if (unit === 'days') {
-                productForm.time_value = Number((mins / 480).toFixed(2));
-            } else if (unit === 'hours') {
-                productForm.time_value = Number((mins / 60).toFixed(2));
-            } else {
-                productForm.time_value = mins;
-            }
+            untrack(() => {
+                if (currentProd) {
+                    productForm.name = currentProd.name ?? '';
+                    productForm.product_type_id = currentProd.product_type_id ?? '';
+                    productForm.workflow_id = currentProd.workflow_id ?? (localWorkflows[0]?.id ?? '');
+                    productForm.barcode = currentProd.barcode ?? '';
+                    productForm.barcode_format = currentProd.barcode_format || (currentProd.barcode && /^\d{13}$/.test(currentProd.barcode) ? 'EAN13' : 'CODE128');
+                    productForm.production_time_unit = currentProd.production_time_unit ?? 'minutes';
 
-            productForm.buffer_percentage = product.buffer_percentage ?? 20;
-            productForm.base_price = Number(product.base_price ?? 0);
-            productForm.is_active = Boolean(product.is_active);
+                    const unit = currentProd.production_time_unit ?? 'minutes';
+                    const mins = currentProd.base_production_minutes ?? 0;
+                    if (unit === 'days') {
+                        productForm.time_value = Number((mins / 480).toFixed(2));
+                    } else if (unit === 'hours') {
+                        productForm.time_value = Number((mins / 60).toFixed(2));
+                    } else {
+                        productForm.time_value = mins;
+                    }
 
-            // Cargar receta BOM
-            const reqs = product.material_requirements || product.materialRequirements || [];
-            productForm.materials = reqs.map((m) => ({
-                raw_material_id: m.raw_material_id,
-                quantity_required: Number(m.quantity_required),
-                waste_percent: Number(m.waste_percent ?? 0),
-            }));
+                    productForm.buffer_percentage = currentProd.buffer_percentage ?? 20;
+                    productForm.base_price = Number(currentProd.base_price ?? 0);
+                    productForm.is_active = Boolean(currentProd.is_active);
 
-            // Cargar variantes
-            productForm.variants = (product.variants ?? []).map((v) => ({
-                id: v.id,
-                name_label: v.name_label,
-                sku: v.sku ?? '',
-                barcode: v.barcode ?? '',
-                production_minutes_delta: v.production_minutes_delta ?? 0,
-                price_override: v.price_override ? Number(v.price_override) : '',
-            }));
-            productForm.grouped_options = {};
-        } else {
-            resetProductForm();
+                    // Cargar receta BOM
+                    const reqs = currentProd.material_requirements || currentProd.materialRequirements || [];
+                    productForm.materials = reqs.map((m) => ({
+                        raw_material_id: m.raw_material_id,
+                        quantity_required: Number(m.quantity_required),
+                        waste_percent: Number(m.waste_percent ?? 0),
+                    }));
+
+                    // Cargar variantes
+                    productForm.variants = (currentProd.variants ?? []).map((v) => ({
+                        id: v.id,
+                        name_label: v.name_label,
+                        sku: v.sku ?? '',
+                        barcode: v.barcode ?? '',
+                        production_minutes_delta: v.production_minutes_delta ?? 0,
+                        price_override: v.price_override ? Number(v.price_override) : '',
+                    }));
+                    productForm.grouped_options = {};
+                } else {
+                    resetProductForm();
+                }
+            });
+        } else if (!currentlyOpen) {
+            prevIsOpen = false;
+            prevProduct = null;
         }
     });
 

@@ -1,4 +1,6 @@
 <script>
+    import { untrack } from 'svelte';
+
     /**
      * CurrencyInput Component (Svelte 5 Runes)
      * Displays real-time thousand separators (e.g. "$ 150.000") while binding the raw numeric value.
@@ -28,12 +30,15 @@
 
     // Sincronizar displayValue si value cambia externamente (ej. al editar)
     $effect(() => {
-        const expected = formatNumber(value);
-        // Si el valor numérico difiere significativamente del valor en pantalla
-        const rawFromDisplay = parseRaw(displayValue);
-        if (Number(value || 0) !== rawFromDisplay) {
-            displayValue = expected;
-        }
+        const val = value;
+        untrack(() => {
+            const expected = formatNumber(val);
+            // Si el valor numérico difiere significativamente del valor en pantalla
+            const rawFromDisplay = parseRaw(displayValue);
+            if (Number(val || 0) !== rawFromDisplay) {
+                displayValue = expected;
+            }
+        });
     });
 
     function parseRaw(str) {

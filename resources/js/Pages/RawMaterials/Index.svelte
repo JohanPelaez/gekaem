@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import ViewToggle from '../../Components/ViewToggle.svelte';
@@ -24,10 +25,13 @@
     let lowStockFilter = $state(false);
 
     $effect(() => {
-        search = filters.search ?? '';
-        unitFilter = filters.unit_of_measure ?? '';
-        supplierFilter = filters.supplier_id ? String(filters.supplier_id) : '';
-        lowStockFilter = Boolean(filters.low_stock);
+        const incoming = filters;
+        untrack(() => {
+            search = incoming.search ?? '';
+            unitFilter = incoming.unit_of_measure ?? '';
+            supplierFilter = incoming.supplier_id ? String(incoming.supplier_id) : '';
+            lowStockFilter = Boolean(incoming.low_stock);
+        });
     });
 
     let viewMode = $state('table'); // 'table' | 'cards'
@@ -36,13 +40,19 @@
     // Proveedores locales sincronizados para permitir quick create
     let localSuppliers = $state([]);
     $effect(() => {
-        localSuppliers = [...allSuppliers];
+        const incoming = allSuppliers;
+        untrack(() => {
+            localSuppliers = [...(incoming || [])];
+        });
     });
 
     // Unidades de medida locales sincronizadas
     let localUnitsOfMeasure = $state([]);
     $effect(() => {
-        localUnitsOfMeasure = Array.isArray(unitsOfMeasure) ? [...unitsOfMeasure] : [];
+        const incoming = unitsOfMeasure;
+        untrack(() => {
+            localUnitsOfMeasure = Array.isArray(incoming) ? [...incoming] : [];
+        });
     });
 
     // Unidades de medida ordenadas alfabéticamente (A-Z)

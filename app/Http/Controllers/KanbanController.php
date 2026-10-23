@@ -13,6 +13,7 @@ use App\Models\Product;
 use App\Models\ProductType;
 use App\Models\ProductionTask;
 use App\Models\RawMaterial;
+use App\Models\Tenant;
 use App\Models\UnitOfMeasure;
 use App\Models\Workflow;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,9 @@ class KanbanController extends Controller
     {
         $selectedOrderId = $request->integer('order_id') ?: null;
         $tenant = auth()->user()?->currentTenant();
+        if ($tenant) {
+            Tenant::ensureDefaultData($tenant->id);
+        }
 
         $workflows = Workflow::with(['stages' => fn ($q) => $q->orderBy('position')])->orderBy('name')->get();
         if ($workflows->isNotEmpty()) {
@@ -38,9 +42,6 @@ class KanbanController extends Controller
         }
 
         $orderStatuses = OrderStatus::orderBy('position')->get();
-        if ($orderStatuses->isEmpty() && $tenant) {
-            $orderStatuses = $this->seedDefaultStatuses($tenant->id);
-        }
 
         $orders = Order::where('derived_status', '!=', 'delivered')
             ->with([

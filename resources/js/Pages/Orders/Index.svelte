@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import ViewToggle from '../../Components/ViewToggle.svelte';
@@ -31,12 +32,18 @@
     // Sincronización reactiva local para clientes y productos
     let localCustomers = $state([]);
     $effect(() => {
-        localCustomers = [...(customers ?? [])];
+        const incoming = customers;
+        untrack(() => {
+            localCustomers = [...(incoming || [])];
+        });
     });
 
     let localProducts = $state([]);
     $effect(() => {
-        localProducts = [...(products ?? [])];
+        const incoming = products;
+        untrack(() => {
+            localProducts = [...(incoming || [])];
+        });
     });
 
     function normalizeDateKey(dateValue) {
@@ -120,12 +127,15 @@
     let selectedExactDate = $state('');
 
     $effect(() => {
-        search = filters.search ?? '';
-        statusFilter = filters.status ?? '';
-        customerFilter = filters.customer_id ? String(filters.customer_id) : '';
-        paymentStatusFilter = filters.payment_status ?? '';
-        deliveryRangeFilter = filters.delivery_range ?? '';
-        selectedExactDate = filters.exact_date ?? '';
+        const incoming = filters;
+        untrack(() => {
+            search = incoming.search ?? '';
+            statusFilter = incoming.status ?? '';
+            customerFilter = incoming.customer_id ? String(incoming.customer_id) : '';
+            paymentStatusFilter = incoming.payment_status ?? '';
+            deliveryRangeFilter = incoming.delivery_range ?? '';
+            selectedExactDate = incoming.exact_date ?? '';
+        });
     });
 
     let viewMode = $state('table'); // 'table' | 'cards' | 'calendar'

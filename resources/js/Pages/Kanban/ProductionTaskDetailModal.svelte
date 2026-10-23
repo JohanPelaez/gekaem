@@ -1,4 +1,5 @@
 <script>
+    import { untrack } from 'svelte';
     import { fade, scale } from 'svelte/transition';
     import JsBarcode from 'jsbarcode';
     import { downloadBarcodeAsPng, validateBarcodeForFormat } from '../../Utils/barcodeHelper.js';
@@ -10,6 +11,7 @@
         stages = [],
         rawMaterials = [],
         canManageCatalog = false,
+        errors = {},
         onStageChange = () => {},
         onEditProduct = () => {},
         onClose = () => {}
@@ -45,38 +47,43 @@
         if (!isOpen || !task) return;
 
         const code = barcodeValue ? String(barcodeValue).trim() : '';
-        if (!code || !barcodeSvg) {
-            barcodeError = null;
-            return;
-        }
+        const svg = barcodeSvg;
+        const fmt = barcodeFormat;
 
-        const validation = validateBarcodeForFormat(code, barcodeFormat);
-        if (!validation.valid) {
-            barcodeError = validation.message;
-            return;
-        }
+        untrack(() => {
+            if (!code || !svg) {
+                barcodeError = null;
+                return;
+            }
 
-        try {
-            barcodeError = null;
-            JsBarcode(barcodeSvg, code, {
-                format: barcodeFormat,
-                width: 1.8,
-                height: 48,
-                displayValue: true,
-                font: 'monospace',
-                fontOptions: 'bold',
-                textAlign: 'center',
-                textPosition: 'bottom',
-                textMargin: 4,
-                fontSize: 12,
-                background: '#ffffff',
-                lineColor: '#000000',
-                textColor: '#0f172a',
-                margin: 8,
-            });
-        } catch (err) {
-            barcodeError = err?.message || 'Código incompatible con el formato seleccionado';
-        }
+            const validation = validateBarcodeForFormat(code, fmt);
+            if (!validation.valid) {
+                barcodeError = validation.message;
+                return;
+            }
+
+            try {
+                barcodeError = null;
+                JsBarcode(svg, code, {
+                    format: fmt,
+                    width: 1.8,
+                    height: 48,
+                    displayValue: true,
+                    font: 'monospace',
+                    fontOptions: 'bold',
+                    textAlign: 'center',
+                    textPosition: 'bottom',
+                    textMargin: 4,
+                    fontSize: 12,
+                    background: '#ffffff',
+                    lineColor: '#000000',
+                    textColor: '#0f172a',
+                    margin: 8,
+                });
+            } catch (err) {
+                barcodeError = err?.message || 'Código incompatible con el formato seleccionado';
+            }
+        });
     });
 
     function handleDownloadBarcode() {
