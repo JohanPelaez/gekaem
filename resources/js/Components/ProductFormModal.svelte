@@ -397,41 +397,41 @@
 </script>
 
 {#if isOpen}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div>
-                    <h3 class="text-base font-bold text-white">
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">
                         {product ? `Editar Producto: ${product.name}` : 'Crear Producto con Receta BOM y Variantes'}
                     </h3>
-                    <p class="text-[11px] text-slate-400">
+                    <p class="text-[11px] text-[#64748B] dark:text-slate-400">
                         Configura el catálogo, tiempos, código de barras y consumo de insumos.
                     </p>
                 </div>
-                <button type="button" onclick={handleClose} class="text-slate-400 hover:text-white">✕</button>
+                <button type="button" onclick={handleClose} class="text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>
             </div>
 
             <form onsubmit={handleSubmit} class="space-y-4 text-xs">
                 <!-- DATOS BASE -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div class="sm:col-span-2">
-                        <label for="pf-name" class="block font-semibold text-slate-300 mb-1">Nombre del Producto *</label>
+                        <label for="pf-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre del Producto *</label>
                         <input
                             id="pf-name"
                             type="text"
                             bind:value={productForm.name}
                             placeholder="Ej. Chaqueta Cortavientos Premium"
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                         />
                     </div>
                     <div>
                         <div class="flex items-center justify-between mb-1">
-                            <label for="pf-type" class="font-semibold text-slate-300">Tipo de Producto</label>
+                            <label for="pf-type" class="font-semibold text-slate-700 dark:text-slate-300">Tipo de Producto</label>
                             <button
                                 type="button"
                                 onclick={() => openQuickCreate('product-type')}
-                                class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                                class="text-[10px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold"
                             >
                                 + Nuevo
                             </button>
@@ -439,7 +439,7 @@
                         <select
                             id="pf-type"
                             bind:value={productForm.product_type_id}
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                         >
                             <option value="">(Ninguno)</option>
                             {#each localProductTypes as pt}
@@ -452,11 +452,11 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <div class="flex items-center justify-between mb-1">
-                            <label for="pf-workflow" class="font-semibold text-slate-300">Flujo Kanban Asignado *</label>
+                            <label for="pf-workflow" class="font-semibold text-slate-700 dark:text-slate-300">Flujo Kanban Asignado *</label>
                             <button
                                 type="button"
                                 onclick={() => openQuickCreate('workflow')}
-                                class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                                class="text-[10px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold"
                             >
                                 + Nuevo
                             </button>
@@ -465,7 +465,7 @@
                             id="pf-workflow"
                             bind:value={productForm.workflow_id}
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                         >
                             {#each sortedWorkflows as wf}
                                 <option value={wf.id}>{wf.name}</option>
@@ -474,25 +474,25 @@
                     </div>
                     {#if hasFinancialAccess}
                         <div>
-                            <label for="pf-price" class="block font-semibold text-slate-300 mb-1">Precio Base ($) *</label>
+                            <label for="pf-price" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Precio Base ($) *</label>
                             <CurrencyInput bind:value={productForm.base_price} id="pf-price" required />
                         </div>
                     {/if}
                 </div>
 
                 <!-- CÓDIGO DE BARRAS INTELIGENTE CON PREVISUALIZACIÓN SVG -->
-                <div class="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+                <div class="p-3.5 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-3">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <span class="font-bold text-white text-xs">Código de Barras</span>
-                            <p class="text-[11px] text-slate-400">Genera correlativos automáticos o ingresa un código existente.</p>
+                            <span class="font-bold text-slate-900 dark:text-white text-xs">Código de Barras</span>
+                            <p class="text-[11px] text-[#64748B] dark:text-slate-400">Genera correlativos automáticos o ingresa un código existente.</p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <label for="pf-barcode-fmt" class="text-[11px] font-semibold text-slate-300">Formato:</label>
+                            <label for="pf-barcode-fmt" class="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Formato:</label>
                             <select
                                 id="pf-barcode-fmt"
                                 bind:value={productForm.barcode_format}
-                                class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-[11px] font-mono focus:border-sky-500 focus:outline-none"
+                                class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-900 dark:text-white text-[11px] font-mono focus:border-[#4F46E5] focus:outline-none"
                             >
                                 {#each BARCODE_FORMATS as fmt}
                                     <option value={fmt.value}>{fmt.label}</option>
@@ -501,7 +501,7 @@
                             <button
                                 type="button"
                                 onclick={generateConsecutiveBarcode}
-                                class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-sky-400 border border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                                class="px-3 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-[#4F46E5] dark:text-sky-400 border border-slate-200 dark:border-sky-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
                             >
                                 <span>⚡ Generar Consecutivo</span>
                             </button>
@@ -509,24 +509,24 @@
                     </div>
 
                     <!-- Indicador y sugerencia del formato actual -->
-                    <div class="text-[11px] text-slate-400 flex items-center gap-1.5 px-1">
-                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-sky-400"></span>
-                        <span class="font-medium text-slate-300">{currentFormatObj.label}:</span>
+                    <div class="text-[11px] text-[#64748B] dark:text-slate-400 flex items-center gap-1.5 px-1">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#06B6D4]"></span>
+                        <span class="font-medium text-slate-700 dark:text-slate-300">{currentFormatObj.label}:</span>
                         <span>{currentFormatObj.hint}</span>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                         <div class="space-y-1">
-                            <label for="pf-barcode" class="block font-semibold text-slate-300 text-xs mb-1">Código / SKU Base</label>
+                            <label for="pf-barcode" class="block font-semibold text-slate-700 dark:text-slate-300 text-xs mb-1">Código / SKU Base</label>
                             <input
                                 id="pf-barcode"
                                 type="text"
                                 bind:value={productForm.barcode}
                                 placeholder="Ingresa o genera código de barras"
-                                class="w-full bg-slate-900 border {productForm.barcode && !barcodeValidation.valid ? 'border-amber-500/70 focus:border-amber-500' : 'border-slate-700 focus:border-sky-500'} rounded-xl px-3 py-2 text-white text-xs font-mono font-bold focus:outline-none"
+                                class="w-full bg-white dark:bg-slate-900 border {productForm.barcode && !barcodeValidation.valid ? 'border-amber-500/70 focus:border-amber-500' : 'border-slate-200 dark:border-slate-700 focus:border-[#4F46E5]'} rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs font-mono font-bold focus:outline-none"
                             />
                             {#if productForm.barcode && !barcodeValidation.valid}
-                                <div class="text-[11px] text-amber-400 font-mono flex items-center gap-1.5 px-1">
+                                <div class="text-[11px] text-amber-600 dark:text-amber-400 font-mono flex items-center gap-1.5 px-1">
                                     <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
@@ -547,25 +547,25 @@
                                     <button
                                         type="button"
                                         onclick={() => downloadBarcodeAsPng(productForm.barcode, productForm.barcode_format, productForm.name)}
-                                        class="px-3 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                                        class="px-3 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
                                     >
-                                        <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                         </svg>
                                         <span>Guardar como Imagen (PNG)</span>
                                     </button>
                                 {/if}
                             {:else}
-                                <span class="text-slate-500 text-[11px] italic py-2">Previsualización de código aparecerá aquí</span>
+                                <span class="text-slate-400 text-[11px] italic py-2">Previsualización de código aparecerá aquí</span>
                             {/if}
                         </div>
                     </div>
                 </div>
 
                 <!-- TIEMPO DE PRODUCCIÓN EN MINUTOS / HORAS / DÍAS Y HOLGURA -->
-                <div class="p-3 bg-slate-950/70 rounded-xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                        <label for="pf-time-val" class="block font-semibold text-slate-300 mb-1">Tiempo de Fabricación *</label>
+                        <label for="pf-time-val" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Tiempo de Fabricación *</label>
                         <input
                             id="pf-time-val"
                             type="number"
@@ -573,16 +573,16 @@
                             min="0.1"
                             bind:value={productForm.time_value}
                             required
-                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs font-mono font-bold"
+                            class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs font-mono font-bold"
                         />
                     </div>
                     <div>
-                        <label for="pf-time-unit" class="block font-semibold text-slate-300 mb-1">Unidad de Tiempo *</label>
+                        <label for="pf-time-unit" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Unidad de Tiempo *</label>
                         <select
                             id="pf-time-unit"
                             bind:value={productForm.production_time_unit}
                             required
-                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs"
+                            class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs"
                         >
                             <option value="minutes">Minutos (ej. 45 min)</option>
                             <option value="hours">Horas (ej. 3.5 h)</option>
@@ -590,7 +590,7 @@
                         </select>
                     </div>
                     <div>
-                        <label for="pf-buffer" class="block font-semibold text-slate-300 mb-1">Porcentaje de Holgura (%) *</label>
+                        <label for="pf-buffer" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Porcentaje de Holgura (%) *</label>
                         <input
                             id="pf-buffer"
                             type="number"
@@ -598,30 +598,30 @@
                             max="100"
                             bind:value={productForm.buffer_percentage}
                             required
-                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-amber-300 text-xs font-mono font-bold"
+                            class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-amber-600 dark:text-amber-300 text-xs font-mono font-bold"
                         />
                     </div>
                 </div>
 
                 <!-- RECETA BOM (CONSUMO DE MATERIALES) -->
-                <div class="pt-3 border-t border-slate-800 space-y-3">
+                <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] space-y-3">
                     <div class="flex items-center justify-between">
                         <div>
-                            <span class="font-bold text-white text-xs">Receta de Materiales Primordiales (BOM)</span>
-                            <p class="text-[11px] text-slate-500">Insumos que se consumen automáticamente al iniciar la fabricación.</p>
+                            <span class="font-bold text-slate-900 dark:text-white text-xs">Receta de Materiales Primordiales (BOM)</span>
+                            <p class="text-[11px] text-[#64748B] dark:text-slate-400">Insumos que se consumen automáticamente al iniciar la fabricación.</p>
                         </div>
                         <div class="flex items-center gap-2">
                             <button
                                 type="button"
                                 onclick={() => openQuickCreate('raw-material')}
-                                class="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold"
+                                class="text-[11px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold"
                             >
                                 + Nuevo Material
                             </button>
                             <button
                                 type="button"
                                 onclick={addMaterialRow}
-                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700 flex items-center gap-1"
+                                class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 font-semibold text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1"
                             >
                                 <span>+</span>
                                 <span>Agregar Insumo</span>
@@ -630,26 +630,26 @@
                     </div>
 
                     {#if productForm.materials.length === 0}
-                        <div class="p-3 text-center bg-slate-950/60 rounded-xl border border-dashed border-slate-800 text-slate-500 text-[11px]">
+                        <div class="p-3 text-center bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-[#64748B] dark:text-slate-400 text-[11px]">
                             Sin materiales configurados en la receta BOM. Haz clic en "Agregar Insumo" para asociar materia prima.
                         </div>
                     {:else}
                         <div class="space-y-2">
                             <!-- Cabecera de columnas para receta BOM -->
-                            <div class="hidden sm:grid sm:grid-cols-12 gap-2 px-3 py-1 text-[11px] font-semibold text-slate-400 border-b border-slate-800/60">
+                            <div class="hidden sm:grid sm:grid-cols-12 gap-2 px-3 py-1 text-[11px] font-semibold text-[#64748B] dark:text-slate-400 border-b border-slate-200 dark:border-[#26334D]">
                                 <div class="sm:col-span-6">Materia Prima *</div>
                                 <div class="sm:col-span-3">Cantidad por unidad *</div>
                                 <div class="sm:col-span-2">Merma (%)</div>
                                 <div class="sm:col-span-1 text-center">Acción</div>
                             </div>
                             {#each productForm.materials as matRow, idx}
-                                <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                                <div class="p-2.5 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
                                     <div class="sm:col-span-6">
-                                        <label for="pf-bom-mat-{idx}" class="sm:hidden block font-semibold text-slate-400 text-[10px] mb-1">Materia Prima *</label>
+                                        <label for="pf-bom-mat-{idx}" class="sm:hidden block font-semibold text-slate-700 dark:text-slate-400 text-[10px] mb-1">Materia Prima *</label>
                                         <select
                                             id="pf-bom-mat-{idx}"
                                             bind:value={matRow.raw_material_id}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                                            class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white text-xs"
                                         >
                                             {#each sortedRawMaterials as m}
                                                 <option value={m.id}>{m.name} ({m.unit_of_measure})</option>
@@ -657,7 +657,7 @@
                                         </select>
                                     </div>
                                     <div class="sm:col-span-3">
-                                        <label for="pf-bom-qty-{idx}" class="sm:hidden block font-semibold text-slate-400 text-[10px] mb-1">Cantidad por unidad *</label>
+                                        <label for="pf-bom-qty-{idx}" class="sm:hidden block font-semibold text-slate-700 dark:text-slate-400 text-[10px] mb-1">Cantidad por unidad *</label>
                                         <input
                                             id="pf-bom-qty-{idx}"
                                             type="number"
@@ -666,11 +666,11 @@
                                             placeholder="Cantidad"
                                             bind:value={matRow.quantity_required}
                                             required
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono"
+                                            class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white text-xs font-mono"
                                         />
                                     </div>
                                     <div class="sm:col-span-2">
-                                        <label for="pf-bom-waste-{idx}" class="sm:hidden block font-semibold text-slate-400 text-[10px] mb-1">Merma (%)</label>
+                                        <label for="pf-bom-waste-{idx}" class="sm:hidden block font-semibold text-slate-700 dark:text-slate-400 text-[10px] mb-1">Merma (%)</label>
                                         <input
                                             id="pf-bom-waste-{idx}"
                                             type="number"
@@ -678,14 +678,14 @@
                                             min="0"
                                             placeholder="Merma %"
                                             bind:value={matRow.waste_percent}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-300 text-xs font-mono"
+                                            class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 text-xs font-mono"
                                         />
                                     </div>
                                     <div class="sm:col-span-1 flex justify-center">
                                         <button
                                             type="button"
                                             onclick={() => removeMaterialRow(idx)}
-                                            class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400"
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 dark:hover:text-rose-400"
                                             title="Quitar de receta"
                                         >
                                             ✕
@@ -698,11 +698,11 @@
                 </div>
 
                 <!-- ATRIBUTOS Y VARIANTES -->
-                <div class="pt-3 border-t border-slate-800 space-y-3">
+                <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] space-y-3">
                     <div class="flex items-center justify-between">
                         <div>
-                            <span class="font-bold text-white text-xs">Atributos del Producto (Talla, Color, Material)</span>
-                            <p class="text-[11px] text-slate-500">
+                            <span class="font-bold text-slate-900 dark:text-white text-xs">Atributos del Producto (Talla, Color, Material)</span>
+                            <p class="text-[11px] text-[#64748B] dark:text-slate-400">
                                 {#if product}
                                     Ajusta deltas de tiempo de fabricación y precios por variante.
                                 {:else}
@@ -714,7 +714,7 @@
                             <button
                                 type="button"
                                 onclick={() => openQuickCreate('attribute')}
-                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700 flex items-center gap-1 transition-colors"
+                                class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-[#4F46E5] dark:text-emerald-400 font-semibold text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1 transition-colors"
                             >
                                 <span>+</span>
                                 <span>Nuevo Atributo</span>
@@ -725,9 +725,9 @@
                     {#if !product}
                         <div class="space-y-3">
                             {#each localAttributes as attr}
-                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-2">
                                     <div class="flex items-center justify-between">
-                                        <span class="font-semibold text-slate-300 text-xs">{attr.name}:</span>
+                                        <span class="font-semibold text-slate-700 dark:text-slate-300 text-xs">{attr.name}:</span>
                                         <button
                                             type="button"
                                             onclick={() => {
@@ -739,7 +739,7 @@
                                                     newOptionValue = '';
                                                 }
                                             }}
-                                            class="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+                                            class="text-[11px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold transition-colors"
                                         >
                                             {activeAddOptionAttrId === attr.id ? '✕ Cancelar' : '+ Opción'}
                                         </button>
@@ -751,7 +751,7 @@
                                             <button
                                                 type="button"
                                                 onclick={() => toggleOptionSelection(attr.id, opt.id)}
-                                                class="px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors {isChecked ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500'}"
+                                                class="px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors {isChecked ? 'bg-[#4F46E5] text-white border-[#4F46E5]' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-500'}"
                                             >
                                                 {opt.value}
                                             </button>
@@ -759,22 +759,22 @@
                                     </div>
 
                                     {#if activeAddOptionAttrId === attr.id}
-                                        <div class="space-y-1.5 pt-2 border-t border-slate-800/80">
-                                            <label for="pf-inline-opt-{attr.id}" class="block text-[11px] font-semibold text-slate-300">Nombre de la nueva opción *</label>
+                                        <div class="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800/80">
+                                            <label for="pf-inline-opt-{attr.id}" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">Nombre de la nueva opción *</label>
                                             <div class="flex items-center gap-2">
                                                 <input
                                                     id="pf-inline-opt-{attr.id}"
                                                     type="text"
                                                     bind:value={newOptionValue}
                                                     placeholder="Nueva opción (ej. XL o Verde)"
-                                                    class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                                                    class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5]"
                                                     onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveOptionInline(attr); } }}
                                                 />
                                                 <button
                                                     type="button"
                                                     onclick={() => handleSaveOptionInline(attr)}
                                                     disabled={optionInlineLoading || !newOptionValue.trim()}
-                                                    class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shrink-0"
+                                                    class="px-3 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shrink-0"
                                                 >
                                                     {optionInlineLoading ? '...' : 'Guardar'}
                                                 </button>
@@ -787,36 +787,36 @@
                     {:else}
                         <div class="space-y-2">
                             {#each productForm.variants as vRow, vIdx}
-                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-2">
                                     <div class="flex items-center justify-between">
-                                        <span class="font-bold text-white text-xs">{vRow.name_label}</span>
+                                        <span class="font-bold text-slate-900 dark:text-white text-xs">{vRow.name_label}</span>
                                         <span class="text-[10px] text-slate-500 font-mono">Variante #{vIdx + 1}</span>
                                     </div>
                                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
                                         <div>
-                                            <label for="pf-v-sku-{vIdx}" class="block font-semibold text-slate-400 text-[11px] mb-1">Código / SKU</label>
+                                            <label for="pf-v-sku-{vIdx}" class="block font-semibold text-slate-600 dark:text-slate-400 text-[11px] mb-1">Código / SKU</label>
                                             <input
                                                 id="pf-v-sku-{vIdx}"
                                                 type="text"
                                                 placeholder="Ej. SKU-VAR-01"
                                                 bind:value={vRow.sku}
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white text-xs font-mono"
                                             />
                                         </div>
                                         <div>
-                                            <label for="pf-v-delta-{vIdx}" class="block font-semibold text-slate-400 text-[11px] mb-1">Tiempo de producción (min)</label>
+                                            <label for="pf-v-delta-{vIdx}" class="block font-semibold text-slate-600 dark:text-slate-400 text-[11px] mb-1">Tiempo de producción (min)</label>
                                             <input
                                                 id="pf-v-delta-{vIdx}"
                                                 type="number"
                                                 placeholder="0"
                                                 bind:value={vRow.production_minutes_delta}
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-amber-300 text-xs font-mono font-bold"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-amber-600 dark:text-amber-300 text-xs font-mono font-bold"
                                                 title="Delta de minutos (+/-) respecto al producto base"
                                             />
                                         </div>
                                         {#if hasFinancialAccess}
                                             <div>
-                                                <label for="pf-v-price-{vIdx}" class="block font-semibold text-slate-400 text-[11px] mb-1">Precio variante ($)</label>
+                                                <label for="pf-v-price-{vIdx}" class="block font-semibold text-slate-600 dark:text-slate-400 text-[11px] mb-1">Precio variante ($)</label>
                                                 <CurrencyInput
                                                     id="pf-v-price-{vIdx}"
                                                     bind:value={vRow.price_override}
@@ -831,18 +831,18 @@
                     {/if}
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]">
                     <button
                         type="button"
                         onclick={handleClose}
-                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                        class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold"
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         disabled={processing}
-                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-medium shadow-sm disabled:opacity-50"
                     >
                         {processing ? 'Guardando...' : (product ? 'Actualizar Producto' : 'Guardar Producto')}
                     </button>

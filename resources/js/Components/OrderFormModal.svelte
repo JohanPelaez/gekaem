@@ -360,18 +360,18 @@
 </script>
 
 {#if isOpen}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto text-slate-900 dark:text-slate-100">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div>
-                    <h3 class="text-base font-bold text-white">
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">
                         {isEditing ? `Editar Pedido #${editingOrder?.order_number || editingOrder?.id}` : 'Registrar Nuevo Pedido'}
                     </h3>
-                    <p class="text-[11px] text-slate-400">
+                    <p class="text-[11px] text-[#64748B] dark:text-slate-400">
                         {isEditing ? 'Modifica los productos, entrega y detalles del pedido conservando las etapas en Kanban.' : 'Genera las tarjetas de producción en el Tablero Kanban y programa la entrega.'}
                     </p>
                 </div>
-                <button type="button" onclick={closeModal} class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+                <button type="button" onclick={closeModal} class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg">✕</button>
             </div>
 
             <form onsubmit={handleSubmit} class="space-y-4 text-xs">
@@ -379,11 +379,11 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <div class="flex items-center justify-between mb-1">
-                            <label for="ord-modal-customer" class="font-semibold text-slate-300">Cliente *</label>
+                            <label for="ord-modal-customer" class="font-semibold text-slate-700 dark:text-slate-300">Cliente *</label>
                             <button
                                 type="button"
                                 onclick={() => quickCustomerModalOpen = true}
-                                class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold"
+                                class="text-[10px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold"
                             >
                                 + Nuevo Cliente
                             </button>
@@ -392,7 +392,7 @@
                             id="ord-modal-customer"
                             bind:value={orderForm.customer_id}
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                         >
                             <option value="">-- Selecciona un Cliente --</option>
                             {#each localCustomers as c}
@@ -402,24 +402,24 @@
                             {/each}
                         </select>
                         {#if errors?.customer_id}
-                            <p class="text-[10px] text-rose-400 mt-1">{errors.customer_id}</p>
+                            <p class="text-[10px] text-rose-500 mt-1">{errors.customer_id}</p>
                         {/if}
                     </div>
 
                     <fieldset>
-                        <legend class="block font-semibold text-slate-300 mb-1">Modalidad de Envío *</legend>
+                        <legend class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Modalidad de Envío *</legend>
                         <div class="grid grid-cols-2 gap-2">
-                            <label class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-colors {orderForm.shipping_type === 'contraentrega' ? 'bg-slate-800/90 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}">
+                            <label class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-colors {orderForm.shipping_type === 'contraentrega' ? 'bg-[#4F46E5]/10 border-[#4F46E5] text-slate-900 dark:text-white' : 'bg-slate-50 dark:bg-[#0B0F17] border-slate-200 dark:border-[#26334D] text-[#64748B] dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'}">
                                 <input
                                     type="radio"
                                     name="order_modal_shipping_type"
                                     value="contraentrega"
                                     bind:group={orderForm.shipping_type}
-                                    class="text-emerald-500 focus:ring-0"
+                                    class="text-[#4F46E5] focus:ring-0"
                                 />
                                 <span class="font-medium text-[11px] leading-tight">🚚 Contraentrega (Paga cliente)</span>
                             </label>
-                            <label class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-colors {orderForm.shipping_type === 'envio_incluido' ? 'bg-slate-800/90 border-sky-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'}">
+                            <label class="flex items-center gap-2 p-2 rounded-xl border cursor-pointer transition-colors {orderForm.shipping_type === 'envio_incluido' ? 'bg-sky-50 dark:bg-sky-950/40 border-sky-500 text-slate-900 dark:text-white' : 'bg-slate-50 dark:bg-[#0B0F17] border-slate-200 dark:border-[#26334D] text-[#64748B] dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'}">
                                 <input
                                     type="radio"
                                     name="order_modal_shipping_type"
@@ -435,7 +435,7 @@
 
                 <!-- SELECTOR VISUAL DE CALENDARIO -->
                 <div>
-                    <span class="block font-semibold text-slate-300 mb-1">Fecha y Hora de Entrega Comprometida *</span>
+                    <span class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Fecha y Hora de Entrega Comprometida *</span>
                     <OrderDateSelector
                         bind:value={orderForm.committed_delivery_at}
                         {allOrdersByDate}
@@ -446,17 +446,17 @@
                 </div>
 
                 <!-- RENGLONES DE PRODUCTOS -->
-                <div class="space-y-3 pt-2 border-t border-slate-800">
+                <div class="space-y-3 pt-2 border-t border-slate-200 dark:border-[#26334D]">
                     <div class="flex items-center justify-between">
                         <div>
-                            <span class="font-bold text-white text-xs">Productos del Pedido</span>
-                            <p class="text-[11px] text-slate-500">Agrega las variantes y cantidades solicitadas.</p>
+                            <span class="font-bold text-slate-900 dark:text-white text-xs">Productos del Pedido</span>
+                            <p class="text-[11px] text-[#64748B] dark:text-slate-400">Agrega las variantes y cantidades solicitadas.</p>
                         </div>
                         <div class="flex items-center gap-2">
                             <button
                                 type="button"
                                 onclick={openCreateProductModal}
-                                class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold text-xs border border-slate-700 flex items-center gap-1 transition-colors"
+                                class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[#4F46E5] dark:text-[#06B6D4] font-semibold text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1 transition-colors"
                                 title="Crear un producto nuevo con receta BOM y variantes"
                             >
                                 <span>+</span>
@@ -466,7 +466,7 @@
                                 type="button"
                                 onclick={addItem}
                                 disabled={localProducts.length === 0}
-                                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 disabled:opacity-50"
+                                class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 font-semibold text-xs border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 disabled:opacity-50"
                             >
                                 <span>+</span>
                                 <span>Agregar Renglón</span>
@@ -475,23 +475,23 @@
                     </div>
 
                     {#if orderForm.items.length === 0}
-                        <div class="p-6 text-center border-2 border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                        <div class="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 text-xs">
                             Agrega al menos un producto al pedido.
                         </div>
                     {:else}
                         <div class="space-y-2">
                             {#each orderForm.items as item, idx}
                                 {@const selectedProd = localProducts.find((p) => p.id == item.product_id)}
-                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 grid grid-cols-12 gap-2.5 items-end">
+                                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] grid grid-cols-12 gap-2.5 items-end">
                                     {#if hasFinancialAccess}
                                         <!-- PRODUCTO (col-span-12 sm:col-span-3) -->
                                         <div class="col-span-12 sm:col-span-3 min-w-0">
-                                            <label for="modal-prod-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Producto</label>
+                                            <label for="modal-prod-sel-{idx}" class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Producto</label>
                                             <select
                                                 id="modal-prod-sel-{idx}"
                                                 bind:value={item.product_id}
                                                 onchange={(e) => onProductChange(item, e.target.value)}
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs truncate focus:outline-none focus:border-emerald-500"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-xs truncate focus:outline-none focus:border-[#4F46E5]"
                                             >
                                                 {#each localProducts as p}
                                                     <option value={p.id}>{p.name}</option>
@@ -501,12 +501,12 @@
 
                                         <!-- VARIANTE (col-span-6 sm:col-span-2) -->
                                         <div class="col-span-6 sm:col-span-2 min-w-0">
-                                            <label for="modal-var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Variante</label>
+                                            <label for="modal-var-sel-{idx}" class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Variante</label>
                                             <select
                                                 id="modal-var-sel-{idx}"
                                                 bind:value={item.product_variant_id}
                                                 onchange={(e) => onVariantChange(item, e.target.value)}
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono truncate focus:outline-none focus:border-emerald-500"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-xs font-mono truncate focus:outline-none focus:border-[#4F46E5]"
                                             >
                                                 {#each selectedProd?.variants ?? [] as v}
                                                     <option value={v.id}>
@@ -518,7 +518,7 @@
 
                                         <!-- CANTIDAD (col-span-6 sm:col-span-1) -->
                                         <div class="col-span-6 sm:col-span-1 min-w-0">
-                                            <label for="modal-qty-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Cant.</label>
+                                            <label for="modal-qty-sel-{idx}" class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Cant.</label>
                                             <input
                                                 id="modal-qty-sel-{idx}"
                                                 type="number"
@@ -526,13 +526,13 @@
                                                 min="0.01"
                                                 bind:value={item.quantity}
                                                 required
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono font-bold text-center focus:outline-none focus:border-emerald-500"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-xs font-mono font-bold text-center focus:outline-none focus:border-[#4F46E5]"
                                             />
                                         </div>
 
                                         <!-- PRECIO UNIT. (col-span-4 sm:col-span-2) -->
                                         <div class="col-span-4 sm:col-span-2 min-w-0">
-                                            <label for="modal-price-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Precio Unit.</label>
+                                            <label for="modal-price-sel-{idx}" class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Precio Unit.</label>
                                             <input
                                                 id="modal-price-sel-{idx}"
                                                 type="number"
@@ -540,13 +540,13 @@
                                                 step="1"
                                                 bind:value={item.unit_price}
                                                 placeholder="0"
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 text-xs font-mono font-medium focus:outline-none focus:border-emerald-500"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-slate-200 text-xs font-mono font-medium focus:outline-none focus:border-[#4F46E5]"
                                             />
                                         </div>
 
                                         <!-- DESC. (%) (col-span-4 sm:col-span-2) -->
                                         <div class="col-span-4 sm:col-span-2 min-w-0">
-                                            <label for="modal-disc-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Desc. (%)</label>
+                                            <label for="modal-disc-sel-{idx}" class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Desc. (%)</label>
                                             <input
                                                 id="modal-disc-sel-{idx}"
                                                 type="number"
@@ -555,22 +555,22 @@
                                                 step="0.01"
                                                 bind:value={item.discount_percentage}
                                                 placeholder="0"
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-amber-300 text-xs font-mono font-medium focus:outline-none focus:border-emerald-500"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-amber-600 dark:text-amber-300 text-xs font-mono font-medium focus:outline-none focus:border-[#4F46E5]"
                                             />
                                         </div>
 
                                         <!-- SUBTOTAL + BORRAR (col-span-4 sm:col-span-2) -->
                                         <div class="col-span-4 sm:col-span-2 min-w-0 flex items-center gap-1.5">
                                             <div class="flex-1 min-w-0">
-                                                <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Subtotal</span>
-                                                <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-emerald-400 text-xs font-mono font-bold truncate">
+                                                <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Subtotal</span>
+                                                <div class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-emerald-600 dark:text-emerald-400 text-xs font-mono font-bold truncate">
                                                     {formatCurrency(calculateItemSubtotal(item))}
                                                 </div>
                                             </div>
                                             <button
                                                 type="button"
                                                 onclick={() => removeItem(idx)}
-                                                class="p-1.5 text-slate-500 hover:text-rose-400 shrink-0 self-end mb-0.5 rounded-lg hover:bg-rose-950/20 transition-colors"
+                                                class="p-1.5 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 shrink-0 self-end mb-0.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
                                                 title="Quitar producto"
                                             >
                                                 ✕
@@ -579,12 +579,12 @@
                                     {:else}
                                         <!-- Sin acceso financiero -->
                                         <div class="col-span-12 sm:col-span-6 min-w-0">
-                                            <label for="modal-prod-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Producto</label>
+                                            <label for="modal-prod-sel-{idx}" class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Producto</label>
                                             <select
                                                 id="modal-prod-sel-{idx}"
                                                 bind:value={item.product_id}
                                                 onchange={(e) => onProductChange(item, e.target.value)}
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs truncate focus:outline-none focus:border-emerald-500"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-xs truncate focus:outline-none focus:border-[#4F46E5]"
                                             >
                                                 {#each localProducts as p}
                                                     <option value={p.id}>{p.name}</option>
@@ -593,12 +593,12 @@
                                         </div>
 
                                         <div class="col-span-6 sm:col-span-4 min-w-0">
-                                            <label for="modal-var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Variante</label>
+                                            <label for="modal-var-sel-{idx}" class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Variante</label>
                                             <select
                                                 id="modal-var-sel-{idx}"
                                                 bind:value={item.product_variant_id}
                                                 onchange={(e) => onVariantChange(item, e.target.value)}
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono truncate focus:outline-none focus:border-emerald-500"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-xs font-mono truncate focus:outline-none focus:border-[#4F46E5]"
                                             >
                                                 {#each selectedProd?.variants ?? [] as v}
                                                     <option value={v.id}>{v.name_label}</option>
@@ -607,7 +607,7 @@
                                         </div>
 
                                         <div class="col-span-4 sm:col-span-1 min-w-0">
-                                            <label for="modal-qty-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Cant.</label>
+                                            <label for="modal-qty-sel-{idx}" class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-1 truncate">Cant.</label>
                                             <input
                                                 id="modal-qty-sel-{idx}"
                                                 type="number"
@@ -615,7 +615,7 @@
                                                 min="0.01"
                                                 bind:value={item.quantity}
                                                 required
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono font-bold text-center focus:outline-none focus:border-emerald-500"
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-xs font-mono font-bold text-center focus:outline-none focus:border-[#4F46E5]"
                                             />
                                         </div>
 
@@ -623,7 +623,7 @@
                                             <button
                                                 type="button"
                                                 onclick={() => removeItem(idx)}
-                                                class="p-2 text-slate-500 hover:text-rose-400 shrink-0 rounded-lg hover:bg-rose-950/20 transition-colors"
+                                                class="p-2 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 shrink-0 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
                                                 title="Quitar producto"
                                             >
                                                 ✕
@@ -638,42 +638,42 @@
 
                 <!-- NOTAS -->
                 <div>
-                    <label for="ord-modal-notes" class="block font-semibold text-slate-300 mb-1">Notas / Instrucciones Especiales</label>
+                    <label for="ord-modal-notes" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Notas / Instrucciones Especiales</label>
                     <input
                         id="ord-modal-notes"
                         type="text"
                         bind:value={orderForm.notes}
                         placeholder="Ej. Entregar en portería, medidas especiales..."
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                 </div>
 
                 <!-- SECCIÓN DE ABONO INICIAL (SOLO AL CREAR Y CON PERMISOS FINANCIEROS) -->
                 {#if hasFinancialAccess && !isEditing}
-                    <div class="pt-3 border-t border-slate-800 space-y-3">
+                    <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] space-y-3">
                         <label class="flex items-center gap-2 cursor-pointer select-none">
                             <input
                                 type="checkbox"
                                 bind:checked={orderForm.has_initial_deposit}
-                                class="rounded bg-slate-950 border-slate-800 text-emerald-500 focus:ring-0"
+                                class="rounded bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-[#4F46E5] focus:ring-0"
                             />
-                            <span class="font-bold text-white text-xs">Registrar Abono Inicial en este Pedido</span>
+                            <span class="font-bold text-slate-900 dark:text-white text-xs">Registrar Abono Inicial en este Pedido</span>
                         </label>
 
                         {#if orderForm.has_initial_deposit}
-                            <div class="p-4 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-3">
+                            <div class="p-4 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-emerald-500/30 space-y-3">
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label for="ord-modal-deposit" class="block font-semibold text-slate-300 mb-1">Monto del Abono ($) *</label>
+                                        <label for="ord-modal-deposit" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Monto del Abono ($) *</label>
                                         <CurrencyInput bind:value={orderForm.initial_deposit} id="ord-modal-deposit" required placeholder="0" />
                                     </div>
 
                                     <div>
-                                        <label for="ord-modal-method" class="block font-semibold text-slate-300 mb-1">Método de Pago *</label>
+                                        <label for="ord-modal-method" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Método de Pago *</label>
                                         <select
                                             id="ord-modal-method"
                                             bind:value={orderForm.payment_method}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                            class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                                         >
                                             <option value="transfer">Transferencia / Nequi / Daviplata</option>
                                             <option value="cash">Efectivo</option>
@@ -684,7 +684,7 @@
                                 </div>
 
                                 <div>
-                                    <label for="ord-modal-voucher" class="block font-semibold text-slate-300 mb-1">
+                                    <label for="ord-modal-voucher" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                         Comprobante o Foto del Pago (Opcional, máx 5MB)
                                     </label>
                                     <input
@@ -692,7 +692,7 @@
                                         type="file"
                                         accept="image/*,.pdf"
                                         onchange={onInitialVoucherChange}
-                                        class="w-full text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
+                                        class="w-full text-slate-500 dark:text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
                                     />
                                 </div>
                             </div>
@@ -701,21 +701,21 @@
                 {/if}
 
                 <!-- TOTAL, DESGLOSE DE SALDO EN VIVO Y BOTONES -->
-                <div class="pt-3 border-t border-slate-800 space-y-3">
+                <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] space-y-3">
                     {#if hasFinancialAccess}
                         {#if !isEditing && orderForm.has_initial_deposit && Number(orderForm.initial_deposit) > 0}
-                            <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                                <div class="flex justify-between items-center text-slate-400">
+                            <div class="p-3.5 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-2 text-xs">
+                                <div class="flex justify-between items-center text-[#64748B] dark:text-slate-400">
                                     <span>Subtotal / Total del Pedido:</span>
-                                    <span class="font-mono font-bold text-white text-sm">{formatCurrency(totalAmount)}</span>
+                                    <span class="font-mono font-bold text-slate-900 dark:text-white text-sm">{formatCurrency(totalAmount)}</span>
                                 </div>
-                                <div class="flex justify-between items-center text-emerald-400">
+                                <div class="flex justify-between items-center text-emerald-600 dark:text-emerald-400">
                                     <span>Abono Inicial (-):</span>
                                     <span class="font-mono font-bold">- {formatCurrency(orderForm.initial_deposit)}</span>
                                 </div>
-                                <div class="flex justify-between items-center pt-2 border-t border-slate-800 font-bold">
-                                    <span class="text-slate-300">Saldo Faltante a Cobrar:</span>
-                                    <span class="font-mono text-sm {initialPendingBalance > 0 ? 'text-amber-400' : 'text-emerald-400'}">
+                                <div class="flex justify-between items-center pt-2 border-t border-slate-200 dark:border-[#26334D] font-bold">
+                                    <span class="text-slate-700 dark:text-slate-300">Saldo Faltante a Cobrar:</span>
+                                    <span class="font-mono text-sm {initialPendingBalance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">
                                         {initialPendingBalance > 0 ? formatCurrency(initialPendingBalance) : '✓ Total Cubierto ($0)'}
                                     </span>
                                 </div>
@@ -726,8 +726,8 @@
                     <div class="flex items-center justify-between">
                         {#if hasFinancialAccess}
                             <div class="text-xs">
-                                <span class="text-slate-400">Total del Pedido: </span>
-                                <span class="font-mono font-bold text-emerald-400 text-base">{formatCurrency(totalAmount)}</span>
+                                <span class="text-[#64748B] dark:text-slate-400">Total del Pedido: </span>
+                                <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-base">{formatCurrency(totalAmount)}</span>
                             </div>
                         {:else}
                             <div></div>
@@ -737,14 +737,14 @@
                             <button
                                 type="button"
                                 onclick={closeModal}
-                                class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                                class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="submit"
                                 disabled={processing}
-                                class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                                class="px-5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-medium shadow-sm disabled:opacity-50"
                             >
                                 {processing ? (isEditing ? 'Guardando...' : 'Creando...') : (isEditing ? 'Guardar Cambios' : 'Crear Pedido')}
                             </button>

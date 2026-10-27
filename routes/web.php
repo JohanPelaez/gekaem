@@ -17,6 +17,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\UnitOfMeasureController;
 use App\Http\Controllers\WorkflowController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas de Autenticación
@@ -25,12 +26,13 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/demo-login', [AuthController::class, 'demoLogin'])->name('demo-login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-// Redirección principal hacia el Tablero Kanban
-Route::get('/', fn () => redirect()->route('kanban.index'));
-Route::get('/dashboard', fn () => redirect()->route('kanban.index'))->name('dashboard');
+// Redirección principal
+Route::get('/', fn () => redirect()->route('dashboard'));
 
 // Rutas protegidas de la aplicación
 Route::middleware(['auth'])->group(function (): void {
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
     // Módulo 5: Tablero Kanban (US = Pedidos, Tareas = Productos)
     Route::prefix('kanban')->name('kanban.')->group(function (): void {
         Route::get('/', [KanbanController::class, 'index'])->name('index');

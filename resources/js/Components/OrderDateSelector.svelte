@@ -334,39 +334,39 @@
 
 <div class="space-y-2">
     <div class="flex items-center justify-between">
-        <label for={id} class="block font-semibold text-slate-300 text-xs">
+        <label for={id} class="block font-semibold text-slate-700 dark:text-slate-300 text-xs">
             {label}
         </label>
         <button
             type="button"
             onclick={goToToday}
-            class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+            class="text-[10px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold transition-colors"
         >
             Ir a Hoy
         </button>
     </div>
 
     <!-- Mini-Calendario Container -->
-    <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+    <div class="p-3.5 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-3">
         <!-- Navegación de Mes / Año -->
         <div class="flex items-center justify-between">
             <button
                 type="button"
                 onclick={prevMonth}
-                class="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center text-xs transition-colors border border-slate-800"
+                class="w-7 h-7 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center text-xs transition-colors border border-slate-200 dark:border-slate-800"
                 title="Mes anterior"
             >
                 ◀
             </button>
 
-            <span class="text-xs font-bold text-white tracking-wide">
+            <span class="text-xs font-bold text-slate-900 dark:text-white tracking-wide">
                 {monthNames[viewMonth]} {viewYear}
             </span>
 
             <button
                 type="button"
                 onclick={nextMonth}
-                class="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center text-xs transition-colors border border-slate-800"
+                class="w-7 h-7 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white flex items-center justify-center text-xs transition-colors border border-slate-200 dark:border-slate-800"
                 title="Mes siguiente"
             >
                 ▶
@@ -376,7 +376,7 @@
         <!-- Días de la semana -->
         <div class="grid grid-cols-7 gap-1 text-center">
             {#each dayNames as dn}
-                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider py-0.5">
+                <div class="text-[10px] font-bold text-[#64748B] dark:text-slate-500 uppercase tracking-wider py-0.5">
                     {dn}
                 </div>
             {/each}
@@ -392,18 +392,18 @@
                     onclick={() => selectDate(day)}
                     class="relative h-9 rounded-xl flex flex-col items-center justify-center text-xs transition-all border
                         {isSelected
-                            ? 'bg-indigo-600 text-white ring-2 ring-indigo-300 font-bold shadow-lg border-indigo-400'
+                            ? 'bg-[#4F46E5] text-white ring-2 ring-[#4F46E5]/30 font-bold shadow-md border-[#4F46E5]'
                             : day.isCurrentMonth
                                 ? today
-                                    ? 'border-2 border-sky-400 bg-sky-950/30 text-sky-300 hover:bg-sky-900/40'
-                                    : 'bg-slate-900/80 text-slate-200 border-slate-800/80 hover:bg-slate-800 hover:border-slate-700'
-                                : 'bg-slate-950/40 text-slate-600 border-transparent hover:text-slate-400'}"
+                                    ? 'border-2 border-[#06B6D4] bg-[#06B6D4]/10 text-[#06B6D4] hover:bg-[#06B6D4]/20 font-bold'
+                                    : 'bg-white dark:bg-[#151D2C] text-slate-700 dark:text-slate-200 border-slate-200 dark:border-[#26334D] hover:bg-slate-100 dark:hover:bg-slate-800'
+                                : 'bg-slate-100/50 dark:bg-slate-950/40 text-slate-400 dark:text-slate-600 border-transparent hover:text-slate-600 dark:hover:text-slate-400'}"
                     title={`${day.dateStr} — ${day.count} pedidos programados`}
                 >
                     <div class="flex items-center gap-1 leading-none">
                         <span class="text-[11px] font-bold leading-none">{day.dayNumber}</span>
                         {#if today && !isSelected}
-                            <span class="text-[7px] font-black uppercase text-sky-300 leading-none">HOY</span>
+                            <span class="text-[7px] font-black uppercase text-[#06B6D4] leading-none">HOY</span>
                         {/if}
                     </div>
 
@@ -411,13 +411,13 @@
                     {#if day.count > 0}
                         <div class="flex items-center gap-0.5 mt-0.5">
                             {#if day.count <= 2}
-                                <span class="w-1.5 h-1.5 rounded-full {isSelected ? 'bg-white' : 'bg-emerald-400'}" title={`${day.count} pedidos`}></span>
+                                <span class="w-1.5 h-1.5 rounded-full {isSelected ? 'bg-white' : 'bg-emerald-500'}" title={`${day.count} pedidos`}></span>
                             {:else if day.count <= 4}
-                                <span class="w-1.5 h-1.5 rounded-full {isSelected ? 'bg-white' : 'bg-amber-400'}" title={`${day.count} pedidos`}></span>
+                                <span class="w-1.5 h-1.5 rounded-full {isSelected ? 'bg-white' : 'bg-amber-500'}" title={`${day.count} pedidos`}></span>
                             {:else}
-                                <span class="w-1.5 h-1.5 rounded-full {isSelected ? 'bg-white' : 'bg-rose-400 animate-pulse'}" title={`${day.count} pedidos (Saturado)`}></span>
+                                <span class="w-1.5 h-1.5 rounded-full {isSelected ? 'bg-white' : 'bg-rose-500 animate-pulse'}" title={`${day.count} pedidos (Saturado)`}></span>
                             {/if}
-                            <span class="text-[8px] font-mono leading-none {isSelected ? 'text-white' : 'text-slate-400'}">{day.count}</span>
+                            <span class="text-[8px] font-mono leading-none {isSelected ? 'text-white' : 'text-slate-500 dark:text-slate-400'}">{day.count}</span>
                         </div>
                     {/if}
                 </button>
@@ -425,7 +425,7 @@
         </div>
 
         <!-- Leyenda de Carga Diaria -->
-        <div class="flex items-center justify-between text-[10px] text-slate-400 pt-2 border-t border-slate-800/80">
+        <div class="flex items-center justify-between text-[10px] text-[#64748B] dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-[#26334D]">
             <span class="font-semibold text-slate-500">Carga del Taller:</span>
             <div class="flex items-center gap-3">
                 <span class="flex items-center gap-1">
@@ -444,16 +444,16 @@
         </div>
 
         <!-- Ajuste de Hora y Resumen de Selección -->
-        <div class="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div class="pt-2 border-t border-slate-200 dark:border-[#26334D] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div class="flex items-center gap-2">
-                <label for="{id}-time" class="text-[11px] font-semibold text-slate-400 whitespace-nowrap">
+                <label for="{id}-time" class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 whitespace-nowrap">
                     Hora programada:
                 </label>
                 <input
                     id="{id}-time"
                     type="time"
                     bind:value={selectedTime}
-                    class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                    class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-[#4F46E5]"
                 />
             </div>
 
@@ -462,10 +462,10 @@
                 {#if selectedKey}
                     <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-medium border
                         {selectedLoadCount >= 5
-                            ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 font-bold'
+                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-300 border-rose-500/30 font-bold'
                             : selectedLoadCount >= 3
-                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 font-semibold'
-                                : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 font-semibold'}"
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30 font-semibold'
+                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/30 font-semibold'}"
                     >
                         <span>📅</span>
                         <span>
@@ -473,7 +473,7 @@
                         </span>
                     </div>
                 {:else}
-                    <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/30">
                         <span>⚠️</span>
                         <span>Selecciona un día en el calendario para comprometer la entrega</span>
                     </div>
@@ -482,9 +482,9 @@
         </div>
 
         <!-- PANEL DE PEDIDOS DEL DÍA SELECCIONADO (CRÍTICO) -->
-        <div class="pt-3 border-t border-slate-800/80 space-y-2">
+        <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] space-y-2">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                <span class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                     <span>📋</span>
                     <span>Pedidos para esta fecha{selectedKey ? ` (${selectedDayOrders.length})` : ''}:</span>
                 </span>
@@ -494,12 +494,12 @@
             </div>
 
             {#if !selectedKey}
-                <div class="p-3 bg-slate-950/40 border border-dashed border-slate-800 rounded-xl flex items-center gap-2 text-slate-400 text-xs">
+                <div class="p-3 bg-white dark:bg-[#151D2C] border border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex items-center gap-2 text-[#64748B] dark:text-slate-400 text-xs">
                     <span class="text-sm">👆</span>
                     <span>Haz clic en un día del calendario para consultar los pedidos programados en esa fecha.</span>
                 </div>
             {:else if selectedDayOrders.length === 0}
-                <div class="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-emerald-300 text-xs">
+                <div class="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-emerald-700 dark:text-emerald-300 text-xs">
                     <span class="text-sm">✨</span>
                     <span>Día despejado: 0 pedidos comprometidos para esta fecha</span>
                 </div>
@@ -510,15 +510,15 @@
                         {@const tasks = ord.production_tasks || ord.productionTasks || []}
                         {@const totalItems = tasks.reduce((sum, t) => sum + Number(t.quantity || 1), 0)}
                         {@const timeStr = formatTime(ord.committed_delivery_at || ord.predicted_delivery_at)}
-                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 text-xs hover:border-slate-700 transition-colors">
+                        <div class="p-2 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] flex items-center justify-between gap-2 text-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                             <div class="flex items-center gap-2 min-w-0">
-                                <span class="font-mono font-bold text-emerald-400 shrink-0">#{ord.order_number}</span>
-                                <span class="text-white font-medium truncate">{ord.customer?.name ?? 'Cliente'}</span>
+                                <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0">#{ord.order_number}</span>
+                                <span class="text-slate-900 dark:text-white font-medium truncate">{ord.customer?.name ?? 'Cliente'}</span>
                                 {#if timeStr}
-                                    <span class="text-[10px] text-sky-400 shrink-0 font-mono">🕒 {timeStr}</span>
+                                    <span class="text-[10px] text-sky-600 dark:text-sky-400 shrink-0 font-mono">🕒 {timeStr}</span>
                                 {/if}
                                 {#if tasks.length > 0}
-                                    <span class="text-[10px] text-slate-400 shrink-0 font-mono">
+                                    <span class="text-[10px] text-[#64748B] dark:text-slate-400 shrink-0 font-mono">
                                         ({tasks.length} {tasks.length === 1 ? 'tarea' : 'tareas'}{totalItems > 0 && totalItems !== tasks.length ? ` / ${totalItems} un.` : ''})
                                     </span>
                                 {/if}

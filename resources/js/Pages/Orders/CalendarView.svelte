@@ -187,29 +187,29 @@
     function getStatusBorderClass(status) {
         switch (status) {
             case 'pending':
-                return 'border-l-amber-500 hover:border-amber-400 bg-amber-950/20';
+                return 'border-l-[#64748B] hover:border-[#64748B] bg-slate-50/80 dark:bg-slate-800/40 text-slate-800 dark:text-slate-200';
             case 'in_progress':
-                return 'border-l-sky-500 hover:border-sky-400 bg-sky-950/20';
+                return 'border-l-[#4F46E5] hover:border-[#4F46E5] bg-indigo-50/50 dark:bg-indigo-950/20 text-slate-800 dark:text-slate-200';
             case 'blocked':
-                return 'border-l-rose-500 hover:border-rose-400 bg-rose-950/20';
+                return 'border-l-rose-500 hover:border-rose-400 bg-rose-50/50 dark:bg-rose-950/20 text-slate-800 dark:text-slate-200';
             case 'ready':
-                return 'border-l-emerald-500 hover:border-emerald-400 bg-emerald-950/20';
+                return 'border-l-[#06B6D4] hover:border-[#06B6D4] bg-cyan-50/50 dark:bg-cyan-950/20 text-slate-800 dark:text-slate-200';
             case 'delivered':
-                return 'border-l-purple-500 hover:border-purple-400 bg-purple-950/20';
+                return 'border-l-emerald-500 hover:border-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 text-slate-800 dark:text-slate-200';
             default:
-                return 'border-l-slate-600 bg-slate-900';
+                return 'border-l-slate-400 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200';
         }
     }
 </script>
 
 <div class="space-y-5">
     <!-- BARRA SUPERIOR DE NAVEGACIÓN DEL CALENDARIO -->
-    <div class="bg-slate-900 border border-slate-800 p-4 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-4 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
         <div class="flex items-center gap-2">
             <button
                 type="button"
                 onclick={prevMonth}
-                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors"
+                class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F17] dark:hover:bg-[#1C263B] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-semibold flex items-center gap-1 transition-colors"
                 title="Mes Anterior"
             >
                 <span>←</span>
@@ -219,7 +219,7 @@
             <button
                 type="button"
                 onclick={goToToday}
-                class="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-colors"
+                class="px-3 py-1.5 rounded-xl bg-[#06B6D4]/15 hover:bg-[#06B6D4]/25 text-[#06B6D4] border border-[#06B6D4]/40 text-xs font-bold transition-colors"
             >
                 Hoy
             </button>
@@ -227,7 +227,7 @@
             <button
                 type="button"
                 onclick={nextMonth}
-                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors"
+                class="px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F17] dark:hover:bg-[#1C263B] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-semibold flex items-center gap-1 transition-colors"
                 title="Mes Siguiente"
             >
                 <span class="hidden sm:inline">Mes Siguiente</span>
@@ -239,7 +239,7 @@
         <div class="flex items-center gap-2">
             <select
                 bind:value={viewMonth}
-                class="bg-slate-950 border border-slate-800 text-white font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
+                class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-white font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-[#4F46E5]"
             >
                 {#each monthNames as mName, idx}
                     <option value={idx}>{mName}</option>
@@ -248,7 +248,7 @@
 
             <select
                 bind:value={viewYear}
-                class="bg-slate-950 border border-slate-800 text-white font-mono font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
+                class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-white font-mono font-bold text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-[#4F46E5]"
             >
                 {#each [viewYear - 2, viewYear - 1, viewYear, viewYear + 1, viewYear + 2] as y}
                     <option value={y}>{y}</option>
@@ -258,11 +258,11 @@
     </div>
 
     <!-- CUADRÍCULA DEL CALENDARIO -->
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl overflow-hidden shadow-sm">
         <!-- Encabezados de días de la semana -->
-        <div class="grid grid-cols-7 border-b border-slate-800 bg-slate-950/80 text-center">
+        <div class="grid grid-cols-7 border-b border-slate-200 dark:border-[#26334D] bg-slate-50/80 dark:bg-[#0B0F17]/80 text-center">
             {#each dayNames as dName, i}
-                <div class="py-3 px-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <div class="py-3 px-2 text-xs font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider">
                     <span class="hidden md:inline">{dName}</span>
                     <span class="md:hidden">{shortDayNames[i]}</span>
                 </div>
@@ -270,14 +270,14 @@
         </div>
 
         <!-- Celdas de días -->
-        <div class="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-800/80 bg-slate-950/40">
+        <div class="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-200 dark:divide-[#26334D]/80 bg-slate-100/50 dark:bg-slate-950/40">
             {#each calendarDays as day}
                 {@const today = isToday(day.dateStr)}
                 {@const count = day.orders.length}
                 <div
                     class="min-h-[120px] sm:min-h-[140px] p-2 sm:p-2.5 flex flex-col justify-between transition-all cursor-pointer group/cell
-                        {day.isCurrentMonth ? 'bg-slate-900/50 hover:bg-slate-800/80 hover:shadow-inner' : 'bg-slate-950/70 text-slate-600 hover:bg-slate-900/40'}
-                        {today ? 'border-2 border-sky-400 bg-sky-950/30 text-sky-300' : ''}"
+                        {day.isCurrentMonth ? 'bg-white dark:bg-[#151D2C]/90 hover:bg-slate-50 dark:hover:bg-[#1C263B]/80' : 'bg-slate-50/70 dark:bg-[#0B0F17]/70 text-slate-400 dark:text-slate-600 hover:bg-slate-100/60 dark:hover:bg-slate-900/40'}
+                        {today ? 'ring-2 ring-inset ring-[#06B6D4] bg-[#06B6D4]/5 dark:bg-cyan-950/20' : ''}"
                     onclick={(e) => onDayClick?.(day, e)}
                     oncontextmenu={(e) => { e.preventDefault(); onDayClick?.(day, e); }}
                     role="button"
@@ -290,19 +290,19 @@
                         <div class="flex items-center gap-1.5">
                             <span class="font-mono text-xs font-bold px-1.5 py-0.5 rounded-lg
                                 {today
-                                    ? 'bg-sky-500 text-slate-950 font-black'
+                                    ? 'bg-[#06B6D4] text-white font-black'
                                     : day.isCurrentMonth
-                                        ? 'text-white'
-                                        : 'text-slate-600'}"
+                                        ? 'text-slate-900 dark:text-white'
+                                        : 'text-slate-400 dark:text-slate-600'}"
                             >
                                 {day.dayNumber}
                             </span>
                             {#if today}
-                                <span class="text-[8px] font-black uppercase text-sky-300 px-1 py-0.5 rounded bg-sky-950/90 border border-sky-400/60 leading-none">
+                                <span class="text-[8px] font-black uppercase text-[#06B6D4] px-1 py-0.5 rounded bg-[#06B6D4]/15 border border-[#06B6D4]/40 leading-none">
                                     HOY
                                 </span>
                             {/if}
-                            <span class="opacity-0 group-hover/cell:opacity-100 text-[10px] text-slate-400 hover:text-emerald-400 transition-opacity" title="Opciones del día">
+                            <span class="opacity-0 group-hover/cell:opacity-100 text-[10px] text-slate-400 hover:text-[#4F46E5] dark:hover:text-indigo-400 transition-opacity" title="Opciones del día">
                                 ⋮
                             </span>
                         </div>
@@ -310,13 +310,13 @@
                         {#if count > 0}
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-tight border flex items-center gap-1
                                 {count >= 5
-                                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
                                     : count >= 3
-                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'}"
+                                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                                        : 'bg-[#06B6D4]/10 text-[#06B6D4] border-[#06B6D4]/30'}"
                                 title={`${count} entregas programadas`}
                             >
-                                <span class="w-1.5 h-1.5 rounded-full {count >= 5 ? 'bg-[#f43f5e]' : count >= 3 ? 'bg-[#f59e0b]' : 'bg-[#10b981]'}"></span>
+                                <span class="w-1.5 h-1.5 rounded-full {count >= 5 ? 'bg-rose-500' : count >= 3 ? 'bg-amber-500' : 'bg-[#06B6D4]'}"></span>
                                 <span>{count} {count === 1 ? 'entrega' : 'entregas'}</span>
                             </span>
                         {/if}
@@ -332,18 +332,18 @@
                                     e.stopPropagation();
                                     selectedOrderForDetail = order;
                                 }}
-                                class="w-full text-left p-1.5 rounded-xl border border-slate-800 border-l-4 {getStatusBorderClass(order.derived_status)} transition-all hover:scale-[1.02] shadow-sm group"
+                                class="w-full text-left p-1.5 rounded-xl border border-slate-200 dark:border-[#26334D] border-l-4 {getStatusBorderClass(order.derived_status)} transition-all hover:scale-[1.02] shadow-sm group bg-white dark:bg-[#0B0F17]"
                                 title={`Ver detalles del Pedido #${order.order_number}`}
                             >
                                 <div class="flex items-center justify-between gap-1">
-                                    <span class="font-mono font-bold text-[11px] text-white group-hover:text-emerald-400 transition-colors">
+                                    <span class="font-mono font-bold text-[11px] text-slate-900 dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-indigo-400 transition-colors">
                                         #{order.order_number}
                                     </span>
-                                    <span class="text-[9px] font-mono text-slate-400">
+                                    <span class="text-[9px] font-mono text-[#64748B] dark:text-slate-400">
                                         {formatTime(order.committed_delivery_at || order.predicted_delivery_at)}
                                     </span>
                                 </div>
-                                <div class="text-[11px] font-semibold text-slate-300 truncate mt-0.5">
+                                <div class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate mt-0.5">
                                     {order.customer?.name ?? 'Cliente'}
                                 </div>
                             </button>
@@ -356,15 +356,15 @@
 
     <!-- SECCIÓN INFERIOR: PEDIDOS SIN FECHA COMPROMETIDA -->
     {#if ordersWithoutDate.length > 0}
-        <div class="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-3 shadow-lg">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+        <div class="p-5 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl space-y-3 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-2">
                 <div class="flex items-center gap-2">
-                    <span class="text-amber-400 text-sm">⚠️</span>
-                    <h3 class="font-bold text-white text-sm">
+                    <span class="text-amber-500 text-sm">⚠️</span>
+                    <h3 class="font-bold text-slate-900 dark:text-white text-sm">
                         Pedidos sin Fecha de Entrega Comprometida ({ordersWithoutDate.length})
                     </h3>
                 </div>
-                <span class="text-xs text-slate-400">
+                <span class="text-xs text-[#64748B] dark:text-slate-400">
                     Requieren programación de fecha en el taller.
                 </span>
             </div>
@@ -372,11 +372,11 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {#each ordersWithoutDate as order (order.id)}
                     {@const badge = getDerivedStatusBadge(order.derived_status)}
-                    <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
+                    <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] flex items-center justify-between gap-2">
                         <div>
                             <div class="flex items-center gap-1.5">
-                                <span class="font-mono font-bold text-emerald-400 text-xs">#{order.order_number}</span>
-                                <span class="text-white font-bold text-xs truncate max-w-[120px]">{order.customer?.name ?? 'Cliente'}</span>
+                                <span class="font-mono font-bold text-[#4F46E5] dark:text-indigo-400 text-xs">#{order.order_number}</span>
+                                <span class="text-slate-900 dark:text-white font-bold text-xs truncate max-w-[120px]">{order.customer?.name ?? 'Cliente'}</span>
                             </div>
                             <span class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border {badge.color} mt-1 inline-block">
                                 {badge.label}
@@ -385,7 +385,7 @@
                         <button
                             type="button"
                             onclick={() => selectedOrderForDetail = order}
-                            class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors shrink-0"
+                            class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors shrink-0 shadow-sm"
                         >
                             Detalle
                         </button>
@@ -401,61 +401,61 @@
     {@const order = selectedOrderForDetail}
     {@const badge = getDerivedStatusBadge(order.derived_status)}
     {@const tasks = order.production_tasks || order.tasks || []}
-    <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+    <div class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
             <!-- Encabezado del Modal -->
-            <div class="flex items-start justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-start justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div>
                     <div class="flex items-center gap-2">
-                        <span class="px-2.5 py-0.5 rounded font-mono font-bold text-sm bg-slate-950 text-emerald-400 border border-slate-800">
+                        <span class="px-2.5 py-0.5 rounded font-mono font-bold text-sm bg-slate-100 dark:bg-[#0B0F17] text-[#4F46E5] dark:text-indigo-400 border border-slate-200 dark:border-[#26334D]">
                             #{order.order_number}
                         </span>
-                        <h3 class="text-base font-bold text-white">
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">
                             {order.customer?.name ?? 'Cliente'}
                         </h3>
                     </div>
                     {#if order.customer?.phone}
-                        <p class="text-xs text-slate-400 font-mono mt-0.5">📞 {order.customer.phone}</p>
+                        <p class="text-xs text-[#64748B] dark:text-slate-400 font-mono mt-0.5">📞 {order.customer.phone}</p>
                     {/if}
                 </div>
                 <button
                     type="button"
                     onclick={() => selectedOrderForDetail = null}
-                    class="text-slate-400 hover:text-white text-base"
+                    class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-base p-1"
                 >
                     ✕
                 </button>
             </div>
 
             <!-- Estado Operativo y Fecha -->
-            <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+            <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-2 text-xs">
                 <div class="flex items-center justify-between">
-                    <span class="text-slate-400">Estado de Producción:</span>
+                    <span class="text-[#64748B] dark:text-slate-400">Estado de Producción:</span>
                     <span class="px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider text-[10px] border {badge.color}">
                         {badge.label}
                     </span>
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-slate-400">Modalidad de Envío:</span>
+                    <span class="text-[#64748B] dark:text-slate-400">Modalidad de Envío:</span>
                     {#if order.shipping_type === 'envio_incluido'}
-                        <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                        <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-indigo-500/15 text-[#4F46E5] dark:text-indigo-300 border border-indigo-500/30">
                             📦 Envío Incluido
                         </span>
                     {:else}
-                        <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                             🚚 Contraentrega
                         </span>
                     {/if}
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-slate-400">Entrega Comprometida:</span>
-                    <span class="font-mono font-bold text-white capitalize">
+                    <span class="text-[#64748B] dark:text-slate-400">Entrega Comprometida:</span>
+                    <span class="font-mono font-bold text-slate-900 dark:text-white capitalize">
                         📅 {formatFullDate(order.committed_delivery_at || order.predicted_delivery_at)}
                     </span>
                 </div>
                 {#if order.notes}
-                    <div class="pt-1.5 border-t border-slate-800/80 text-slate-400">
-                        <span class="font-bold text-slate-300">Notas: </span>
+                    <div class="pt-1.5 border-t border-slate-200 dark:border-slate-800/80 text-[#64748B] dark:text-slate-400">
+                        <span class="font-bold text-slate-700 dark:text-slate-300">Notas: </span>
                         <span>"{order.notes}"</span>
                     </div>
                 {/if}
@@ -463,20 +463,20 @@
 
             <!-- Resumen Financiero si tiene permisos -->
             {#if hasFinancialAccess}
-                <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                    <span class="font-bold text-white text-xs block">Resumen Financiero</span>
+                <div class="p-3.5 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-2 text-xs">
+                    <span class="font-bold text-slate-900 dark:text-white text-xs block">Resumen Financiero</span>
                     <div class="grid grid-cols-3 gap-2 text-center">
-                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
-                            <span class="text-[10px] text-slate-400 block font-semibold">Total</span>
-                            <span class="font-mono font-bold text-white text-xs">{formatCurrency(order.total_amount)}</span>
+                        <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 block font-semibold">Total</span>
+                            <span class="font-mono font-bold text-slate-900 dark:text-white text-xs">{formatCurrency(order.total_amount)}</span>
                         </div>
-                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
-                            <span class="text-[10px] text-slate-400 block font-semibold">Abonado</span>
-                            <span class="font-mono font-bold text-emerald-400 text-xs">{formatCurrency(order.paid_amount)}</span>
+                        <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 block font-semibold">Abonado</span>
+                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">{formatCurrency(order.paid_amount)}</span>
                         </div>
-                        <div class="p-2 rounded-xl bg-slate-900 border border-slate-800">
-                            <span class="text-[10px] text-slate-400 block font-semibold">Saldo</span>
-                            <span class="font-mono font-bold {order.pending_balance > 0 ? 'text-amber-300' : 'text-emerald-400'} text-xs">
+                        <div class="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 block font-semibold">Saldo</span>
+                            <span class="font-mono font-bold {order.pending_balance > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-400'} text-xs">
                                 {order.pending_balance > 0 ? formatCurrency(order.pending_balance) : 'Pagado'}
                             </span>
                         </div>
@@ -486,14 +486,14 @@
 
             <!-- Productos Solicitados (Tareas) -->
             <div class="space-y-2">
-                <span class="font-bold text-white text-xs block">
+                <span class="font-bold text-slate-900 dark:text-white text-xs block">
                     Productos del Pedido ({tasks.length})
                 </span>
                 <div class="space-y-1.5 max-h-40 overflow-y-auto">
                     {#each tasks as task}
-                        <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
-                            <div class="font-bold text-white flex items-center gap-1.5">
-                                <span class="font-mono text-emerald-400">{task.quantity}x</span>
+                        <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] flex items-center justify-between text-xs">
+                            <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <span class="font-mono text-[#4F46E5] dark:text-indigo-400">{task.quantity}x</span>
                                 <span>{task.item_name_snapshot}</span>
                             </div>
                             {#if task.current_stage || task.currentStage}
@@ -507,23 +507,23 @@
                             {/if}
                         </div>
                     {:else}
-                        <span class="text-slate-500 text-xs italic py-1 block">Sin tareas registradas.</span>
+                        <span class="text-slate-400 text-xs italic py-1 block">Sin tareas registradas.</span>
                     {/each}
                 </div>
             </div>
 
             <!-- Acciones -->
-            <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                     <!-- Botón directo para Ir al Tablero Kanban aislado -->
                     <button
                         type="button"
                         onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
-                        class="px-3.5 py-2 rounded-xl bg-sky-950/70 hover:bg-sky-900/70 text-sky-400 text-xs font-bold border border-sky-800/70 flex items-center gap-1.5 transition-colors"
+                        class="px-3.5 py-2 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 text-[#06B6D4] text-xs font-bold border border-[#06B6D4]/30 flex items-center gap-1.5 transition-colors shadow-sm"
                         title="Abrir este pedido en el Tablero Kanban"
                     >
                         <span>📋</span>
-                        <span>Ir al Tablero Kanban</span>
+                        <span>Tablero Kanban</span>
                     </button>
 
                     <!-- Botón Editar Pedido -->
@@ -534,7 +534,7 @@
                             selectedOrderForDetail = null;
                             onEditOrder?.(target);
                         }}
-                        class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 transition-colors"
+                        class="px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-[#4F46E5] dark:text-indigo-300 font-semibold text-xs border border-indigo-500/30 flex items-center gap-1.5 transition-colors shadow-sm"
                         title="Editar Pedido"
                     >
                         <span>✏️</span>
@@ -551,7 +551,7 @@
                                     onOpenPaymentModal(target);
                                 }
                             }}
-                            class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700 flex items-center gap-1.5 transition-colors"
+                            class="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-semibold text-xs border border-emerald-500/30 flex items-center gap-1.5 transition-colors shadow-sm"
                         >
                             <span>💳</span>
                             <span>Abonos</span>
@@ -568,7 +568,7 @@
                                     onMarkDelivered(target);
                                 }
                             }}
-                            class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors"
+                            class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-sm"
                         >
                             ✓ Entregar
                         </button>
@@ -578,7 +578,7 @@
                 <button
                     type="button"
                     onclick={() => selectedOrderForDetail = null}
-                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs"
+                    class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs"
                 >
                     Cerrar
                 </button>
