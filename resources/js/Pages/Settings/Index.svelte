@@ -31,6 +31,17 @@
     let memberProcessing = $state(false);
     let showAddMemberModal = $state(false);
 
+    // Estado y modal para editar miembro del equipo
+    let showEditMemberModal = $state(false);
+    let editingMember = $state(null);
+    let editMemberProcessing = $state(false);
+    let editMemberForm = $state({
+        name: '',
+        email: '',
+        role: 'worker',
+        password: '',
+    });
+
     // Formulario de Perfil de Usuario
     let profileForm = $state({
         name: '',
@@ -161,6 +172,30 @@
                 memberForm.email = '';
                 memberForm.password = '';
                 memberForm.role = 'worker';
+            },
+        });
+    }
+
+    function openEditMember(member) {
+        editingMember = member;
+        editMemberForm.name = member.name ?? '';
+        editMemberForm.email = member.email ?? '';
+        editMemberForm.role = member.pivot?.role ?? 'worker';
+        editMemberForm.password = '';
+        showEditMemberModal = true;
+    }
+
+    function submitEditMember(e) {
+        e.preventDefault();
+        if (!editingMember) return;
+        editMemberProcessing = true;
+        router.put(`/settings/members/${editingMember.id}`, editMemberForm, {
+            preserveScroll: true,
+            onStart: () => { editMemberProcessing = true; },
+            onFinish: () => { editMemberProcessing = false; },
+            onSuccess: () => {
+                showEditMemberModal = false;
+                editingMember = null;
             },
         });
     }
@@ -536,16 +571,26 @@
                                 </div>
                             </div>
 
-                            {#if member.id !== profileUser?.id}
+                            <div class="flex items-center gap-1.5 shrink-0 self-center">
                                 <button
                                     type="button"
-                                    onclick={() => removeMember(member)}
-                                    class="text-slate-500 hover:text-rose-400 text-xs p-1 rounded-lg hover:bg-rose-950/20 transition-colors"
-                                    title="Remover colaborador del taller"
+                                    onclick={() => openEditMember(member)}
+                                    class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+                                    title="Editar datos del miembro"
                                 >
-                                    ✕
+                                    Editar
                                 </button>
-                            {/if}
+                                {#if member.id !== profileUser?.id}
+                                    <button
+                                        type="button"
+                                        onclick={() => removeMember(member)}
+                                        class="text-slate-500 hover:text-rose-400 text-xs p-1 rounded-lg hover:bg-rose-950/20 transition-colors"
+                                        title="Remover colaborador del taller"
+                                    >
+                                        ✕
+                                    </button>
+                                {/if}
+                            </div>
                         </div>
                     {/each}
 
@@ -633,6 +678,97 @@
                         class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/25 disabled:opacity-50"
                     >
                         Guardar Miembro
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{/if}
+
+<!-- MODAL EDITAR MIEMBRO DEL EQUIPO -->
+{#if showEditMemberModal}
+    <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white">Editar Miembro del Equipo</h3>
+                <button type="button" onclick={() => showEditMemberModal = false} class="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <form onsubmit={submitEditMember} class="space-y-4 text-xs">
+                <div>
+                    <label for="em-name" class="block font-semibold text-slate-300 mb-1">Nombre Completo *</label>
+                    <input
+                        id="em-name"
+                        type="text"
+                        bind:value={editMemberForm.name}
+                        placeholder="Ej. Andrés Ramírez"
+                        required
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    />
+                    {#if errors.name}
+                        <p class="text-[10px] text-rose-400 mt-1">{errors.name}</p>
+                    {/if}
+                </div>
+
+                <div>
+                    <label for="em-email" class="block font-semibold text-slate-300 mb-1">Correo Electrónico *</label>
+                    <input
+                        id="em-email"
+                        type="email"
+                        bind:value={editMemberForm.email}
+                        placeholder="andres@taller.com"
+                        required
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    />
+                    {#if errors.email}
+                        <p class="text-[10px] text-rose-400 mt-1">{errors.email}</p>
+                    {/if}
+                </div>
+
+                <div>
+                    <label for="em-role" class="block font-semibold text-slate-300 mb-1">Rol en este Taller *</label>
+                    <select
+                        id="em-role"
+                        bind:value={editMemberForm.role}
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    >
+                        <option value="worker">Trabajador (Módulos Kanban, Pedidos, Productos, Inventario)</option>
+                        <option value="owner">Dueño Co-Administrador (Acceso a configuración)</option>
+                    </select>
+                    {#if errors.role}
+                        <p class="text-[10px] text-rose-400 mt-1">{errors.role}</p>
+                    {/if}
+                </div>
+
+                <div>
+                    <label for="em-pass" class="block font-semibold text-slate-300 mb-1">Nueva Contraseña (dejar en blanco para mantener la actual)</label>
+                    <input
+                        id="em-pass"
+                        type="password"
+                        bind:value={editMemberForm.password}
+                        placeholder="•••••••• (opcional)"
+                        minlength="6"
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    />
+                    {#if errors.password}
+                        <p class="text-[10px] text-rose-400 mt-1">{errors.password}</p>
+                    {/if}
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                    <button
+                        type="button"
+                        onclick={() => showEditMemberModal = false}
+                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={editMemberProcessing}
+                        class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/25 disabled:opacity-50"
+                    >
+                        {editMemberProcessing ? 'Actualizando...' : 'Actualizar Miembro'}
                     </button>
                 </div>
             </form>

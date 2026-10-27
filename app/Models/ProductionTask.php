@@ -28,6 +28,7 @@ class ProductionTask extends Model
         'item_name_snapshot',
         'quantity',
         'unit_price',
+        'discount_percentage',
         'estimated_minutes',
         'column_position',
         'materials_consumed',
@@ -54,6 +55,7 @@ class ProductionTask extends Model
         return [
             'quantity' => 'decimal:2',
             'unit_price' => 'decimal:2',
+            'discount_percentage' => 'decimal:2',
             'estimated_minutes' => 'integer',
             'column_position' => 'integer',
             'materials_consumed' => 'boolean',

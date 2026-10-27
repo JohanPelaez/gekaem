@@ -90,7 +90,7 @@ class KanbanController extends Controller
             'orderStatuses' => $orderStatuses,
             'allScheduledOrders' => $allScheduledOrders,
             'ordersCountByDate' => $ordersCountByDate,
-            'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone', 'email', 'tax_id', 'department', 'city', 'neighborhood', 'address']),
+            'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone', 'email', 'document_number', 'tax_id', 'department', 'city', 'neighborhood', 'address']),
             'products' => Product::where('is_active', true)->with(['variants.attributeOptions.attribute', 'workflow', 'materialRequirements.rawMaterial', 'productType'])->orderBy('name')->get(),
             'productTypes' => ProductType::orderBy('name')->get(['id', 'name']),
             'rawMaterials' => RawMaterial::orderBy('name')->get(['id', 'name', 'unit_of_measure', 'current_stock', 'reserved_stock']),

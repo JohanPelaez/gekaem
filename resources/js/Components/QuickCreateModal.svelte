@@ -38,9 +38,11 @@
     // Estado local para cada tipo de entidad
     let form = $state({
         name: '',
+        document_number: '',
         description: '',
         phone: '',
         email: '',
+        payment_methods: '',
         tax_id: '',
         department: '',
         city: '',
@@ -117,9 +119,11 @@
         const defaultUom = sortedUnitsOfMeasure[0];
         form = {
             name: '',
+            document_number: '',
             description: '',
             phone: '',
             email: '',
+            payment_methods: '',
             tax_id: '',
             department: '',
             city: '',
@@ -385,6 +389,17 @@
 
                 <!-- Campos de Cliente Completo (Puntos 3 y 17) -->
                 {#if type === 'customer'}
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1" for="quick_doc">Cédula / NIT / Documento</label>
+                        <input
+                            type="text"
+                            id="quick_doc"
+                            bind:value={form.document_number}
+                            placeholder="Ej. 1020304050 o 900.123.456-7"
+                            class="w-full px-3.5 py-2 bg-slate-950/90 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono"
+                        />
+                    </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1" for="quick_phone">Teléfono / WhatsApp</label>
@@ -502,6 +517,28 @@
                             max="365"
                             class="w-full px-3.5 py-2 bg-slate-950/90 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                         />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1" for="quick_payment_methods">Medios de Pago (Ej. Nequi, Bancolombia, Efectivo, Cuenta #)</label>
+                        <input
+                            type="text"
+                            id="quick_payment_methods"
+                            bind:value={form.payment_methods}
+                            placeholder="Ej. Bancolombia Ahorros # 123-456789-00 / Nequi 3001234567"
+                            class="w-full px-3.5 py-2 bg-slate-950/90 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1" for="quick_sup_notes">Notas / Observaciones</label>
+                        <textarea
+                            id="quick_sup_notes"
+                            bind:value={form.notes}
+                            rows="2"
+                            placeholder="Condiciones comerciales, catálogo, contacto de ventas..."
+                            class="w-full px-3.5 py-2 bg-slate-950/90 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        ></textarea>
                     </div>
                 {/if}
 

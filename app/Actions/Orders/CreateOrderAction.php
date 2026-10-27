@@ -80,15 +80,21 @@ class CreateOrderAction
                     ->with(['product.workflow.stages'])
                     ->findOrFail($variantId);
 
-                $unitPrice = $variant->price_override !== null
-                    ? (float) $variant->price_override
-                    : (float) $variant->product->base_price;
+                $unitPrice = isset($item['unit_price']) && is_numeric($item['unit_price']) && (float) $item['unit_price'] >= 0
+                    ? (float) $item['unit_price']
+                    : ($variant->price_override !== null
+                        ? (float) $variant->price_override
+                        : (float) $variant->product->base_price);
 
-                $totalAmount += $unitPrice * $quantity;
+                $discount = max(0.0, min(100.0, (float) ($item['discount_percentage'] ?? 0.0)));
+                $lineTotal = $quantity * $unitPrice * (1.0 - ($discount / 100.0));
+
+                $totalAmount += $lineTotal;
                 $itemsData[] = [
                     'variant' => $variant,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
+                    'discount_percentage' => $discount,
                 ];
             }
 
@@ -197,6 +203,7 @@ class CreateOrderAction
                     'item_name_snapshot' => mb_substr($itemNameSnapshot, 0, 150),
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
+                    'discount_percentage' => $entry['discount_percentage'] ?? 0,
                     'estimated_minutes' => $estimatedMinutes,
                     'column_position' => $maxColPos + 1,
                     'materials_consumed' => false,

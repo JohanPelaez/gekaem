@@ -60,68 +60,72 @@ class UpdateOrderAction
                 null
             );
 
-            // 2. Procesar y mapear ítems enviados
+            // 2. Procesar y mapear ítems enviados y sincronizar tareas
             $totalAmount = 0.0;
-            $submittedVariantIds = [];
-            $itemsMap = [];
-
-            foreach ($data['items'] as $item) {
-                $variantId = (int) $item['product_variant_id'];
-                $quantity = (float) $item['quantity'];
-
-                if ($quantity <= 0) {
-                    continue;
-                }
-
-                $submittedVariantIds[] = $variantId;
-
-                /** @var ProductVariant $variant */
-                $variant = ProductVariant::withoutGlobalScope('tenant')
-                    ->with(['product.workflow.stages'])
-                    ->findOrFail($variantId);
-
-                $unitPrice = isset($item['unit_price']) && is_numeric($item['unit_price'])
-                    ? (float) $item['unit_price']
-                    : ($variant->price_override !== null ? (float) $variant->price_override : (float) $variant->product->base_price);
-
-                $totalAmount += $unitPrice * $quantity;
-
-                $itemsMap[$variantId] = [
-                    'variant' => $variant,
-                    'quantity' => $quantity,
-                    'unit_price' => $unitPrice,
-                ];
-            }
 
             // 3. Tareas existentes actualmente en este pedido
             $existingTasks = ProductionTask::withoutGlobalScope('tenant')
                 ->where('order_id', $order->id)
                 ->get();
+            $unusedTasks = $existingTasks->keyBy('id');
+            $retainedTaskIds = [];
 
-            // 4. Sincronización inteligente de tareas
-            // A) Actualizar existentes o crear nuevas
-            foreach ($itemsMap as $variantId => $entry) {
+            // 4. Sincronización inteligente de tareas por renglón
+            foreach ($data['items'] as $item) {
+                $quantity = (float) $item['quantity'];
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                $variantId = (int) $item['product_variant_id'];
+
                 /** @var ProductVariant $variant */
-                $variant = $entry['variant'];
+                $variant = ProductVariant::withoutGlobalScope('tenant')
+                    ->with(['product.workflow.stages'])
+                    ->findOrFail($variantId);
                 $product = $variant->product;
-                $newQuantity = (float) $entry['quantity'];
-                $unitPrice = (float) $entry['unit_price'];
+
+                $unitPrice = isset($item['unit_price']) && is_numeric($item['unit_price']) && (float) $item['unit_price'] >= 0
+                    ? (float) $item['unit_price']
+                    : ($variant->price_override !== null ? (float) $variant->price_override : (float) $product->base_price);
+
+                $discount = max(0.0, min(100.0, (float) ($item['discount_percentage'] ?? 0.0)));
+                $lineTotal = $quantity * $unitPrice * (1.0 - ($discount / 100.0));
+                $totalAmount += $lineTotal;
 
                 $unitMinutes = (int) $product->base_production_minutes + (int) $variant->production_minutes_delta;
-                $estimatedMinutes = (int) ceil($unitMinutes * $newQuantity);
+                $estimatedMinutes = (int) ceil($unitMinutes * $quantity);
+                $itemNameSnapshot = mb_substr("{$product->name} - {$variant->name_label}", 0, 150);
 
-                /** @var ProductionTask|null $existingTask */
-                $existingTask = $existingTasks->firstWhere('product_variant_id', $variantId);
+                // Buscar tarea existente: primero por task.id explícito si fue enviado
+                $existingTask = null;
+                if (!empty($item['id']) && $unusedTasks->has((int) $item['id'])) {
+                    $existingTask = $unusedTasks->get((int) $item['id']);
+                    $unusedTasks->forget((int) $item['id']);
+                } else {
+                    // Si no trajo id o ya fue usado, buscar por variantId no utilizado aún
+                    $matchedId = $unusedTasks->search(fn ($t) => (int) $t->product_variant_id === $variantId);
+                    if ($matchedId !== false) {
+                        $existingTask = $unusedTasks->get($matchedId);
+                        $unusedTasks->forget($matchedId);
+                    }
+                }
 
                 if ($existingTask !== null) {
                     $oldQuantity = (float) $existingTask->quantity;
-                    $qtyDelta = $newQuantity - $oldQuantity;
+                    $qtyDelta = $quantity - $oldQuantity;
 
                     // Mantener intacto current_stage_id para preservar avance en Kanban
-                    $existingTask->quantity = $newQuantity;
+                    $existingTask->product_variant_id = $variantId;
+                    $existingTask->workflow_id = $product->workflow_id;
+                    $existingTask->item_name_snapshot = $itemNameSnapshot;
+                    $existingTask->quantity = $quantity;
                     $existingTask->unit_price = $unitPrice;
+                    $existingTask->discount_percentage = $discount;
                     $existingTask->estimated_minutes = $estimatedMinutes;
                     $existingTask->save();
+
+                    $retainedTaskIds[] = $existingTask->id;
 
                     // Ajustar reserva de materias primas si los materiales aún no fueron consumidos
                     if (!$existingTask->materials_consumed && abs($qtyDelta) > 0.0001) {
@@ -167,23 +171,24 @@ class UpdateOrderAction
                         ->where('current_stage_id', $initialStage->id)
                         ->max('column_position');
 
-                    $itemNameSnapshot = "{$product->name} - {$variant->name_label}";
-
                     $newTask = ProductionTask::withoutGlobalScope('tenant')->create([
                         'tenant_id' => $tenant->id,
                         'order_id' => $order->id,
                         'product_variant_id' => $variant->id,
                         'workflow_id' => $product->workflow_id,
                         'current_stage_id' => $initialStage->id,
-                        'item_name_snapshot' => mb_substr($itemNameSnapshot, 0, 150),
-                        'quantity' => $newQuantity,
+                        'item_name_snapshot' => $itemNameSnapshot,
+                        'quantity' => $quantity,
                         'unit_price' => $unitPrice,
+                        'discount_percentage' => $discount,
                         'estimated_minutes' => $estimatedMinutes,
                         'column_position' => $maxColPos + 1,
                         'materials_consumed' => false,
                         'started_at' => null,
                         'completed_at' => null,
                     ]);
+
+                    $retainedTaskIds[] = $newTask->id;
 
                     // Reservar stock de materias primas para la nueva tarea
                     $requirements = ProductMaterialRequirement::where(function ($query) use ($variant): void {
@@ -196,7 +201,7 @@ class UpdateOrderAction
 
                     foreach ($requirements as $req) {
                         $wasteMultiplier = 1 + (((float) $req->waste_percent) / 100);
-                        $needed = ((float) $req->quantity_required) * $wasteMultiplier * $newQuantity;
+                        $needed = ((float) $req->quantity_required) * $wasteMultiplier * $quantity;
 
                         /** @var RawMaterial|null $rawMaterial */
                         $rawMaterial = RawMaterial::withoutGlobalScope('tenant')
@@ -212,9 +217,9 @@ class UpdateOrderAction
                 }
             }
 
-            // B) Eliminar tareas de variantes que fueron retiradas del pedido
+            // B) Eliminar tareas retiradas del pedido
             $tasksToRemove = $existingTasks->reject(
-                fn (ProductionTask $t) => in_array($t->product_variant_id, $submittedVariantIds, true)
+                fn (ProductionTask $t) => in_array($t->id, $retainedTaskIds, true)
             );
 
             foreach ($tasksToRemove as $task) {

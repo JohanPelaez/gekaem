@@ -25,7 +25,9 @@ class Supplier extends Model
         'contact_name',
         'phone',
         'email',
+        'payment_methods',
         'lead_time_days',
+        'notes',
     ];
 
     /**

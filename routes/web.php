@@ -140,6 +140,8 @@ Route::middleware(['auth'])->group(function (): void {
         Route::patch('/tenant', [TenantSettingsController::class, 'update'])->name('tenant.update');
         Route::patch('/', [TenantSettingsController::class, 'update'])->name('update');
         Route::post('/members', [TenantSettingsController::class, 'addMember'])->name('members.store');
+        Route::put('/members/{user}', [TenantSettingsController::class, 'updateMember'])->name('members.update');
+        Route::put('/team/{user}', [TenantSettingsController::class, 'updateMember'])->name('team.update');
         Route::delete('/members/{user}', [TenantSettingsController::class, 'removeMember'])->name('members.destroy');
     });
 

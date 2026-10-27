@@ -97,18 +97,21 @@
 
                     const tasks = currentOrder.production_tasks || currentOrder.productionTasks || currentOrder.tasks || [];
                     if (tasks.length > 0) {
-                        orderForm.items = tasks.map((t) => {
-                            const variant = t.product_variant || t.productVariant;
-                            let prodId = variant?.product_id || variant?.product?.id;
-                            if (!prodId) {
-                                const found = localProducts.find((p) => p.variants?.some((v) => v.id == t.product_variant_id));
-                                prodId = found?.id ?? '';
-                            }
+                        orderForm.items = tasks.map((task) => {
+                            const variant = task.product_variant || task.productVariant || {};
+                            const foundProduct = localProducts.find((p) =>
+                                p.id == variant.product_id || (p.variants || []).some((v) => v.id == task.product_variant_id)
+                            );
+                            const baseUnitPrice = task.unit_price !== null && task.unit_price !== undefined && Number(task.unit_price) > 0
+                                ? Number(task.unit_price)
+                                : Number(variant.price_override ?? foundProduct?.base_price ?? 0);
                             return {
-                                product_id: prodId,
-                                product_variant_id: t.product_variant_id,
-                                quantity: Number(t.quantity || 1),
-                                unit_price: Number(t.unit_price || 0),
+                                id: task.id,
+                                product_id: variant.product_id || foundProduct?.id || '',
+                                product_variant_id: task.product_variant_id,
+                                quantity: Number(task.quantity) || 1,
+                                unit_price: baseUnitPrice,
+                                discount_percentage: Number(task.discount_percentage) || 0,
                             };
                         });
                     } else if (localProducts.length > 0) {
@@ -157,10 +160,12 @@
         orderForm.items = [
             ...orderForm.items,
             {
+                id: null,
                 product_id: firstProd.id,
                 product_variant_id: firstVariant?.id ?? '',
                 quantity: 1,
                 unit_price: Number(firstVariant?.price_override ?? firstProd.base_price ?? 0),
+                discount_percentage: 0,
             },
         ];
     }
@@ -205,14 +210,17 @@
             orderForm.items[lastItemIdx].product_id = newProduct.id;
             orderForm.items[lastItemIdx].product_variant_id = defaultVariant?.id ?? '';
             orderForm.items[lastItemIdx].unit_price = unitPrice;
+            orderForm.items[lastItemIdx].discount_percentage = 0;
         } else {
             orderForm.items = [
                 ...orderForm.items,
                 {
+                    id: null,
                     product_id: newProduct.id,
                     product_variant_id: defaultVariant?.id ?? '',
                     quantity: 1,
                     unit_price: unitPrice,
+                    discount_percentage: 0,
                 },
             ];
         }
@@ -224,18 +232,18 @@
         orderForm.voucher = file;
     }
 
+    function calculateItemSubtotal(item) {
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.unit_price) || 0;
+        const disc = Math.min(100, Math.max(0, Number(item.discount_percentage) || 0));
+        return Math.round(qty * price * (1 - disc / 100));
+    }
+
     let totalAmount = $derived.by(() => {
         let sum = 0;
         for (const item of orderForm.items) {
             if (!item.product_variant_id || !item.quantity) continue;
-            const prod = localProducts.find((p) => p.id == item.product_id);
-            const variant = prod?.variants?.find((v) => v.id == item.product_variant_id);
-            const price = item.unit_price !== undefined && item.unit_price !== '' && item.unit_price !== null
-                ? Number(item.unit_price)
-                : (variant?.price_override !== null && variant?.price_override !== ''
-                    ? Number(variant.price_override)
-                    : Number(prod?.base_price ?? 0));
-            sum += price * Number(item.quantity);
+            sum += calculateItemSubtotal(item);
         }
         return sum;
     });
@@ -298,9 +306,11 @@
                 shipping_type: orderForm.shipping_type,
                 notes: orderForm.notes ?? '',
                 items: orderForm.items.map((item) => ({
+                    id: item.id ? Number(item.id) : null,
                     product_variant_id: Number(item.product_variant_id),
                     quantity: Number(item.quantity),
                     unit_price: Number(item.unit_price || 0),
+                    discount_percentage: Number(item.discount_percentage || 0),
                 })),
             }, {
                 preserveScroll: true,
@@ -333,9 +343,8 @@
             formData.append(`items[${index}][product_id]`, String(item.product_id));
             formData.append(`items[${index}][product_variant_id]`, String(item.product_variant_id));
             formData.append(`items[${index}][quantity]`, String(item.quantity));
-            if (item.unit_price !== undefined && item.unit_price !== null) {
-                formData.append(`items[${index}][unit_price]`, String(item.unit_price));
-            }
+            formData.append(`items[${index}][unit_price]`, String(item.unit_price || 0));
+            formData.append(`items[${index}][discount_percentage]`, String(item.discount_percentage || 0));
         });
 
         router.post('/orders', formData, {
@@ -388,7 +397,7 @@
                             <option value="">-- Selecciona un Cliente --</option>
                             {#each localCustomers as c}
                                 <option value={c.id}>
-                                    {c.name} {c.city ? `(${c.city}${c.department ? `, ${c.department}` : ''})` : (c.phone ? `(${c.phone})` : '')}
+                                    {c.name} {c.document_number ? `[Doc: ${c.document_number}]` : (c.tax_id ? `[NIT: ${c.tax_id}]` : '')} {c.city ? `(${c.city}${c.department ? `, ${c.department}` : ''})` : (c.phone ? `(${c.phone})` : '')}
                                 </option>
                             {/each}
                         </select>
@@ -473,85 +482,148 @@
                         <div class="space-y-2">
                             {#each orderForm.items as item, idx}
                                 {@const selectedProd = localProducts.find((p) => p.id == item.product_id)}
-                                {@const selectedVariant = selectedProd?.variants?.find((v) => v.id == item.product_variant_id)}
-                                {@const unitPrice = selectedVariant?.price_override !== null && selectedVariant?.price_override !== '' && selectedVariant?.price_override !== undefined
-                                    ? Number(selectedVariant.price_override)
-                                    : Number(selectedProd?.base_price ?? 0)}
-                                {@const subtotal = (item.unit_price ? Number(item.unit_price) : unitPrice) * Number(item.quantity || 0)}
-                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 grid grid-cols-12 gap-3 items-end">
-                                    <div class="col-span-12 sm:col-span-4 min-w-0">
-                                        <label for="modal-prod-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Producto</label>
-                                        <select
-                                            id="modal-prod-sel-{idx}"
-                                            bind:value={item.product_id}
-                                            onchange={(e) => onProductChange(item, e.target.value)}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs truncate"
-                                        >
-                                            {#each localProducts as p}
-                                                <option value={p.id}>{p.name}</option>
-                                            {/each}
-                                        </select>
-                                    </div>
-
-                                    <div class="col-span-6 sm:col-span-2 min-w-0">
-                                        <label for="modal-var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Variante</label>
-                                        <select
-                                            id="modal-var-sel-{idx}"
-                                            bind:value={item.product_variant_id}
-                                            onchange={(e) => onVariantChange(item, e.target.value)}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono truncate"
-                                        >
-                                            {#each selectedProd?.variants ?? [] as v}
-                                                <option value={v.id}>
-                                                    {v.name_label} {v.price_override ? `(${formatCurrency(v.price_override)})` : ''}
-                                                </option>
-                                            {/each}
-                                        </select>
-                                    </div>
-
-                                    <div class="col-span-6 sm:col-span-2 min-w-0">
-                                        <label for="modal-qty-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1">Cantidad</label>
-                                        <input
-                                            id="modal-qty-sel-{idx}"
-                                            type="number"
-                                            step="0.01"
-                                            min="0.01"
-                                            bind:value={item.quantity}
-                                            required
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs font-mono font-bold"
-                                        />
-                                    </div>
-
+                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 grid grid-cols-12 gap-2.5 items-end">
                                     {#if hasFinancialAccess}
-                                        <div class="col-span-5 sm:col-span-2 min-w-0">
-                                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Precio Unit.</span>
-                                            <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 text-xs font-mono font-medium truncate">
-                                                {formatCurrency(item.unit_price ?? unitPrice)}
-                                            </div>
+                                        <!-- PRODUCTO (col-span-12 sm:col-span-3) -->
+                                        <div class="col-span-12 sm:col-span-3 min-w-0">
+                                            <label for="modal-prod-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Producto</label>
+                                            <select
+                                                id="modal-prod-sel-{idx}"
+                                                bind:value={item.product_id}
+                                                onchange={(e) => onProductChange(item, e.target.value)}
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs truncate focus:outline-none focus:border-emerald-500"
+                                            >
+                                                {#each localProducts as p}
+                                                    <option value={p.id}>{p.name}</option>
+                                                {/each}
+                                            </select>
                                         </div>
 
-                                        <div class="col-span-7 sm:col-span-2 min-w-0 flex items-center gap-2">
+                                        <!-- VARIANTE (col-span-6 sm:col-span-2) -->
+                                        <div class="col-span-6 sm:col-span-2 min-w-0">
+                                            <label for="modal-var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Variante</label>
+                                            <select
+                                                id="modal-var-sel-{idx}"
+                                                bind:value={item.product_variant_id}
+                                                onchange={(e) => onVariantChange(item, e.target.value)}
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono truncate focus:outline-none focus:border-emerald-500"
+                                            >
+                                                {#each selectedProd?.variants ?? [] as v}
+                                                    <option value={v.id}>
+                                                        {v.name_label}
+                                                    </option>
+                                                {/each}
+                                            </select>
+                                        </div>
+
+                                        <!-- CANTIDAD (col-span-6 sm:col-span-1) -->
+                                        <div class="col-span-6 sm:col-span-1 min-w-0">
+                                            <label for="modal-qty-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Cant.</label>
+                                            <input
+                                                id="modal-qty-sel-{idx}"
+                                                type="number"
+                                                step="0.01"
+                                                min="0.01"
+                                                bind:value={item.quantity}
+                                                required
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono font-bold text-center focus:outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+
+                                        <!-- PRECIO UNIT. (col-span-4 sm:col-span-2) -->
+                                        <div class="col-span-4 sm:col-span-2 min-w-0">
+                                            <label for="modal-price-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Precio Unit.</label>
+                                            <input
+                                                id="modal-price-sel-{idx}"
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                bind:value={item.unit_price}
+                                                placeholder="0"
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200 text-xs font-mono font-medium focus:outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+
+                                        <!-- DESC. (%) (col-span-4 sm:col-span-2) -->
+                                        <div class="col-span-4 sm:col-span-2 min-w-0">
+                                            <label for="modal-disc-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Desc. (%)</label>
+                                            <input
+                                                id="modal-disc-sel-{idx}"
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                step="0.01"
+                                                bind:value={item.discount_percentage}
+                                                placeholder="0"
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-amber-300 text-xs font-mono font-medium focus:outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+
+                                        <!-- SUBTOTAL + BORRAR (col-span-4 sm:col-span-2) -->
+                                        <div class="col-span-4 sm:col-span-2 min-w-0 flex items-center gap-1.5">
                                             <div class="flex-1 min-w-0">
                                                 <span class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Subtotal</span>
                                                 <div class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-emerald-400 text-xs font-mono font-bold truncate">
-                                                    {formatCurrency(subtotal)}
+                                                    {formatCurrency(calculateItemSubtotal(item))}
                                                 </div>
                                             </div>
                                             <button
                                                 type="button"
                                                 onclick={() => removeItem(idx)}
-                                                class="p-1.5 text-slate-500 hover:text-rose-400 shrink-0 self-end mb-0.5"
+                                                class="p-1.5 text-slate-500 hover:text-rose-400 shrink-0 self-end mb-0.5 rounded-lg hover:bg-rose-950/20 transition-colors"
                                                 title="Quitar producto"
                                             >
                                                 ✕
                                             </button>
                                         </div>
                                     {:else}
-                                        <div class="col-span-12 sm:col-span-4 min-w-0 flex justify-end">
+                                        <!-- Sin acceso financiero -->
+                                        <div class="col-span-12 sm:col-span-6 min-w-0">
+                                            <label for="modal-prod-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Producto</label>
+                                            <select
+                                                id="modal-prod-sel-{idx}"
+                                                bind:value={item.product_id}
+                                                onchange={(e) => onProductChange(item, e.target.value)}
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs truncate focus:outline-none focus:border-emerald-500"
+                                            >
+                                                {#each localProducts as p}
+                                                    <option value={p.id}>{p.name}</option>
+                                                {/each}
+                                            </select>
+                                        </div>
+
+                                        <div class="col-span-6 sm:col-span-4 min-w-0">
+                                            <label for="modal-var-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Variante</label>
+                                            <select
+                                                id="modal-var-sel-{idx}"
+                                                bind:value={item.product_variant_id}
+                                                onchange={(e) => onVariantChange(item, e.target.value)}
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono truncate focus:outline-none focus:border-emerald-500"
+                                            >
+                                                {#each selectedProd?.variants ?? [] as v}
+                                                    <option value={v.id}>{v.name_label}</option>
+                                                {/each}
+                                            </select>
+                                        </div>
+
+                                        <div class="col-span-4 sm:col-span-1 min-w-0">
+                                            <label for="modal-qty-sel-{idx}" class="text-[10px] text-slate-400 uppercase font-bold block mb-1 truncate">Cant.</label>
+                                            <input
+                                                id="modal-qty-sel-{idx}"
+                                                type="number"
+                                                step="0.01"
+                                                min="0.01"
+                                                bind:value={item.quantity}
+                                                required
+                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs font-mono font-bold text-center focus:outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+
+                                        <div class="col-span-2 sm:col-span-1 min-w-0 flex items-center justify-end pb-1">
                                             <button
                                                 type="button"
                                                 onclick={() => removeItem(idx)}
-                                                class="p-2 text-slate-500 hover:text-rose-400 shrink-0"
+                                                class="p-2 text-slate-500 hover:text-rose-400 shrink-0 rounded-lg hover:bg-rose-950/20 transition-colors"
                                                 title="Quitar producto"
                                             >
                                                 ✕

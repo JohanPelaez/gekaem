@@ -48,7 +48,7 @@ class OrderController extends Controller
 
         return Inertia::render('Orders/Index', [
             ...$listData,
-            'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone']),
+            'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone', 'document_number', 'tax_id']),
             'products' => Product::where('is_active', true)->with(['variants', 'workflow', 'materialRequirements.rawMaterial'])->get(),
             'workflows' => Workflow::with('stages')->orderBy('name')->get(),
             'productTypes' => ProductType::orderBy('name')->get(['id', 'name']),
@@ -93,6 +93,8 @@ class OrderController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'custom_buffer_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'committed_delivery_at' => ['nullable', 'date'],
             'shipping_type' => ['nullable', 'string', 'in:contraentrega,envio_incluido'],
@@ -144,9 +146,11 @@ class OrderController extends Controller
             'shipping_type' => ['required', 'string', 'in:contraentrega,envio_incluido'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['nullable', 'integer'],
             'items.*.product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $updateOrderAction->execute($this->resolveTenant(), $order, $validated);

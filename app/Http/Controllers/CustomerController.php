@@ -24,6 +24,7 @@ class CustomerController extends Controller
             ->when(!empty($search), function ($query) use ($search): void {
                 $query->where(function ($sub) use ($search): void {
                     $sub->where('name', 'like', "%{$search}%")
+                        ->orWhere('document_number', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
                         ->orWhere('tax_id', 'like', "%{$search}%")
@@ -74,6 +75,7 @@ class CustomerController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
+            'document_number' => ['nullable', 'string', 'max:50'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:100'],
             'tax_id' => ['nullable', 'string', 'max:50'],
@@ -85,6 +87,9 @@ class CustomerController extends Controller
         ]);
 
         $validated['name'] = Str::title(trim($validated['name']));
+        if (!empty($validated['document_number'])) {
+            $validated['document_number'] = trim($validated['document_number']);
+        }
         if (!empty($validated['department'])) {
             $validated['department'] = Str::title(trim($validated['department']));
         }

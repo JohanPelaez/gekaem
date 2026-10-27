@@ -99,6 +99,52 @@ class TenantSettingsController extends Controller
     }
 
     /**
+     * Update an existing team member's info and role.
+     */
+    public function updateMember(Request $request, User $user): RedirectResponse
+    {
+        abort_if(auth()->user()?->currentRole() === 'worker', 403);
+
+        $tenant = $this->resolveTenant();
+
+        $isMember = $tenant->users()->where('users.id', $user->id)->exists();
+        if (!$isMember) {
+            abort(404, 'El usuario no pertenece a este taller.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:150',
+                \Illuminate\Validation\Rule::unique('users')->ignore($user->id),
+            ],
+            'role' => ['required', 'string', 'in:owner,admin,worker'],
+            'password' => ['nullable', 'string', 'min:6'],
+        ]);
+
+        DB::transaction(function () use ($validated, $user, $tenant): void {
+            $updateData = [
+                'name' => \Illuminate\Support\Str::title(trim($validated['name'])),
+                'email' => strtolower(trim($validated['email'])),
+            ];
+
+            if (!empty($validated['password'])) {
+                $updateData['password'] = Hash::make($validated['password']);
+            }
+
+            $user->update($updateData);
+
+            $pivotRole = in_array($validated['role'], ['owner', 'admin'], true) ? 'owner' : 'worker';
+            $tenant->users()->updateExistingPivot($user->id, ['role' => $pivotRole]);
+        });
+
+        return redirect()->back()->with('success', "Información del miembro '{$user->name}' actualizada con éxito.");
+    }
+
+    /**
      * Remove a member from the workshop.
      */
     public function removeMember(Request $request, User $user): RedirectResponse

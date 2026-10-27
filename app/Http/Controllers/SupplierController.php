@@ -26,7 +26,9 @@ class SupplierController extends Controller
                     $sub->where('name', 'like', "%{$search}%")
                         ->orWhere('contact_name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%");
+                        ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('payment_methods', 'like', "%{$search}%")
+                        ->orWhere('notes', 'like', "%{$search}%");
                 });
             })
             ->withCount('rawMaterials')
@@ -51,7 +53,9 @@ class SupplierController extends Controller
             'contact_name' => ['nullable', 'string', 'max:100'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:100'],
+            'payment_methods' => ['nullable', 'string', 'max:1000'],
             'lead_time_days' => ['required', 'integer', 'min:0', 'max:365'],
+            'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $validated['name'] = Str::title(trim($validated['name']));
@@ -70,7 +74,9 @@ class SupplierController extends Controller
             'contact_name' => ['nullable', 'string', 'max:100'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:100'],
+            'payment_methods' => ['nullable', 'string', 'max:1000'],
             'lead_time_days' => ['required', 'integer', 'min:0', 'max:365'],
+            'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $validated['name'] = Str::title(trim($validated['name']));

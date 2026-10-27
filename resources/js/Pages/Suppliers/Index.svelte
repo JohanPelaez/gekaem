@@ -27,6 +27,8 @@
         phone: '',
         email: '',
         lead_time_days: 1,
+        payment_methods: '',
+        notes: '',
     });
 
     function resetForm() {
@@ -35,6 +37,8 @@
         form.phone = '';
         form.email = '';
         form.lead_time_days = 1;
+        form.payment_methods = '';
+        form.notes = '';
     }
 
     let searchTimeout;
@@ -72,6 +76,8 @@
         form.phone = supplier.phone ?? '';
         form.email = supplier.email ?? '';
         form.lead_time_days = supplier.lead_time_days ?? 1;
+        form.payment_methods = supplier.payment_methods ?? '';
+        form.notes = supplier.notes ?? '';
         showModal = true;
     }
 
@@ -198,6 +204,15 @@
                                         >
                                             {supplier.name}
                                         </button>
+                                        {#if supplier.payment_methods}
+                                            <div class="text-[11px] text-emerald-400/90 truncate max-w-xs flex items-center gap-1 mt-0.5">
+                                                <span>💳</span>
+                                                <span>{supplier.payment_methods}</span>
+                                            </div>
+                                        {/if}
+                                        {#if supplier.notes}
+                                            <div class="text-[11px] text-slate-400 truncate max-w-xs mt-0.5">{supplier.notes}</div>
+                                        {/if}
                                     </td>
                                     <td class="p-4 text-slate-300">
                                         {supplier.contact_name ?? 'No especificado'}
@@ -256,6 +271,17 @@
                                                         <div class="flex justify-between"><span class="text-slate-400">Teléfono:</span> <span class="font-medium text-white">{supplier.phone ?? 'N/A'}</span></div>
                                                         <div class="flex justify-between"><span class="text-slate-400">Email:</span> <span class="font-medium text-white">{supplier.email ?? 'N/A'}</span></div>
                                                         <div class="flex justify-between"><span class="text-slate-400">Lead time de entrega:</span> <span class="font-bold text-amber-300">{supplier.lead_time_days} días</span></div>
+                                                        {#if supplier.payment_methods}
+                                                            <div class="pt-1.5 border-t border-slate-800 text-slate-300">
+                                                                <span class="text-slate-400 block text-[10px] uppercase font-semibold">Medios de Pago:</span>
+                                                                <span class="font-medium text-emerald-400">{supplier.payment_methods}</span>
+                                                            </div>
+                                                        {/if}
+                                                        {#if supplier.notes}
+                                                            <div class="pt-1.5 border-t border-slate-800 text-slate-400 italic text-[11px]">
+                                                                "{supplier.notes}"
+                                                            </div>
+                                                        {/if}
                                                     </div>
                                                 </div>
 
@@ -318,7 +344,19 @@
                                     <span class="text-slate-400">Email:</span>
                                     <span class="font-medium text-slate-200 truncate max-w-[170px]">{supplier.email ?? 'N/A'}</span>
                                 </div>
+                                {#if supplier.payment_methods}
+                                    <div class="flex justify-between items-start gap-1 pt-1 border-t border-slate-800/60">
+                                        <span class="text-slate-400 shrink-0">Pagos:</span>
+                                        <span class="font-medium text-emerald-400 text-right truncate max-w-[160px]">{supplier.payment_methods}</span>
+                                    </div>
+                                {/if}
                             </div>
+
+                            {#if supplier.notes}
+                                <div class="mt-2 text-[11px] text-slate-400 italic">
+                                    "{supplier.notes}"
+                                </div>
+                            {/if}
 
                             <!-- Insumos Vinculados -->
                             <div class="mt-3 pt-2.5 border-t border-slate-800/60">
@@ -459,6 +497,34 @@
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono font-bold"
                         />
                     </div>
+                </div>
+
+                <div>
+                    <label for="s-payment" class="block font-semibold text-slate-300 mb-1">Medios de Pago (Ej. Nequi, Bancolombia, Efectivo, Cuenta #)</label>
+                    <input
+                        id="s-payment"
+                        type="text"
+                        bind:value={form.payment_methods}
+                        placeholder="Ej. Bancolombia Ahorros # 123-456789-00 / Nequi 3001234567"
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    />
+                    {#if errors.payment_methods}
+                        <p class="text-[10px] text-rose-400 mt-1">{errors.payment_methods}</p>
+                    {/if}
+                </div>
+
+                <div>
+                    <label for="s-notes" class="block font-semibold text-slate-300 mb-1">Notas / Observaciones</label>
+                    <textarea
+                        id="s-notes"
+                        bind:value={form.notes}
+                        rows="3"
+                        placeholder="Condiciones comerciales, acuerdos de crédito, descuentos por volumen..."
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    ></textarea>
+                    {#if errors.notes}
+                        <p class="text-[10px] text-rose-400 mt-1">{errors.notes}</p>
+                    {/if}
                 </div>
 
                 <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">

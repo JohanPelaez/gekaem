@@ -112,6 +112,8 @@ class QuickCreateController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:100'],
             'lead_time_days' => ['nullable', 'integer', 'min:0', 'max:365'],
+            'payment_methods' => ['nullable', 'string', 'max:1000'],
+            'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $supplier = Supplier::create([
@@ -119,11 +121,18 @@ class QuickCreateController extends Controller
             'phone' => $validated['phone'] ?? null,
             'email' => $validated['email'] ?? null,
             'lead_time_days' => $validated['lead_time_days'] ?? 1,
+            'payment_methods' => !empty($validated['payment_methods']) ? trim($validated['payment_methods']) : null,
+            'notes' => !empty($validated['notes']) ? trim($validated['notes']) : null,
         ]);
 
         return response()->json([
             'id' => $supplier->id,
             'name' => $supplier->name,
+            'phone' => $supplier->phone,
+            'email' => $supplier->email,
+            'lead_time_days' => $supplier->lead_time_days,
+            'payment_methods' => $supplier->payment_methods,
+            'notes' => $supplier->notes,
         ], 201);
     }
 
@@ -134,6 +143,7 @@ class QuickCreateController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
+            'document_number' => ['nullable', 'string', 'max:50'],
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email', 'max:100'],
             'tax_id' => ['nullable', 'string', 'max:50'],
@@ -145,6 +155,9 @@ class QuickCreateController extends Controller
         ]);
 
         $validated['name'] = Str::title(trim($validated['name']));
+        if (!empty($validated['document_number'])) {
+            $validated['document_number'] = trim($validated['document_number']);
+        }
         foreach (['department', 'city', 'neighborhood'] as $field) {
             if (!empty($validated[$field])) {
                 $validated[$field] = Str::title(trim($validated[$field]));

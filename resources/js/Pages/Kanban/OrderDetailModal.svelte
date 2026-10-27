@@ -251,8 +251,8 @@
             <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
                 <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
                     <span class="font-bold text-slate-300 uppercase tracking-wider text-[11px]">Información del Cliente y Destino</span>
-                    {#if order.customer?.tax_id}
-                        <span class="text-slate-500 font-mono text-[11px]">NIT / C.C.: {order.customer.tax_id}</span>
+                    {#if order.customer?.document_number || order.customer?.tax_id}
+                        <span class="text-slate-500 font-mono text-[11px]">Doc: {order.customer.document_number || order.customer.tax_id}</span>
                     {/if}
                 </div>
 
@@ -339,6 +339,11 @@
                                     {#if hasFinancialAccess && task.unit_price}
                                         <span>•</span>
                                         <span class="text-emerald-400">{formatCurrency(task.unit_price)} c/u</span>
+                                        {#if Number(task.discount_percentage) > 0}
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                                -{Number(task.discount_percentage)}% desc.
+                                            </span>
+                                        {/if}
                                     {/if}
                                 </div>
                             </div>

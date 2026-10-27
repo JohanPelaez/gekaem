@@ -170,7 +170,7 @@ class Order extends Model
      */
     public function tasks(): HasMany
     {
-        return $this->hasMany(ProductionTask::class);
+        return $this->hasMany(ProductionTask::class)->orderBy('id', 'asc');
     }
 
     /**
@@ -178,10 +178,10 @@ class Order extends Model
      *
      * @return HasMany<ProductionTask>
      */
-     public function productionTasks(): HasMany
-     {
-         return $this->hasMany(ProductionTask::class);
-     }
+    public function productionTasks(): HasMany
+    {
+        return $this->hasMany(ProductionTask::class)->orderBy('id', 'asc');
+    }
 
     /**
      * Get the order status assigned to this order.

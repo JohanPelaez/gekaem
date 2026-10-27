@@ -23,6 +23,7 @@
 
     let form = $state({
         name: '',
+        document_number: '',
         phone: '',
         email: '',
         tax_id: '',
@@ -35,6 +36,7 @@
 
     function resetForm() {
         form.name = '';
+        form.document_number = '';
         form.phone = '';
         form.email = '';
         form.tax_id = '';
@@ -76,6 +78,7 @@
     function openEdit(customer) {
         editingCustomer = customer;
         form.name = customer.name ?? '';
+        form.document_number = customer.document_number ?? '';
         form.phone = customer.phone ?? '';
         form.email = customer.email ?? '';
         form.tax_id = customer.tax_id ?? '';
@@ -218,8 +221,11 @@
                                         <div>{customer.phone ?? 'Sin teléfono'}</div>
                                         <div class="text-slate-400 text-[11px]">{customer.email ?? 'Sin email'}</div>
                                     </td>
-                                    <td class="p-4 font-mono text-slate-400">
-                                        {customer.tax_id ?? 'N/A'}
+                                    <td class="p-4 font-mono text-slate-300">
+                                        <div class="font-semibold text-white">{customer.document_number || customer.tax_id || 'N/A'}</div>
+                                        {#if customer.document_number && customer.tax_id && customer.document_number !== customer.tax_id}
+                                            <div class="text-[10px] text-slate-500 font-sans">NIT: {customer.tax_id}</div>
+                                        {/if}
                                     </td>
                                     <td class="p-4 text-slate-400 max-w-xs">
                                         <div class="truncate text-slate-200">{customer.address ?? 'Sin dirección'}</div>
@@ -266,7 +272,10 @@
                                                     <div class="text-xs space-y-1 pt-1">
                                                         <div class="flex justify-between"><span class="text-slate-400">Teléfono:</span> <span class="font-medium text-white">{customer.phone ?? 'N/A'}</span></div>
                                                         <div class="flex justify-between"><span class="text-slate-400">Email:</span> <span class="font-medium text-white">{customer.email ?? 'N/A'}</span></div>
-                                                        <div class="flex justify-between"><span class="text-slate-400">NIT / Doc:</span> <span class="font-mono text-slate-300">{customer.tax_id ?? 'N/A'}</span></div>
+                                                        <div class="flex justify-between"><span class="text-slate-400">Cédula / Doc:</span> <span class="font-mono text-slate-300">{customer.document_number || 'N/A'}</span></div>
+                                                        {#if customer.tax_id && customer.tax_id !== customer.document_number}
+                                                            <div class="flex justify-between"><span class="text-slate-400">NIT:</span> <span class="font-mono text-slate-300">{customer.tax_id}</span></div>
+                                                        {/if}
                                                     </div>
                                                 </div>
 
@@ -331,14 +340,20 @@
                                 <span class="px-2.5 py-1 rounded-full font-mono font-bold text-xs {customer.orders_count > 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'}">
                                     {customer.orders_count} pedidos
                                 </span>
-                                {#if customer.tax_id}
-                                    <span class="font-mono text-slate-400 text-[11px]">NIT: {customer.tax_id}</span>
+                                {#if customer.document_number || customer.tax_id}
+                                    <span class="font-mono text-slate-400 text-[11px]">Doc: {customer.document_number || customer.tax_id}</span>
                                 {/if}
                             </div>
 
                             <h3 class="text-base font-bold text-white">{customer.name}</h3>
 
                             <div class="mt-3.5 p-3 bg-slate-950/70 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
+                                {#if customer.document_number}
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-slate-400">Cédula/Doc:</span>
+                                        <span class="font-medium font-mono text-slate-200">{customer.document_number}</span>
+                                    </div>
+                                {/if}
                                 <div class="flex justify-between items-center">
                                     <span class="text-slate-400">Teléfono:</span>
                                     <span class="font-medium text-slate-200">{customer.phone ?? 'N/A'}</span>
@@ -454,6 +469,19 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
+                        <label for="c-doc" class="block font-semibold text-slate-300 mb-1">Cédula / NIT / Documento</label>
+                        <input
+                            id="c-doc"
+                            type="text"
+                            bind:value={form.document_number}
+                            placeholder="Ej. 1020304050 o 900.123.456-7"
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                        />
+                        {#if errors.document_number}
+                            <p class="text-[10px] text-rose-400 mt-1">{errors.document_number}</p>
+                        {/if}
+                    </div>
+                    <div>
                         <label for="c-phone" class="block font-semibold text-slate-300 mb-1">Teléfono / WhatsApp</label>
                         <input
                             id="c-phone"
@@ -463,6 +491,9 @@
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
                         />
                     </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label for="c-email" class="block font-semibold text-slate-300 mb-1">Correo Electrónico</label>
                         <input
@@ -471,19 +502,6 @@
                             bind:value={form.email}
                             placeholder="cliente@ejemplo.com"
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
-                        />
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label for="c-tax" class="block font-semibold text-slate-300 mb-1">Cédula o NIT</label>
-                        <input
-                            id="c-tax"
-                            type="text"
-                            bind:value={form.tax_id}
-                            placeholder="Ej. 900.123.456-7"
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
                         />
                     </div>
                     <div>
