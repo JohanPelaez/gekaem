@@ -27,6 +27,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Redirección principal hacia el Tablero Kanban
 Route::get('/', fn () => redirect()->route('kanban.index'));
+Route::get('/dashboard', fn () => redirect()->route('kanban.index'))->name('dashboard');
 
 // Rutas protegidas de la aplicación
 Route::middleware(['auth'])->group(function (): void {
