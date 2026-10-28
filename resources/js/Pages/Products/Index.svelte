@@ -305,15 +305,15 @@
 <AppLayout title="Catálogo de Productos">
     <div class="space-y-6">
         <!-- HEADER -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-6 rounded-2xl shadow-sm text-slate-900 dark:text-slate-100">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
                         Módulo 2
                     </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-white">Catálogo de Productos</h1>
+                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Catálogo de Productos</h1>
                 </div>
-                <p class="text-xs text-slate-400 mt-1">
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Productos maestros, recetas de materiales (BOM) y variantes por atributos (talla, color, etc.).
                 </p>
             </div>
@@ -322,21 +322,21 @@
                 <button
                     type="button"
                     onclick={() => showTypeModal = true}
-                    class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-colors"
+                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors"
                 >
                     + Tipo
                 </button>
                 <button
                     type="button"
                     onclick={() => showAttributeModal = true}
-                    class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-colors"
+                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors"
                 >
                     + Nuevo Atributo
                 </button>
                 <button
                     type="button"
                     onclick={openCreateProduct}
-                    class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
+                    class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm flex items-center gap-1.5 transition-all"
                 >
                     <span>+</span>
                     <span>Nuevo Producto</span>
@@ -345,25 +345,25 @@
         </div>
 
         <!-- PESTAÑAS DE VISTA -->
-        <div class="flex items-center gap-2 border-b border-slate-800 pb-2 text-xs font-semibold">
+        <div class="flex items-center gap-2 border-b border-slate-200 dark:border-[#26334D] pb-2 text-xs font-semibold">
             <button
                 type="button"
                 onclick={() => activeTab = 'products'}
-                class="px-4 py-2 rounded-xl transition-all {activeTab === 'products' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}"
+                class="px-4 py-2 rounded-xl transition-all {activeTab === 'products' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
             >
                 Productos y Variantes ({products.total ?? 0})
             </button>
             <button
                 type="button"
                 onclick={() => activeTab = 'attributes'}
-                class="px-4 py-2 rounded-xl transition-all {activeTab === 'attributes' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}"
+                class="px-4 py-2 rounded-xl transition-all {activeTab === 'attributes' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
             >
                 Atributos y Opciones ({localAttributes.length})
             </button>
             <button
                 type="button"
                 onclick={() => activeTab = 'types'}
-                class="px-4 py-2 rounded-xl transition-all {activeTab === 'types' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}"
+                class="px-4 py-2 rounded-xl transition-all {activeTab === 'types' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
             >
                 Tipos de Producto ({productTypes.length})
             </button>
@@ -372,9 +372,9 @@
         <!-- PESTAÑA 1: CATÁLOGO DE PRODUCTOS -->
         {#if activeTab === 'products'}
             <!-- BUSCADOR Y FILTROS COMBINADOS -->
-            <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                <div class="flex-1 bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl flex items-center gap-2">
-                    <span class="text-slate-500 text-xs">🔍</span>
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
+                <div class="flex-1 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] px-3 py-2 rounded-xl flex items-center gap-2">
+                    <span class="text-slate-400 text-xs">🔍</span>
                     <label for="search-products" class="sr-only">Buscar producto</label>
                     <input
                         id="search-products"
@@ -382,10 +382,10 @@
                         bind:value={search}
                         oninput={handleSearchInput}
                         placeholder="Buscar producto por nombre o código de barras..."
-                        class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
+                        class="w-full bg-transparent text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none"
                     />
                     {#if search}
-                        <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-500 text-xs hover:text-white">✕</button>
+                        <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-400 text-xs hover:text-slate-600 dark:hover:text-white">✕</button>
                     {/if}
                 </div>
 
@@ -395,7 +395,7 @@
                         id="filter-product-type"
                         bind:value={productTypeFilter}
                         onchange={applyFilters}
-                        class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                        class="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                     >
                         <option value="">Todos los Tipos</option>
                         {#each localProductTypes as pt}
@@ -408,7 +408,7 @@
                         id="filter-workflow"
                         bind:value={workflowFilter}
                         onchange={applyFilters}
-                        class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                        class="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                     >
                         <option value="">Todos los Flujos</option>
                         {#each localWorkflows as wf}
@@ -420,7 +420,7 @@
                         <button
                             type="button"
                             onclick={clearFilters}
-                            class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs transition-colors font-medium"
+                            class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white text-xs border border-slate-200 dark:border-[#26334D] transition-colors font-medium"
                             title="Limpiar filtros"
                         >
                             Limpiar
@@ -431,10 +431,10 @@
 
             <!-- VISTA TABLA EXPANDIBLE (DEFAULT) -->
             {#if viewMode === 'table'}
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+                <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-950/90 text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-800">
+                            <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-200 dark:border-[#26334D]">
                                 <tr>
                                     <th class="p-3.5 w-10 text-center"></th>
                                     <th class="p-3.5">Código / Barcode</th>
@@ -449,16 +449,16 @@
                                     <th class="p-3.5 text-right">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                            <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
                                 {#each products.data as prod (prod.id)}
                                     {@const isExpanded = expandedRows.has(prod.id)}
-                                    <tr class="hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-800/30' : ''}">
+                                    <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-50/50 dark:bg-slate-800/30' : ''}">
                                         <!-- Botón de expandir -->
                                         <td class="p-3.5 text-center">
                                             <button
                                                 type="button"
                                                 onclick={() => toggleRow(prod.id)}
-                                                class="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-emerald-400' : ''}"
+                                                class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
                                                 title={isExpanded ? 'Colapsar detalles' : 'Expandir BOM y variantes'}
                                             >
                                                 ▶
@@ -467,12 +467,12 @@
                                         <!-- Barcode / SKU -->
                                         <td class="p-3.5">
                                             {#if prod.barcode}
-                                                <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 font-mono text-[11px] text-sky-400 font-bold">
+                                                <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] font-mono text-[11px] text-[#4F46E5] dark:text-sky-400 font-bold">
                                                     <span>{prod.barcode}</span>
                                                     <button
                                                         type="button"
                                                         onclick={() => downloadBarcodeAsPng(prod.barcode, prod.barcode_format || 'CODE128', prod.name)}
-                                                        class="p-0.5 text-slate-500 hover:text-emerald-400 transition-colors"
+                                                        class="p-0.5 text-slate-400 hover:text-[#4F46E5] dark:hover:text-emerald-400 transition-colors"
                                                         title="Descargar código de barras como imagen PNG"
                                                     >
                                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -480,47 +480,47 @@
                                                         </svg>
                                                     </button>
                                                 </div>
-                                                <div class="text-[9px] text-slate-500 font-mono mt-0.5">
+                                                <div class="text-[9px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
                                                     {prod.barcode_format || 'CODE128'}
                                                 </div>
                                             {:else}
-                                                <span class="text-slate-600 font-mono text-[10px]">Sin código</span>
+                                                <span class="text-slate-400 dark:text-slate-600 font-mono text-[10px]">Sin código</span>
                                             {/if}
                                         </td>
                                         <!-- Producto -->
                                         <td class="p-3.5">
                                             <button
                                                 type="button"
-                                                class="text-left font-bold text-white text-sm hover:text-emerald-400 block transition-colors"
+                                                class="text-left font-bold text-slate-900 dark:text-white text-sm hover:text-[#4F46E5] dark:hover:text-emerald-400 block transition-colors"
                                                 onclick={() => toggleRow(prod.id)}
                                             >
                                                 {prod.name}
                                             </button>
-                                            <span class="text-[10px] text-slate-500 font-medium">Holgura: +{prod.buffer_percentage}%</span>
+                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Holgura: +{prod.buffer_percentage}%</span>
                                         </td>
                                         <!-- Tipo -->
                                         <td class="p-3.5">
-                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700/80">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80">
                                                 {prod.product_type?.name ?? 'Sin tipo'}
                                             </span>
                                         </td>
                                         <!-- Flujo -->
-                                        <td class="p-3.5 font-medium text-slate-200">
+                                        <td class="p-3.5 font-medium text-slate-800 dark:text-slate-200">
                                             {prod.workflow?.name ?? 'No asignado'}
                                         </td>
                                         <!-- Tiempo -->
-                                        <td class="p-3.5 font-mono text-amber-300 font-semibold">
+                                        <td class="p-3.5 font-mono text-amber-600 dark:text-amber-300 font-semibold">
                                             ⏱ {prod.formatted_time}
                                         </td>
                                         <!-- Precio Base -->
                                         {#if hasFinancialAccess}
-                                            <td class="p-3.5 text-right font-mono font-bold text-emerald-400 text-sm">
+                                            <td class="p-3.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                                                 {formatCurrency(prod.base_price)}
                                             </td>
                                         {/if}
                                         <!-- Variantes -->
                                         <td class="p-3.5 text-center">
-                                            <span class="px-2 py-0.5 rounded-full font-mono font-bold text-[11px] {prod.variants?.length > 1 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'}">
+                                            <span class="px-2 py-0.5 rounded-full font-mono font-bold text-[11px] {prod.variants?.length > 1 ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}">
                                                 {prod.variants?.length ?? 0}
                                             </span>
                                         </td>
@@ -530,14 +530,14 @@
                                                 <button
                                                     type="button"
                                                     onclick={() => openEditProduct(prod)}
-                                                    class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+                                                    class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-[#26334D] transition-colors"
                                                 >
                                                     Editar
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onclick={() => destroyProduct(prod)}
-                                                    class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-500 hover:text-rose-300 text-xs font-semibold transition-colors"
+                                                    class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-500 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 text-xs font-semibold border border-slate-200 dark:border-[#26334D] transition-colors"
                                                 >
                                                     ✕
                                                 </button>
@@ -547,14 +547,14 @@
 
                                     <!-- RENGLÓN EXPANDIDO (ACCORDION) -->
                                     {#if isExpanded}
-                                        <tr class="bg-slate-950/60 border-b border-slate-800/90">
+                                        <tr class="bg-slate-50/90 dark:bg-[#0B0F17]/60 border-b border-slate-200 dark:border-[#26334D]">
                                             <td colspan="9" class="p-4 sm:p-6 space-y-4">
                                                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
                                                     <!-- Columna 1: Código de Barras SVG -->
-                                                    <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center justify-center space-y-2">
-                                                        <div class="flex items-center justify-between w-full px-1 border-b border-slate-800 pb-1.5">
-                                                            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Código de Barras</span>
-                                                            <span class="text-[10px] font-mono text-sky-400 font-bold bg-sky-950/40 px-1.5 py-0.5 rounded border border-sky-800/40">
+                                                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl flex flex-col items-center justify-center space-y-2 shadow-sm">
+                                                        <div class="flex items-center justify-between w-full px-1 border-b border-slate-100 dark:border-[#26334D] pb-1.5">
+                                                            <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider">Código de Barras</span>
+                                                            <span class="text-[10px] font-mono text-[#4F46E5] dark:text-sky-400 font-bold bg-indigo-50 dark:bg-sky-950/40 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-sky-800/40">
                                                                 {prod.barcode_format || 'CODE128'}
                                                             </span>
                                                         </div>
@@ -568,34 +568,34 @@
                                                                 width={1.8}
                                                             />
                                                         {:else}
-                                                            <div class="text-center py-4 text-slate-500 text-xs italic">
+                                                            <div class="text-center py-4 text-slate-400 dark:text-slate-500 text-xs italic">
                                                                 No se ha asignado código de barras.
                                                             </div>
                                                         {/if}
                                                     </div>
 
                                                     <!-- Columna 2: Receta BOM -->
-                                                    <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
-                                                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-                                                            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2 shadow-sm">
+                                                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2">
+                                                            <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider">
                                                                 Receta BOM ({prod.material_requirements?.length ?? 0} Insumos)
                                                             </span>
                                                         </div>
                                                         <div class="space-y-1.5 max-h-48 overflow-y-auto">
                                                             {#each prod.material_requirements ?? [] as req}
-                                                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/80 border border-slate-800/80 text-xs">
-                                                                    <div class="font-medium text-slate-200">
+                                                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
+                                                                    <div class="font-medium text-slate-800 dark:text-slate-200">
                                                                         {req.raw_material?.name}
                                                                     </div>
-                                                                    <div class="text-right font-mono text-slate-400 text-[11px]">
-                                                                        <span class="text-slate-200 font-bold">{Number(req.quantity_required)}</span> {req.raw_material?.unit_of_measure}
+                                                                    <div class="text-right font-mono text-slate-500 dark:text-slate-400 text-[11px]">
+                                                                        <span class="text-slate-800 dark:text-slate-200 font-bold">{Number(req.quantity_required)}</span> {req.raw_material?.unit_of_measure}
                                                                         {#if Number(req.waste_percent) > 0}
-                                                                            <span class="text-amber-400 text-[10px]">(+{Number(req.waste_percent)}%)</span>
+                                                                            <span class="text-amber-600 dark:text-amber-400 text-[10px]">(+{Number(req.waste_percent)}%)</span>
                                                                         {/if}
                                                                     </div>
                                                                 </div>
                                                             {:else}
-                                                                <div class="text-slate-500 text-xs italic py-2">
+                                                                <div class="text-slate-400 dark:text-slate-500 text-xs italic py-2">
                                                                     Sin insumos configurados.
                                                                 </div>
                                                             {/each}
@@ -603,38 +603,38 @@
                                                     </div>
 
                                                     <!-- Columna 3: Variantes Ortogonales -->
-                                                    <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
-                                                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-                                                            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2 shadow-sm">
+                                                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2">
+                                                            <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider">
                                                                 Variantes Activas ({prod.variants?.length ?? 0})
                                                             </span>
                                                         </div>
                                                         <div class="space-y-1.5 max-h-48 overflow-y-auto">
                                                             {#each prod.variants ?? [] as variant}
-                                                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/80 border border-slate-800/80 text-xs">
+                                                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
                                                                     <div>
-                                                                        <span class="font-bold text-slate-200 block">{variant.name_label}</span>
+                                                                        <span class="font-bold text-slate-800 dark:text-slate-200 block">{variant.name_label}</span>
                                                                         {#if variant.sku}
-                                                                            <span class="font-mono text-[10px] text-slate-500">SKU: {variant.sku}</span>
+                                                                            <span class="font-mono text-[10px] text-slate-400 dark:text-slate-500">SKU: {variant.sku}</span>
                                                                         {/if}
                                                                     </div>
                                                                     <div class="text-right">
                                                                         {#if hasFinancialAccess}
                                                                             {#if variant.price_override}
-                                                                                <span class="font-mono font-bold text-emerald-400 block">{formatCurrency(variant.price_override)}</span>
+                                                                                <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 block">{formatCurrency(variant.price_override)}</span>
                                                                             {:else}
-                                                                                <span class="font-mono text-slate-400 block">{formatCurrency(prod.base_price)}</span>
+                                                                                <span class="font-mono text-slate-500 dark:text-slate-400 block">{formatCurrency(prod.base_price)}</span>
                                                                             {/if}
                                                                         {/if}
                                                                         {#if variant.production_minutes_delta}
-                                                                            <span class="font-mono text-[10px] text-amber-300">
+                                                                            <span class="font-mono text-[10px] text-amber-600 dark:text-amber-300">
                                                                                 {variant.production_minutes_delta > 0 ? '+' : ''}{variant.production_minutes_delta}m
                                                                             </span>
                                                                         {/if}
                                                                     </div>
                                                                 </div>
                                                             {:else}
-                                                                <div class="text-slate-500 text-xs italic py-2">
+                                                                <div class="text-slate-400 dark:text-slate-500 text-xs italic py-2">
                                                                     Variante única estándar.
                                                                 </div>
                                                             {/each}
@@ -646,7 +646,7 @@
                                     {/if}
                                 {:else}
                                     <tr>
-                                        <td colspan="9" class="p-10 text-center text-slate-500 text-xs">
+                                        <td colspan="9" class="p-10 text-center text-slate-400 dark:text-slate-500 text-xs">
                                             No hay productos registrados en el catálogo.
                                         </td>
                                     </tr>
@@ -660,33 +660,33 @@
             {:else}
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {#each products.data as prod (prod.id)}
-                        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-md group hover:border-slate-700 transition-colors">
+                        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 flex flex-col justify-between shadow-sm group hover:border-[#4F46E5] dark:hover:border-[#06B6D4] transition">
                             <div>
                                 <!-- Cabecera del Producto -->
                                 <div class="flex items-start justify-between gap-2 mb-2">
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                         {prod.product_type?.name ?? 'Sin tipo'}
                                     </span>
                                     {#if hasFinancialAccess}
-                                        <span class="font-mono text-emerald-400 font-extrabold text-base">
+                                        <span class="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-base">
                                             {formatCurrency(prod.base_price)}
                                         </span>
                                     {/if}
                                 </div>
 
-                                <h3 class="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">{prod.name}</h3>
+                                <h3 class="text-base font-bold text-slate-900 dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-emerald-300 transition-colors">{prod.name}</h3>
 
                                 {#if prod.barcode}
                                     <div class="mt-2 flex flex-col items-center">
                                         <div class="flex items-center justify-between w-full mb-1">
-                                            <span class="text-[9px] font-mono text-slate-400 font-semibold uppercase">{prod.barcode_format || 'CODE128'}</span>
+                                            <span class="text-[9px] font-mono text-slate-500 dark:text-slate-400 font-semibold uppercase">{prod.barcode_format || 'CODE128'}</span>
                                             <button
                                                 type="button"
                                                 onclick={() => downloadBarcodeAsPng(prod.barcode, prod.barcode_format || 'CODE128', prod.name)}
-                                                class="text-[10px] text-slate-400 hover:text-emerald-400 flex items-center gap-1 font-semibold transition-colors"
+                                                class="text-[10px] text-slate-500 hover:text-[#4F46E5] dark:hover:text-emerald-400 flex items-center gap-1 font-semibold transition-colors"
                                                 title="Descargar imagen PNG"
                                             >
-                                                <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <svg class="w-3 h-3 text-[#4F46E5] dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                 </svg>
                                                 <span>PNG</span>
@@ -704,32 +704,32 @@
                                 {/if}
 
                                 <!-- Métricas de Producción -->
-                                <div class="mt-3.5 p-3 bg-slate-950/70 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
+                                <div class="mt-3.5 p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-1.5 text-xs">
                                     <div class="flex justify-between items-center">
-                                        <span class="text-slate-400">Flujo Kanban:</span>
-                                        <span class="font-semibold text-slate-200">{prod.workflow?.name ?? 'No asignado'}</span>
+                                        <span class="text-slate-500 dark:text-slate-400">Flujo Kanban:</span>
+                                        <span class="font-semibold text-slate-800 dark:text-slate-200">{prod.workflow?.name ?? 'No asignado'}</span>
                                     </div>
                                     <div class="flex justify-between items-center">
-                                        <span class="text-slate-400">Tiempo de Fabricación:</span>
-                                        <span class="font-mono text-amber-300 font-bold">⏱ {prod.formatted_time}</span>
+                                        <span class="text-slate-500 dark:text-slate-400">Tiempo de Fabricación:</span>
+                                        <span class="font-mono text-amber-600 dark:text-amber-300 font-bold">⏱ {prod.formatted_time}</span>
                                     </div>
                                     <div class="flex justify-between items-center">
-                                        <span class="text-slate-400">Tiempo de Holgura:</span>
-                                        <span class="font-mono text-slate-300 font-semibold">+{prod.buffer_percentage}%</span>
+                                        <span class="text-slate-500 dark:text-slate-400">Tiempo de Holgura:</span>
+                                        <span class="font-mono text-slate-700 dark:text-slate-300 font-semibold">+{prod.buffer_percentage}%</span>
                                     </div>
                                 </div>
 
                                 <!-- Variantes Generadas -->
                                 <div class="mt-3">
-                                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                    <span class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Variantes ({prod.variants?.length ?? 0}):
                                     </span>
                                     <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
                                         {#each prod.variants ?? [] as variant}
-                                            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-mono">
+                                            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono">
                                                 {variant.name_label}
                                                 {#if hasFinancialAccess && variant.price_override}
-                                                    <strong class="text-emerald-400 font-sans">({formatCurrency(variant.price_override)})</strong>
+                                                    <strong class="text-emerald-600 dark:text-emerald-400 font-sans">({formatCurrency(variant.price_override)})</strong>
                                                 {/if}
                                             </span>
                                         {/each}
@@ -737,45 +737,45 @@
                                 </div>
 
                                 <!-- Receta BOM -->
-                                <div class="mt-3 pt-2.5 border-t border-slate-800/60">
-                                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-[#26334D]">
+                                    <span class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block mb-1.5">
                                         Receta BOM ({prod.material_requirements?.length ?? 0} insumos):
                                     </span>
                                     <div class="space-y-1">
                                         {#each prod.material_requirements ?? [] as req}
-                                            <div class="flex items-center justify-between text-[11px] text-slate-300">
+                                            <div class="flex items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
                                                 <span class="truncate max-w-[170px]">• {req.raw_material?.name}</span>
-                                                <span class="font-mono text-slate-400">
+                                                <span class="font-mono text-slate-500 dark:text-slate-400">
                                                     {Number(req.quantity_required)} {req.raw_material?.unit_of_measure} (+{Number(req.waste_percent)}%)
                                                 </span>
                                             </div>
                                         {:else}
-                                            <span class="text-[10px] text-slate-500 italic">Sin materiales requeridos</span>
+                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 italic">Sin materiales requeridos</span>
                                         {/each}
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Acciones -->
-                            <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                            <div class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex items-center justify-end gap-2">
                                 <button
                                     type="button"
                                     onclick={() => openEditProduct(prod)}
-                                    class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+                                    class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-[#26334D]"
                                 >
                                     Editar
                                 </button>
                                 <button
                                     type="button"
                                     onclick={() => destroyProduct(prod)}
-                                    class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 text-xs font-semibold"
+                                    class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-500 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 text-xs font-semibold border border-slate-200 dark:border-[#26334D]"
                                 >
                                     Eliminar
                                 </button>
                             </div>
                         </div>
                     {:else}
-                        <div class="col-span-full p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-500 text-xs">
+                        <div class="col-span-full p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl text-slate-400 dark:text-slate-500 text-xs shadow-sm">
                             No hay productos registrados. Haz clic en "Nuevo Producto" para comenzar.
                         </div>
                     {/each}
@@ -784,14 +784,14 @@
 
             <!-- PAGINACIÓN -->
             {#if products.links && products.links.length > 3}
-                <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between text-xs text-slate-400">
+                <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shadow-sm">
                     <div>Mostrando {products.from ?? 0} a {products.to ?? 0} de {products.total} productos</div>
                     <div class="flex items-center gap-1">
                         {#each products.links as link}
                             {#if link.url}
                                 <Link
                                     href={link.url}
-                                    class="px-3 py-1.5 rounded-lg border text-xs font-medium {link.active ? 'bg-emerald-600 text-white border-emerald-600 font-bold' : 'bg-slate-800 border-slate-700 text-slate-300'}"
+                                    class="px-3 py-1.5 rounded-lg border text-xs font-medium {link.active ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300'}"
                                 >
                                     {@html link.label}
                                 </Link>
@@ -805,25 +805,25 @@
         {:else if activeTab === 'attributes'}
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {#each localAttributes as attr (attr.id)}
-                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-                        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                            <h3 class="font-bold text-white text-base">{attr.name}</h3>
+                    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2.5">
+                            <h3 class="font-bold text-slate-900 dark:text-white text-base">{attr.name}</h3>
                             <button
                                 type="button"
                                 onclick={() => openAddOption(attr)}
-                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700"
+                                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#4F46E5] dark:text-emerald-400 font-semibold text-xs border border-slate-200 dark:border-[#26334D]"
                             >
                                 + Opción
                             </button>
                         </div>
                         <div class="space-y-1.5">
                             {#each attr.options ?? [] as opt}
-                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/70 border border-slate-800 text-xs">
-                                    <span class="font-medium text-slate-200">{opt.value}</span>
-                                    <span class="font-mono text-slate-500 text-[10px]">SKU: {opt.sku_suffix ?? 'N/A'}</span>
+                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
+                                    <span class="font-medium text-slate-800 dark:text-slate-200">{opt.value}</span>
+                                    <span class="font-mono text-slate-400 dark:text-slate-500 text-[10px]">SKU: {opt.sku_suffix ?? 'N/A'}</span>
                                 </div>
                             {:else}
-                                <span class="text-xs text-slate-500 italic">Sin opciones creadas aún.</span>
+                                <span class="text-xs text-slate-400 dark:text-slate-500 italic">Sin opciones creadas aún.</span>
                             {/each}
                         </div>
                     </div>
@@ -834,9 +834,9 @@
         {:else if activeTab === 'types'}
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {#each localProductTypes as pt (pt.id)}
-                    <div class="p-4 bg-slate-900 border border-slate-800 rounded-xl flex items-center justify-between">
-                        <span class="font-bold text-white text-sm">{pt.name}</span>
-                        <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400">ID #{pt.id}</span>
+                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl flex items-center justify-between shadow-sm">
+                        <span class="font-bold text-slate-900 dark:text-white text-sm">{pt.name}</span>
+                        <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">ID #{pt.id}</span>
                     </div>
                 {/each}
             </div>
@@ -859,27 +859,27 @@
 
 <!-- MODAL CREAR TIPO DE PRODUCTO -->
 {#if showTypeModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <h3 class="text-base font-bold text-white">Nuevo Tipo de Producto</h3>
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 class="text-base font-bold text-slate-900 dark:text-white">Nuevo Tipo de Producto</h3>
             <form onsubmit={submitType} class="space-y-4 text-xs">
                 <div>
-                    <label for="pt-name" class="block font-semibold text-slate-300 mb-1">Nombre del Tipo *</label>
+                    <label for="pt-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre del Tipo *</label>
                     <input
                         id="pt-name"
                         type="text"
                         bind:value={typeForm.name}
                         placeholder="Ej. Dotaciones Industriales"
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     />
                     {#if errors.name}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.name}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
                     {/if}
                 </div>
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                    <button type="button" onclick={() => showTypeModal = false} class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300">Cancelar</button>
-                    <button type="submit" disabled={typeProcessing} class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-50">Guardar</button>
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]">
+                    <button type="button" onclick={() => showTypeModal = false} class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]">Cancelar</button>
+                    <button type="submit" disabled={typeProcessing} class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50">Guardar</button>
                 </div>
             </form>
         </div>
@@ -888,27 +888,27 @@
 
 <!-- MODAL CREAR ATRIBUTO -->
 {#if showAttributeModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <h3 class="text-base font-bold text-white">Nuevo Atributo</h3>
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 class="text-base font-bold text-slate-900 dark:text-white">Nuevo Atributo</h3>
             <form onsubmit={submitAttribute} class="space-y-4 text-xs">
                 <div>
-                    <label for="oa-name" class="block font-semibold text-slate-300 mb-1">Nombre del Atributo *</label>
+                    <label for="oa-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre del Atributo *</label>
                     <input
                         id="oa-name"
                         type="text"
                         bind:value={attributeForm.name}
                         placeholder="Ej. Talla, Color, Material..."
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     />
                     {#if errors.name}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.name}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
                     {/if}
                 </div>
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                    <button type="button" onclick={() => showAttributeModal = false} class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300">Cancelar</button>
-                    <button type="submit" disabled={attributeProcessing} class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-50">Guardar Atributo</button>
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]">
+                    <button type="button" onclick={() => showAttributeModal = false} class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]">Cancelar</button>
+                    <button type="submit" disabled={attributeProcessing} class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50">Guardar Atributo</button>
                 </div>
             </form>
         </div>
@@ -917,37 +917,37 @@
 
 <!-- MODAL CREAR OPCIÓN EN ATRIBUTO -->
 {#if showOptionModal && selectedAttributeForOption}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <h3 class="text-base font-bold text-white">Nueva Opción para "{selectedAttributeForOption.name}"</h3>
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <h3 class="text-base font-bold text-slate-900 dark:text-white">Nueva Opción para "{selectedAttributeForOption.name}"</h3>
             <form onsubmit={submitOption} class="space-y-4 text-xs">
                 <div>
-                    <label for="opt-val" class="block font-semibold text-slate-300 mb-1">Valor de la Opción *</label>
+                    <label for="opt-val" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Valor de la Opción *</label>
                     <input
                         id="opt-val"
                         type="text"
                         bind:value={optionForm.value}
                         placeholder="Ej. Azul Rey, XL, Algodón..."
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     />
                     {#if errors.value}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.value}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.value}</p>
                     {/if}
                 </div>
                 <div>
-                    <label for="opt-sku" class="block font-semibold text-slate-300 mb-1">Sufijo para SKU (Opcional)</label>
+                    <label for="opt-sku" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Sufijo para SKU (Opcional)</label>
                     <input
                         id="opt-sku"
                         type="text"
                         bind:value={optionForm.sku_suffix}
                         placeholder="Ej. AZUL, XL"
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono uppercase"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs font-mono uppercase"
                     />
                 </div>
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                    <button type="button" onclick={() => showOptionModal = false} class="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300">Cancelar</button>
-                    <button type="submit" disabled={optionProcessing} class="px-4 py-1.5 rounded-xl bg-emerald-600 text-white font-semibold disabled:opacity-50">Guardar Opción</button>
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]">
+                    <button type="button" onclick={() => showOptionModal = false} class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]">Cancelar</button>
+                    <button type="submit" disabled={optionProcessing} class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50">Guardar Opción</button>
                 </div>
             </form>
         </div>

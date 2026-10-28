@@ -203,15 +203,15 @@
 </script>
 
 {#if isOpen}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
             <!-- Cabecera -->
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div class="flex items-center gap-2.5">
                     <span class="text-xl">⚙️</span>
                     <div>
-                        <h3 class="text-base font-bold text-white">Estados de Pedidos</h3>
-                        <p class="text-xs text-slate-400">
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">Estados de Pedidos</h3>
+                        <p class="text-xs text-[#64748B] dark:text-slate-400">
                             Crea, edita y reordena con Drag & Drop las columnas de tu Tablero Macro.
                         </p>
                     </div>
@@ -219,32 +219,32 @@
                 <button
                     type="button"
                     onclick={() => isOpen = false}
-                    class="text-slate-400 hover:text-white p-1 rounded-lg"
+                    class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg"
                 >
                     ✕
                 </button>
             </div>
 
             <!-- Formulario para Crear Nuevo Estado -->
-            <form onsubmit={handleCreate} class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
-                <span class="text-xs font-bold text-white block">Crear Nuevo Estado de Pedido</span>
+            <form onsubmit={handleCreate} class="p-4 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-3">
+                <span class="text-xs font-bold text-slate-900 dark:text-white block">Crear Nuevo Estado de Pedido</span>
 
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                     <div class="sm:col-span-6">
-                        <label for="new-status-name" class="block text-[11px] font-semibold text-slate-400 mb-1">Nombre del Estado *</label>
+                        <label for="new-status-name" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Nombre del Estado *</label>
                         <input
                             id="new-status-name"
                             type="text"
                             bind:value={newName}
                             required
                             placeholder="Ej. Control de Calidad, Empaque..."
-                            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+                            class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:border-[#4F46E5]"
                         />
                     </div>
 
                     <div class="sm:col-span-3">
-                        <label for="new-status-color-input" class="block text-[11px] font-semibold text-slate-400 mb-1">Color HEX *</label>
-                        <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl px-2 py-1">
+                        <label for="new-status-color-input" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Color HEX *</label>
+                        <div class="flex items-center gap-1.5 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl px-2 py-1">
                             <label for="new-status-color-picker" class="sr-only">Selector de color</label>
                             <input
                                 id="new-status-color-picker"
@@ -256,7 +256,7 @@
                                 id="new-status-color-input"
                                 type="text"
                                 bind:value={newColor}
-                                class="w-full bg-transparent text-white font-mono text-xs focus:outline-none"
+                                class="w-full bg-transparent text-slate-900 dark:text-white font-mono text-xs focus:outline-none"
                             />
                         </div>
                     </div>
@@ -265,7 +265,7 @@
                         <button
                             type="submit"
                             disabled={isCreating || !newName.trim()}
-                            class="w-full px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl text-xs transition-colors shadow-sm disabled:opacity-50"
+                            class="w-full px-3 py-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold rounded-xl text-xs transition shadow-sm disabled:opacity-50"
                         >
                             {isCreating ? 'Guardando...' : '+ Crear'}
                         </button>
@@ -274,12 +274,12 @@
 
                 <!-- Paleta de colores rápidos -->
                 <div class="flex items-center gap-1.5 pt-1">
-                    <span class="text-[10px] text-slate-500 font-semibold mr-1">Colores:</span>
+                    <span class="text-[10px] text-[#64748B] dark:text-slate-500 font-semibold mr-1">Colores:</span>
                     {#each PRESET_COLORS as preset}
                         <button
                             type="button"
                             onclick={() => newColor = preset}
-                            class="w-4 h-4 rounded-full border border-white/20 transition-transform hover:scale-125 {newColor === preset ? 'ring-2 ring-white scale-110' : ''}"
+                            class="w-4 h-4 rounded-full border border-slate-300 dark:border-white/20 transition-transform hover:scale-125 {newColor === preset ? 'ring-2 ring-[#4F46E5] dark:ring-white scale-110' : ''}"
                             style="background-color: {preset};"
                             title={preset}
                         ></button>
@@ -287,19 +287,19 @@
                 </div>
 
                 {#if createError}
-                    <p class="text-[11px] text-rose-400">{createError}</p>
+                    <p class="text-[11px] text-rose-600 dark:text-rose-400">{createError}</p>
                 {/if}
             </form>
 
             <!-- Lista de Estados Reordenables -->
             <div class="space-y-2">
                 <div class="flex items-center justify-between text-xs">
-                    <span class="font-bold text-white">Estados Actuales ({localStatuses.length})</span>
-                    <span class="text-[11px] text-slate-500">Arrastra desde ⋮⋮ para cambiar el orden</span>
+                    <span class="font-bold text-slate-900 dark:text-white">Estados Actuales ({localStatuses.length})</span>
+                    <span class="text-[11px] text-[#64748B] dark:text-slate-500">Arrastra desde ⋮⋮ para cambiar el orden</span>
                 </div>
 
                 {#if localStatuses.length === 0}
-                    <div class="p-6 text-center border-2 border-dashed border-slate-800 rounded-2xl text-slate-500 text-xs">
+                    <div class="p-6 text-center border-2 border-dashed border-slate-200 dark:border-[#26334D] rounded-2xl text-[#64748B] dark:text-slate-500 text-xs">
                         No hay estados registrados para este taller.
                     </div>
                 {:else}
@@ -311,7 +311,7 @@
                                 ondragstart={() => handleDragStart(index)}
                                 ondragover={(e) => handleDragOver(e, index)}
                                 ondrop={(e) => handleDrop(e, index)}
-                                class="p-3 bg-slate-950 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 {dragOverIndex === index ? 'border-sky-500 bg-sky-950/20 shadow-md' : 'border-slate-800 hover:border-slate-700'}"
+                                class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 {dragOverIndex === index ? 'border-[#4F46E5] bg-indigo-50/50 dark:bg-sky-950/20 shadow-md' : 'border-slate-200 dark:border-[#26334D] hover:border-slate-300 dark:hover:border-slate-600'}"
                             >
                                 {#if editingStatusId === status.id}
                                     <!-- Modo Edición Inline -->
@@ -322,7 +322,7 @@
                                                 id="edit-status-name-{status.id}"
                                                 type="text"
                                                 bind:value={editName}
-                                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500"
+                                                class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                                             />
                                         </div>
                                         <div class="sm:col-span-6 flex items-center gap-1.5">
@@ -338,7 +338,7 @@
                                                 id="edit-color-text-{status.id}"
                                                 type="text"
                                                 bind:value={editColor}
-                                                class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white font-mono text-xs"
+                                                class="w-20 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-900 dark:text-white font-mono text-xs"
                                             />
                                             <button
                                                 type="button"
@@ -351,7 +351,7 @@
                                             <button
                                                 type="button"
                                                 onclick={cancelEdit}
-                                                class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"
+                                                class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-lg text-xs"
                                             >
                                                 ✕
                                             </button>
@@ -362,14 +362,14 @@
                                     <div class="flex items-center gap-3 min-w-0">
                                         <!-- Handle de arrastre -->
                                         <span
-                                            class="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-300 text-base select-none px-1"
+                                            class="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-base select-none px-1"
                                             title="Arrastrar para reordenar"
                                         >
                                             ⋮⋮
                                         </span>
 
                                         <!-- Posición -->
-                                        <span class="w-5 text-center font-mono font-bold text-[11px] text-slate-500">
+                                        <span class="w-5 text-center font-mono font-bold text-[11px] text-[#64748B] dark:text-slate-500">
                                             {index + 1}
                                         </span>
 
@@ -381,11 +381,11 @@
 
                                         <!-- Nombre y badge -->
                                         <div class="flex items-center gap-2 truncate">
-                                            <span class="font-bold text-white text-xs truncate">
+                                            <span class="font-bold text-slate-900 dark:text-white text-xs truncate">
                                                 {status.name}
                                             </span>
                                             {#if status.system_key && status.system_key !== 'custom'}
-                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider uppercase bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
+                                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 shrink-0">
                                                     Sistema
                                                 </span>
                                             {/if}
@@ -397,7 +397,7 @@
                                         <button
                                             type="button"
                                             onclick={() => startEdit(status)}
-                                            class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition-colors"
+                                            class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold border border-slate-200 dark:border-[#26334D] transition-colors"
                                             title="Editar nombre y color"
                                         >
                                             ✏️ Editar
@@ -405,7 +405,7 @@
                                         <button
                                             type="button"
                                             onclick={() => handleDelete(status)}
-                                            class="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors"
+                                            class="p-1 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                                             title="Eliminar estado"
                                         >
                                             🗑
@@ -419,14 +419,14 @@
             </div>
 
             <!-- Pie del Modal -->
-            <div class="pt-3 border-t border-slate-800 flex items-center justify-between">
-                <span class="text-[11px] text-slate-500">
+            <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex items-center justify-between">
+                <span class="text-[11px] text-[#64748B] dark:text-slate-500">
                     {isReordering ? 'Guardando orden...' : 'Los cambios en las columnas se aplican en tiempo real al tablero.'}
                 </span>
                 <button
                     type="button"
                     onclick={() => isOpen = false}
-                    class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs"
+                    class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition"
                 >
                     Cerrar
                 </button>
