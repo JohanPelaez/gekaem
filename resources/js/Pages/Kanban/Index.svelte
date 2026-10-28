@@ -713,7 +713,7 @@
 </script>
 
 <AppLayout title="Tablero Kanban de Producción">
-    <div class="space-y-4 w-full max-w-none">
+    <div class="space-y-4 w-full max-w-none min-w-0">
         <!-- ========================================== -->
         <!-- MODO 1: TABLERO GENERAL CENTRADO EN PEDIDOS -->
         <!-- ========================================== -->
@@ -916,11 +916,11 @@
 
             <!-- VISTA A: TABLERO KANBAN MACRO (COLUMNAS DINÁMICAS POR ESTADOS DE PEDIDO) -->
             {#if generalViewMode === 'kanban'}
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
+                <div class="flex flex-nowrap items-start gap-4 overflow-x-auto pb-4 w-full min-w-0">
                     {#each localStatuses as col (col.id)}
                         {@const colOrders = ordersByStatusId.get(col.id) || []}
                         <div
-                            class="bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {dragOverMacroStatusId === col.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
+                            class="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {dragOverMacroStatusId === col.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
                             style="border-top: 4px solid {col.color || '#64748b'};"
                             ondragover={(e) => handleMacroDragOver(e, col.id)}
                             ondrop={(e) => handleMacroDrop(e, col.id)}
@@ -1255,11 +1255,11 @@
                     Este flujo no tiene etapas configuradas. Ve a Tipos de Flujos para agregar etapas.
                 </div>
             {:else}
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4 items-start">
+                <div class="flex flex-nowrap items-start gap-4 overflow-x-auto pb-4 w-full min-w-0">
                     {#each activeOrderStages as stage (stage.id)}
                         {@const stageTasks = activeOrderTasks.filter(t => Number(t.current_stage_id ?? getTaskStage(t)?.id) === Number(stage.id))}
                         <div
-                            class="bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[500px] shadow-sm transition-colors {dragOverStageId === stage.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
+                            class="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[500px] shadow-sm transition-colors {dragOverStageId === stage.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
                             style="border-top: 4px solid {stage.color || '#64748b'};"
                             ondragover={(e) => handleTaskDragOver(e, stage.id)}
                             ondrop={(e) => handleTaskDrop(e, stage.id)}
