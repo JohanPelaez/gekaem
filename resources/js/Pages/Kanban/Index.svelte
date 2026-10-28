@@ -713,22 +713,17 @@
 </script>
 
 <AppLayout title="Tablero Kanban de Producción">
-    <div class="space-y-5">
+    <div class="space-y-4 w-full max-w-none">
         <!-- ========================================== -->
         <!-- MODO 1: TABLERO GENERAL CENTRADO EN PEDIDOS -->
         <!-- ========================================== -->
         {#if !activeOrder}
             <!-- ENCABEZADO Y CONTROLES GENERALES -->
-            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-5 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-1">
                 <div>
-                    <div class="flex items-center gap-2">
-                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#4F46E5]/10 text-[#4F46E5] dark:text-indigo-400 border border-[#4F46E5]/20">
-                            Módulo 5
-                        </span>
-                        <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Tablero de Producción por Pedidos</h1>
-                    </div>
-                    <p class="text-xs text-[#64748B] dark:text-slate-400 mt-1">
-                        Monitorea el avance integral de cada pedido ("US") con columnas dinámicas personalizables y abre el detalle completo al tocar cualquier card.
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Tablero de Producción por Pedidos</h1>
+                    <p class="text-xs text-[#64748B] dark:text-slate-400 mt-0.5">
+                        Monitorea el avance integral de cada pedido con columnas dinámicas personalizables.
                     </p>
                 </div>
 
@@ -1257,7 +1252,7 @@
             <!-- TABLERO KANBAN DE ETAPAS PARA EL FLUJO ACTIVO DEL PEDIDO -->
             {#if activeOrderStages.length === 0}
                 <div class="p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl text-[#64748B] dark:text-slate-400 text-sm">
-                    Este flujo no tiene etapas configuradas. Ve al Módulo de Flujos para agregar etapas.
+                    Este flujo no tiene etapas configuradas. Ve a Tipos de Flujos para agregar etapas.
                 </div>
             {:else}
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4 items-start">

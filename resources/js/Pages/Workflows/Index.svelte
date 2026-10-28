@@ -293,29 +293,25 @@
 </script>
 
 <AppLayout title="Tipos de Flujos">
-    <div class="space-y-6">
+    <div class="space-y-4">
         <!-- ENCABEZADO -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-6 rounded-2xl shadow-sm text-slate-900 dark:text-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-[#4F46E5]/10 text-[#4F46E5] dark:text-[#818CF8] border border-[#4F46E5]/20">
-                        Módulo 7
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Tipos de Flujos y Estados Dinámicos</h1>
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Tipos de Flujos y Estados Dinámicos</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Configura los flujos de producción del taller, edita títulos, personaliza colores en tiempo real y reordena las columnas de los tableros Kanban.
                 </p>
             </div>
             <button
                 type="button"
                 onclick={() => showCreateWorkflowModal = true}
-                class="px-4 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0 self-start sm:self-auto"
+                class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0 self-start sm:self-auto"
             >
                 <span>+</span>
                 <span>Nuevo Flujo</span>
             </button>
         </div>
+
 
         <!-- LISTA DE FLUJOS -->
         <div class="space-y-6">

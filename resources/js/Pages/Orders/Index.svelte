@@ -118,6 +118,14 @@
 
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
+    let isOwnerOrAdmin = $derived(authUser?.is_super_admin || authUser?.role === 'owner');
+
+    function deleteOrder(order) {
+        openActionMenuOrderId = null;
+        if (confirm(`¿Estás seguro de eliminar el pedido #${order.order_number}? Esta acción no se puede deshacer.`)) {
+            router.delete(`/orders/${order.id}`);
+        }
+    }
 
     let search = $state('');
     let statusFilter = $state('');
@@ -432,20 +440,47 @@
         }
         return { label: '🚚 Contraentrega', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' };
     }
+
+    let openActionMenuOrderId = $state(null);
+    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+
+    function toggleActionMenu(e, id) {
+        e.stopPropagation();
+        if (openActionMenuOrderId === id) {
+            openActionMenuOrderId = null;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        const openUpwards = window.innerHeight - rect.bottom < 220;
+        menuCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(12, window.innerWidth - rect.right),
+            openUpwards,
+            rectTop: rect.top,
+        };
+        openActionMenuOrderId = id;
+    }
 </script>
 
+<svelte:window
+    onclick={() => openActionMenuOrderId = null}
+    onscroll={() => openActionMenuOrderId = null}
+    onkeydown={(e) => {
+        if (e.key === 'Escape') {
+            openActionMenuOrderId = null;
+            if (dayContextMenu?.open) closeContextMenu();
+            if (dayOrdersModal?.open) dayOrdersModal.open = false;
+        }
+    }}
+/>
+
 <AppLayout title="Gestión de Pedidos y Finanzas">
-    <div class="space-y-6">
+    <div class="space-y-4 w-full max-w-none">
         <!-- ENCABEZADO Y ACCIONES -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-6 rounded-3xl shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#4F46E5]/10 text-[#4F46E5] dark:text-indigo-400 border border-[#4F46E5]/20">
-                        Finanzas & Producción
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Pedidos, Abonos y Entregas</h1>
-                </div>
-                <p class="text-xs text-[#64748B] dark:text-slate-400 mt-1">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Pedidos, Abonos y Entregas</h1>
+                <p class="text-xs text-[#64748B] dark:text-slate-400 mt-0.5">
                     Controla pedidos con fecha de entrega, registro de abonos y saldo pendiente en tiempo real.
                 </p>
             </div>
@@ -453,7 +488,7 @@
                 <ViewToggle bind:mode={viewMode} storageKey="gekaem_orders_view" showCalendar={true} />
                 <Link
                     href="/kanban"
-                    class="px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-[#0B0F17] dark:hover:bg-[#1C263B] text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors border border-slate-200 dark:border-[#26334D] flex items-center gap-1.5 shadow-sm"
+                    class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-[#151D2C] dark:hover:bg-[#1C263B] text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors border border-slate-200 dark:border-[#26334D] flex items-center gap-1.5 shadow-sm"
                 >
                     <span>Tablero Kanban</span>
                     <span>→</span>
@@ -461,7 +496,7 @@
                 <button
                     type="button"
                     onclick={openCreate}
-                    class="px-4 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition-all shadow-md shadow-[#4F46E5]/20 flex items-center gap-2"
+                    class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition-all shadow-sm flex items-center gap-2"
                 >
                     <span>+</span>
                     <span>Nuevo Pedido</span>
@@ -659,18 +694,18 @@
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/80 text-[#64748B] dark:text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200 dark:border-[#26334D]">
                             <tr>
-                                <th class="p-3.5 w-10 text-center"></th>
-                                <th class="p-3.5">Pedido #</th>
-                                <th class="p-3.5">Cliente</th>
-                                <th class="p-3.5">Estado</th>
-                                <th class="p-3.5">Envío</th>
-                                <th class="p-3.5">Entrega Comprometida</th>
+                                <th class="py-2.5 px-3 w-10 text-center"></th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Pedido #</th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Cliente</th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Estado</th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Envío</th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Entrega Comprometida</th>
                                 {#if hasFinancialAccess}
-                                    <th class="p-3.5 text-right">Total</th>
-                                    <th class="p-3.5 text-right">Saldo</th>
+                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Total</th>
+                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Saldo</th>
                                 {/if}
-                                <th class="p-3.5 text-center">Progreso</th>
-                                <th class="p-3.5 text-right">Acciones</th>
+                                <th class="py-2.5 px-3 text-center whitespace-nowrap">Progreso</th>
+                                <th class="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
@@ -682,106 +717,146 @@
                                 {@const progressPercent = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : 0}
                                 {@const isExpanded = expandedRows.has(order.id)}
                                 <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-50/60 dark:bg-slate-800/25' : ''}">
-                                    <td class="p-3.5 text-center">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         <button
                                             type="button"
                                             onclick={() => toggleRow(order.id)}
-                                            class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-indigo-400' : ''}"
+                                            class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 inline-flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-indigo-400' : ''}"
                                             title={isExpanded ? 'Colapsar detalles' : 'Expandir productos y abonos'}
                                         >
                                             ▶
                                         </button>
                                     </td>
-                                    <td class="p-3.5 font-mono font-bold text-[#4F46E5] dark:text-indigo-400 text-sm">
+                                    <td class="py-2.5 px-3 font-mono font-bold text-[#4F46E5] dark:text-indigo-400 text-xs whitespace-nowrap">
                                         #{order.order_number}
                                     </td>
-                                    <td class="p-3.5">
-                                        <button
-                                            type="button"
-                                            class="font-bold text-slate-900 dark:text-white text-sm hover:text-[#4F46E5] dark:hover:text-indigo-400 text-left block transition-colors"
-                                            onclick={() => toggleRow(order.id)}
-                                        >
-                                            {order.customer?.name ?? 'Cliente'}
-                                        </button>
-                                        {#if order.customer?.phone}
-                                            <span class="text-[10px] text-[#64748B] dark:text-slate-500 font-mono">📞 {order.customer.phone}</span>
-                                        {/if}
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-1.5 max-w-[220px]">
+                                            <button
+                                                type="button"
+                                                class="font-semibold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-indigo-400 text-left truncate transition-colors"
+                                                onclick={() => toggleRow(order.id)}
+                                                title={order.customer?.name ?? 'Cliente'}
+                                            >
+                                                {order.customer?.name ?? 'Cliente'}
+                                            </button>
+                                            {#if order.customer?.phone}
+                                                <span class="text-[10px] text-[#64748B] dark:text-slate-500 font-mono shrink-0">· {order.customer.phone}</span>
+                                            {/if}
+                                        </div>
                                     </td>
-                                    <td class="p-3.5">
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
                                         {#if badge.style}
-                                            <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border" style={badge.style}>
+                                            <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border inline-block" style={badge.style}>
                                                 {badge.label}
                                             </span>
                                         {:else}
-                                            <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border {badge.color}">
+                                            <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border inline-block {badge.color}">
                                                 {badge.label}
                                             </span>
                                         {/if}
                                     </td>
-                                    <td class="p-3.5">
-                                        <span class="text-[10px] px-2.5 py-0.5 rounded-full font-semibold border {shippingBadge.color}">
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <span class="text-[10px] px-2.5 py-0.5 rounded-full font-semibold border inline-flex items-center gap-1 whitespace-nowrap {shippingBadge.color}">
                                             {shippingBadge.label}
                                         </span>
                                     </td>
-                                    <td class="p-3.5 font-mono text-slate-600 dark:text-slate-300">
+                                    <td class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300 text-xs whitespace-nowrap">
                                         📅 {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
                                     </td>
                                     {#if hasFinancialAccess}
-                                        <td class="p-3.5 text-right font-mono font-bold text-slate-900 dark:text-white">
+                                        <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap">
                                             {formatCurrency(order.total_amount)}
                                         </td>
-                                        <td class="p-3.5 text-right font-mono font-bold {order.pending_balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">
+                                        <td class="py-2.5 px-3 text-right font-mono font-bold text-xs whitespace-nowrap {order.pending_balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">
                                             {order.pending_balance > 0 ? formatCurrency(order.pending_balance) : '✓ Pagado'}
                                         </td>
                                     {/if}
-                                    <td class="p-3.5 text-center">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         <div class="inline-flex items-center gap-1.5">
-                                            <div class="w-16 h-1.5 bg-slate-200 dark:bg-slate-950 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
+                                            <div class="w-14 h-1.5 bg-slate-200 dark:bg-slate-950 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
                                                 <div class="h-full bg-[#06B6D4]" style="width: {progressPercent}%"></div>
                                             </div>
                                             <span class="font-mono text-[10px] text-[#64748B] dark:text-slate-400">{progressPercent}%</span>
                                         </div>
                                     </td>
-                                    <td class="p-3.5 text-right">
-                                        <div class="flex items-center justify-end gap-1.5">
+                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                        <div class="inline-flex items-center justify-end">
+                                            <!-- Botón Menú Contextual ••• -->
                                             <button
                                                 type="button"
-                                                onclick={() => openEditOrder(order)}
-                                                class="px-2.5 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-[#4F46E5] dark:text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
-                                                title="Editar pedido"
+                                                onclick={(e) => toggleActionMenu(e, order.id)}
+                                                class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
+                                                title="Más opciones del pedido"
+                                                aria-label="Más opciones"
                                             >
-                                                <span>✏️</span>
-                                                <span>Editar</span>
+                                                •••
                                             </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
-                                                class="px-2.5 py-1 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 text-[#06B6D4] dark:text-cyan-400 border border-[#06B6D4]/30 text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm"
-                                                title="Ver en Tablero Kanban aislado"
-                                            >
-                                                <span>📋</span>
-                                                <span>Tablero</span>
-                                            </button>
-                                            {#if hasFinancialAccess}
-                                                <button
-                                                    type="button"
-                                                    onclick={() => openPaymentModal(order)}
-                                                    class="px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-colors shadow-sm"
-                                                    title="Registrar Abono o Ver Pagos"
-                                                >
-                                                    💳 Abonos
-                                                </button>
-                                            {/if}
-                                            {#if order.derived_status === 'ready'}
-                                                <button
-                                                    type="button"
-                                                    onclick={() => markDelivered(order)}
-                                                    class="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors shadow-sm"
-                                                >
-                                                    ✓ Entregar
-                                                </button>
-                                            {/if}
                                         </div>
+
+                                        <!-- Dropdown Flotante Menú Contextual (Fixed sin atraparse en la tabla) -->
+                                        {#if openActionMenuOrderId === order.id}
+                                            <div
+                                                role="menu"
+                                                tabindex="-1"
+                                                class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]/60 animate-in fade-in zoom-in-95 duration-100"
+                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                                onclick={(e) => e.stopPropagation()}
+                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuOrderId = null; }}
+                                            >
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuOrderId = null; openEditOrder(order); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                                    >
+                                                        <span>✏️</span>
+                                                        <span>Editar Pedido</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuOrderId = null; router.visit(`/kanban?order_id=${order.id}`); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                                    >
+                                                        <span>📋</span>
+                                                        <span>Ir al Tablero Kanban</span>
+                                                    </button>
+                                                    {#if hasFinancialAccess}
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => { openActionMenuOrderId = null; openPaymentModal(order); }}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                                        >
+                                                            <span>💳</span>
+                                                            <span>Gestionar Abonos</span>
+                                                        </button>
+                                                    {/if}
+                                                    {#if order.derived_status === 'ready'}
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => { openActionMenuOrderId = null; markDelivered(order); }}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors font-medium"
+                                                        >
+                                                            <span>✅</span>
+                                                            <span>Marcar como Entregado</span>
+                                                        </button>
+                                                    {/if}
+                                                </div>
+
+                                                {#if isOwnerOrAdmin}
+                                                    <div class="py-0.5">
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => deleteOrder(order)}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                                        >
+                                                            <span>🗑️</span>
+                                                            <span>Eliminar Pedido</span>
+                                                        </button>
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                        {/if}
                                     </td>
                                 </tr>
 
@@ -1335,13 +1410,6 @@
 {/if}
 
 
-<!-- SVELTE WINDOW EVENT PARA TECLA ESCAPE -->
-<svelte:window onkeydown={(e) => {
-    if (e.key === 'Escape') {
-        if (dayContextMenu.open) closeContextMenu();
-        if (dayOrdersModal.open) dayOrdersModal.open = false;
-    }
-}} />
 
 <!-- MENÚ CONTEXTUAL AL HACER CLIC EN UN DÍA DEL CALENDARIO (PUNTO 3) -->
 {#if dayContextMenu.open}

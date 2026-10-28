@@ -58,6 +58,7 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
         Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
         Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');
+        Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
     });
 
     Route::delete('/payments/{payment}', [OrderPaymentController::class, 'destroy'])->name('payments.destroy');

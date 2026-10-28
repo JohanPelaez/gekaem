@@ -46,6 +46,25 @@
     let viewMode = $state('table'); // 'table' | 'cards'
     let activeTab = $state('products'); // 'products' | 'types' | 'attributes'
     let expandedRows = $state(new Set());
+    let openActionMenuProdId = $state(null);
+    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+
+    function toggleActionMenu(e, prodId) {
+        e.stopPropagation();
+        if (openActionMenuProdId === prodId) {
+            openActionMenuProdId = null;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        const openUpwards = window.innerHeight - rect.bottom < 220;
+        menuCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(12, window.innerWidth - rect.right),
+            openUpwards,
+            rectTop: rect.top,
+        };
+        openActionMenuProdId = prodId;
+    }
 
     // Listas locales sincronizadas para permitir creación rápida en contexto
     let localProductTypes = $state([]);
@@ -302,41 +321,38 @@
     }
 </script>
 
+<svelte:window onclick={() => openActionMenuProdId = null} onscroll={() => openActionMenuProdId = null} />
+
 <AppLayout title="Catálogo de Productos">
-    <div class="space-y-6">
+    <div class="space-y-4 w-full max-w-none">
         <!-- HEADER -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-6 rounded-2xl shadow-sm text-slate-900 dark:text-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 text-slate-900 dark:text-slate-100">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                        Módulo 2
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Catálogo de Productos</h1>
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Productos maestros, recetas de materiales (BOM) y variantes por atributos (talla, color, etc.).
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Catálogo de Productos</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Productos maestros, recetas de materiales (BOM) y variantes ortogonales.
                 </p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
                 <ViewToggle bind:mode={viewMode} storageKey="gekaem_products_view" />
                 <button
                     type="button"
                     onclick={() => showTypeModal = true}
-                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors"
+                    class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors"
                 >
                     + Tipo
                 </button>
                 <button
                     type="button"
                     onclick={() => showAttributeModal = true}
-                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors"
+                    class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors"
                 >
-                    + Nuevo Atributo
+                    + Atributo
                 </button>
                 <button
                     type="button"
                     onclick={openCreateProduct}
-                    class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm flex items-center gap-1.5 transition-all"
+                    class="px-3.5 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm flex items-center gap-1.5 transition-all"
                 >
                     <span>+</span>
                     <span>Nuevo Producto</span>
@@ -436,17 +452,17 @@
                         <table class="w-full text-left text-xs">
                             <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-200 dark:border-[#26334D]">
                                 <tr>
-                                    <th class="p-3.5 w-10 text-center"></th>
-                                    <th class="p-3.5">Código / Barcode</th>
-                                    <th class="p-3.5">Producto</th>
-                                    <th class="p-3.5">Tipo</th>
-                                    <th class="p-3.5">Flujo Kanban</th>
-                                    <th class="p-3.5">Tiempo Fabr.</th>
+                                    <th class="py-2.5 px-3 w-10 text-center"></th>
+                                    <th class="py-2.5 px-3 whitespace-nowrap">Código / Barcode</th>
+                                    <th class="py-2.5 px-3 whitespace-nowrap">Producto</th>
+                                    <th class="py-2.5 px-3 whitespace-nowrap">Tipo</th>
+                                    <th class="py-2.5 px-3 whitespace-nowrap">Flujo Kanban</th>
+                                    <th class="py-2.5 px-3 whitespace-nowrap">Tiempo Fabr.</th>
                                     {#if hasFinancialAccess}
-                                        <th class="p-3.5 text-right">Precio Base</th>
+                                        <th class="py-2.5 px-3 text-right whitespace-nowrap">Precio Base</th>
                                     {/if}
-                                    <th class="p-3.5 text-center">Variantes</th>
-                                    <th class="p-3.5 text-right">Acciones</th>
+                                    <th class="py-2.5 px-3 text-center whitespace-nowrap">Variantes</th>
+                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
@@ -454,18 +470,18 @@
                                     {@const isExpanded = expandedRows.has(prod.id)}
                                     <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-50/50 dark:bg-slate-800/30' : ''}">
                                         <!-- Botón de expandir -->
-                                        <td class="p-3.5 text-center">
+                                        <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                             <button
                                                 type="button"
                                                 onclick={() => toggleRow(prod.id)}
-                                                class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
+                                                class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 inline-flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
                                                 title={isExpanded ? 'Colapsar detalles' : 'Expandir BOM y variantes'}
                                             >
                                                 ▶
                                             </button>
                                         </td>
                                         <!-- Barcode / SKU -->
-                                        <td class="p-3.5">
+                                        <td class="py-2.5 px-3 whitespace-nowrap">
                                             {#if prod.barcode}
                                                 <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] font-mono text-[11px] text-[#4F46E5] dark:text-sky-400 font-bold">
                                                     <span>{prod.barcode}</span>
@@ -480,70 +496,113 @@
                                                         </svg>
                                                     </button>
                                                 </div>
-                                                <div class="text-[9px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
-                                                    {prod.barcode_format || 'CODE128'}
-                                                </div>
                                             {:else}
                                                 <span class="text-slate-400 dark:text-slate-600 font-mono text-[10px]">Sin código</span>
                                             {/if}
                                         </td>
                                         <!-- Producto -->
-                                        <td class="p-3.5">
+                                        <td class="py-2.5 px-3 whitespace-nowrap">
                                             <button
                                                 type="button"
-                                                class="text-left font-bold text-slate-900 dark:text-white text-sm hover:text-[#4F46E5] dark:hover:text-emerald-400 block transition-colors"
+                                                class="text-left font-semibold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-emerald-400 inline-block transition-colors"
                                                 onclick={() => toggleRow(prod.id)}
                                             >
                                                 {prod.name}
                                             </button>
-                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Holgura: +{prod.buffer_percentage}%</span>
+                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-medium ml-1">+{prod.buffer_percentage}%</span>
                                         </td>
                                         <!-- Tipo -->
-                                        <td class="p-3.5">
+                                        <td class="py-2.5 px-3 whitespace-nowrap">
                                             <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80">
                                                 {prod.product_type?.name ?? 'Sin tipo'}
                                             </span>
                                         </td>
                                         <!-- Flujo -->
-                                        <td class="p-3.5 font-medium text-slate-800 dark:text-slate-200">
+                                        <td class="py-2.5 px-3 whitespace-nowrap font-medium text-slate-800 dark:text-slate-200 text-xs">
                                             {prod.workflow?.name ?? 'No asignado'}
                                         </td>
                                         <!-- Tiempo -->
-                                        <td class="p-3.5 font-mono text-amber-600 dark:text-amber-300 font-semibold">
+                                        <td class="py-2.5 px-3 whitespace-nowrap font-mono text-amber-600 dark:text-amber-300 font-semibold text-xs">
                                             ⏱ {prod.formatted_time}
                                         </td>
                                         <!-- Precio Base -->
                                         {#if hasFinancialAccess}
-                                            <td class="p-3.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                                            <td class="py-2.5 px-3 whitespace-nowrap text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
                                                 {formatCurrency(prod.base_price)}
                                             </td>
                                         {/if}
                                         <!-- Variantes -->
-                                        <td class="p-3.5 text-center">
+                                        <td class="py-2.5 px-3 whitespace-nowrap text-center">
                                             <span class="px-2 py-0.5 rounded-full font-mono font-bold text-[11px] {prod.variants?.length > 1 ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}">
                                                 {prod.variants?.length ?? 0}
                                             </span>
                                         </td>
                                         <!-- Acciones -->
-                                        <td class="p-3.5 text-right">
-                                            <div class="flex items-center justify-end gap-1.5">
+                                        <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                            <div class="inline-flex items-center justify-end">
                                                 <button
                                                     type="button"
-                                                    onclick={() => openEditProduct(prod)}
-                                                    class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-[#26334D] transition-colors"
+                                                    onclick={(e) => toggleActionMenu(e, prod.id)}
+                                                    class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
+                                                    title="Más opciones"
+                                                    aria-label="Más opciones"
                                                 >
-                                                    Editar
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onclick={() => destroyProduct(prod)}
-                                                    class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-500 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 text-xs font-semibold border border-slate-200 dark:border-[#26334D] transition-colors"
-                                                >
-                                                    ✕
+                                                    •••
                                                 </button>
                                             </div>
+
+                                            {#if openActionMenuProdId === prod.id}
+                                                <div
+                                                    role="menu"
+                                                    tabindex="-1"
+                                                    class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]/60 animate-in fade-in zoom-in-95 duration-100"
+                                                    style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                                    onclick={(e) => e.stopPropagation()}
+                                                    onkeydown={(e) => { if (e.key === 'Escape') openActionMenuProdId = null; }}
+                                                >
+                                                    <div class="py-0.5">
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => { openActionMenuProdId = null; openEditProduct(prod); }}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                                        >
+                                                            <span>✏️</span>
+                                                            <span>Editar Producto</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => { openActionMenuProdId = null; toggleRow(prod.id); }}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                                        >
+                                                            <span>📋</span>
+                                                            <span>Ver Receta BOM</span>
+                                                        </button>
+                                                        {#if prod.barcode}
+                                                            <button
+                                                                type="button"
+                                                                onclick={() => { openActionMenuProdId = null; downloadBarcodeAsPng(prod.barcode, prod.barcode_format || 'CODE128', prod.name); }}
+                                                                class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#06B6D4] hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                                            >
+                                                                <span>📥</span>
+                                                                <span>Descargar Barcode</span>
+                                                            </button>
+                                                        {/if}
+                                                    </div>
+                                                    <div class="py-0.5">
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => { openActionMenuProdId = null; destroyProduct(prod); }}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                                        >
+                                                            <span>🗑️</span>
+                                                            <span>Eliminar Producto</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            {/if}
                                         </td>
                                     </tr>
+
 
                                     <!-- RENGLÓN EXPANDIDO (ACCORDION) -->
                                     {#if isExpanded}

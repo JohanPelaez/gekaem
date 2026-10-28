@@ -189,24 +189,46 @@
         isEditingOrder = true;
         showOrderModal = true;
     }
+
+    let openActionMenuOrderId = $state(null);
+    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+
+    function toggleActionMenu(e, orderId) {
+        e.stopPropagation();
+        if (openActionMenuOrderId === orderId) {
+            openActionMenuOrderId = null;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        const openUpwards = window.innerHeight - rect.bottom < 220;
+        menuCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(12, window.innerWidth - rect.right),
+            openUpwards,
+            rectTop: rect.top,
+        };
+        openActionMenuOrderId = orderId;
+    }
 </script>
 
+<svelte:window onclick={() => openActionMenuOrderId = null} onscroll={() => openActionMenuOrderId = null} />
+
 <AppLayout title="Dashboard - gipPyme">
-    <div class="space-y-6">
+    <div class="space-y-4 w-full max-w-none">
         <!-- CABECERA PRINCIPAL -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-                <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                     Panel de Pedidos
                 </h1>
-                <p class="text-sm text-[#64748B] dark:text-slate-400 mt-0.5">
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Gestor Inteligente de Pedidos
                 </p>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
                 <Link
                     href="/kanban"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium border border-slate-200 dark:border-[#26334D] bg-white dark:bg-[#151D2C] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1C263B] transition-colors shadow-sm"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-slate-200 dark:border-[#26334D] bg-white dark:bg-[#151D2C] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1C263B] transition-colors shadow-sm"
                 >
                     <svg class="w-4 h-4 text-[#4F46E5] dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
@@ -216,7 +238,7 @@
                 <button
                     type="button"
                     onclick={openCreateModal}
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-[#4F46E5] hover:bg-[#4338CA] text-white transition-all shadow-md shadow-[#4F46E5]/20"
+                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#4F46E5] hover:bg-[#4338CA] text-white transition-all shadow-sm"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -225,6 +247,7 @@
                 </button>
             </div>
         </div>
+
 
         <!-- FILA DE 4 TARJETAS KPI -->
         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -542,41 +565,57 @@
 
                                     <!-- Acciones -->
                                     <td class="px-4 py-3.5 whitespace-nowrap text-right">
-                                        <div class="inline-flex items-center gap-1.5 justify-end">
-                                            <!-- Botón Editar Pedido (Lápiz) -->
+                                        <div class="inline-flex items-center justify-end">
                                             <button
                                                 type="button"
-                                                onclick={() => openEditModal(order)}
-                                                class="p-1.5 text-slate-500 hover:text-[#4F46E5] dark:text-slate-400 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-[#1C263B] rounded-lg transition-colors"
-                                                title="Editar Pedido"
+                                                onclick={(e) => toggleActionMenu(e, order.id)}
+                                                class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1C263B] transition-colors font-bold text-xs"
+                                                title="Más opciones"
                                             >
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                </svg>
+                                                •••
                                             </button>
-
-                                            <!-- Botón Ir a Kanban -->
-                                            <Link
-                                                href={`/kanban?order_id=${order.id}`}
-                                                class="p-1.5 text-slate-500 hover:text-[#06B6D4] dark:text-slate-400 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-[#1C263B] rounded-lg transition-colors"
-                                                title="Ver en Tablero Kanban"
-                                            >
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                                                </svg>
-                                            </Link>
-
-                                            <!-- Botón Opciones / Ver en Módulo de Pedidos -->
-                                            <Link
-                                                href={`/orders?search=${order.order_number}`}
-                                                class="p-1.5 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1C263B] rounded-lg transition-colors"
-                                                title="Detalle completo en Pedidos"
-                                            >
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-                                                </svg>
-                                            </Link>
                                         </div>
+
+                                        <!-- Menú Contextual Desplegable Fixed -->
+                                        {#if openActionMenuOrderId === order.id}
+                                            <div
+                                                role="menu"
+                                                tabindex="-1"
+                                                onclick={(e) => e.stopPropagation()}
+                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuOrderId = null; }}
+                                                class="fixed z-[9999] w-52 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1.5 text-left divide-y divide-slate-100 dark:divide-[#26334D]"
+                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                            >
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuOrderId = null; openEditModal(order); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                                    >
+                                                        <span>✏️</span>
+                                                        <span>Editar Pedido</span>
+                                                    </button>
+                                                </div>
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuOrderId = null; router.visit(`/kanban?order_id=${order.id}`); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                                    >
+                                                        <span>📋</span>
+                                                        <span>Ver en Tablero Kanban</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuOrderId = null; router.visit(`/orders?search=${order.order_number}`); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                                    >
+                                                        <span>🔍</span>
+                                                        <span>Detalle en Pedidos</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        {/if}
                                     </td>
                                 </tr>
                             {/each}

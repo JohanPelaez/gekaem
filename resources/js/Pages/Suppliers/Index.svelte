@@ -16,6 +16,25 @@
 
     let viewMode = $state('table'); // 'table' | 'cards'
     let expandedRows = $state(new Set());
+    let openActionMenuSupId = $state(null);
+    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+
+    function toggleActionMenu(e, supId) {
+        e.stopPropagation();
+        if (openActionMenuSupId === supId) {
+            openActionMenuSupId = null;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        const openUpwards = window.innerHeight - rect.bottom < 220;
+        menuCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(12, window.innerWidth - rect.right),
+            openUpwards,
+            rectTop: rect.top,
+        };
+        openActionMenuSupId = supId;
+    }
 
     let showModal = $state(false);
     let editingSupplier = $state(null);
@@ -115,18 +134,15 @@
     }
 </script>
 
+<svelte:window onclick={() => openActionMenuSupId = null} onscroll={() => openActionMenuSupId = null} />
+
 <AppLayout title="Proveedores">
-    <div class="space-y-6">
+    <div class="space-y-4">
         <!-- ENCABEZADO Y ACCIONES -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-6 rounded-2xl shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                        Módulo 4
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Directorio de Proveedores</h1>
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Directorio de Proveedores</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Gestión de abastecimiento, insumos suministrados y tiempos de reposición (Lead Time).
                 </p>
             </div>
@@ -135,7 +151,7 @@
                 <button
                     type="button"
                     onclick={openCreate}
-                    class="px-4 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
+                    class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
                 >
                     <span>+</span>
                     <span>Nuevo Proveedor</span>
@@ -144,7 +160,7 @@
         </div>
 
         <!-- BUSCADOR -->
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-4 rounded-xl flex items-center gap-3 shadow-sm">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3 rounded-xl flex items-center gap-3 shadow-sm">
             <span class="text-slate-400 text-sm">🔍</span>
             <label for="s-search" class="sr-only">Buscar proveedor</label>
             <input
@@ -171,93 +187,120 @@
             <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold border-b border-slate-200 dark:border-[#26334D] text-[10px] tracking-wider">
+                        <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold border-b border-slate-200 dark:border-[#26334D] text-[10px] tracking-wider whitespace-nowrap">
                             <tr>
-                                <th class="p-3.5 w-10 text-center"></th>
-                                <th class="p-4">Proveedor</th>
-                                <th class="p-4">Persona de Contacto</th>
-                                <th class="p-4">Contacto Directo</th>
-                                <th class="p-4 text-center">Tiempo Reposición (Lead Time)</th>
-                                <th class="p-4">Materiales Suministrados</th>
-                                <th class="p-4 text-right">Acciones</th>
+                                <th class="py-2.5 px-3 w-8 text-center"></th>
+                                <th class="py-2.5 px-3">Proveedor</th>
+                                <th class="py-2.5 px-3">Persona de Contacto</th>
+                                <th class="py-2.5 px-3">Contacto Directo</th>
+                                <th class="py-2.5 px-3 text-center">Lead Time</th>
+                                <th class="py-2.5 px-3">Materiales Suministrados</th>
+                                <th class="py-2.5 px-3 text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
                             {#each suppliers.data as supplier (supplier.id)}
                                 {@const isExpanded = expandedRows.has(supplier.id)}
                                 <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-50/50 dark:bg-slate-800/25' : ''}">
-                                    <td class="p-3.5 text-center">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         <button
                                             type="button"
                                             onclick={() => toggleRow(supplier.id)}
-                                            class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
+                                            class="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-transform text-[10px] {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
                                             title={isExpanded ? 'Colapsar detalles' : 'Expandir datos completos'}
                                         >
                                             ▶
                                         </button>
                                     </td>
-                                    <td class="p-4">
-                                        <button
-                                            type="button"
-                                            class="font-bold text-slate-900 dark:text-white text-sm hover:text-[#4F46E5] dark:hover:text-emerald-400 text-left block transition-colors"
-                                            onclick={() => toggleRow(supplier.id)}
-                                        >
-                                            {supplier.name}
-                                        </button>
-                                        {#if supplier.payment_methods}
-                                            <div class="mt-1">
-                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                                                    <span>💳</span>
-                                                    <span>{supplier.payment_methods}</span>
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                class="font-bold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-emerald-400 text-left transition-colors"
+                                                onclick={() => toggleRow(supplier.id)}
+                                            >
+                                                {supplier.name}
+                                            </button>
+                                            {#if supplier.payment_methods}
+                                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                                                    💳 {supplier.payment_methods}
                                                 </span>
-                                            </div>
-                                        {/if}
-                                        {#if supplier.notes}
-                                            <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-xs mt-0.5">{supplier.notes}</div>
-                                        {/if}
+                                            {/if}
+                                        </div>
                                     </td>
-                                    <td class="p-4 text-slate-700 dark:text-slate-300 font-medium">
+                                    <td class="py-2.5 px-3 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium">
                                         {supplier.contact_name ?? 'No especificado'}
                                     </td>
-                                    <td class="p-4">
-                                        <div class="font-medium text-slate-900 dark:text-slate-100">{supplier.phone ?? 'Sin teléfono'}</div>
-                                        <div class="text-slate-500 dark:text-slate-400 text-[11px]">{supplier.email ?? 'Sin email'}</div>
+                                    <td class="py-2.5 px-3 whitespace-nowrap font-mono text-xs">
+                                        <span class="text-slate-900 dark:text-slate-100">{supplier.phone ?? (supplier.email ?? 'Sin contacto')}</span>
                                     </td>
-                                    <td class="p-4 text-center">
-                                        <span class="px-2.5 py-1 rounded-full font-mono font-bold text-xs bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                        <span class="px-2 py-0.5 rounded-full font-mono font-bold text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
                                             {supplier.lead_time_days} {supplier.lead_time_days === 1 ? 'día' : 'días'}
                                         </span>
                                     </td>
-                                    <td class="p-4">
-                                        <div class="flex flex-wrap gap-1 max-w-xs">
-                                            {#each supplier.raw_materials ?? [] as mat}
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-1 max-w-[200px] overflow-hidden">
+                                            {#each (supplier.raw_materials ?? []).slice(0, 2) as mat}
                                                 <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                     {mat.name}
                                                 </span>
-                                            {:else}
-                                                <span class="text-slate-400 dark:text-slate-500 text-[11px]">Sin materiales vinculados</span>
                                             {/each}
+                                            {#if (supplier.raw_materials?.length ?? 0) > 2}
+                                                <span class="text-[10px] text-slate-400 font-mono">+{supplier.raw_materials.length - 2}</span>
+                                            {/if}
+                                            {#if !supplier.raw_materials?.length}
+                                                <span class="text-slate-400 dark:text-slate-500 text-[11px] italic">Sin materiales</span>
+                                            {/if}
                                         </div>
                                     </td>
-                                    <td class="p-4 text-right">
-                                        <div class="flex items-center justify-end gap-2">
+                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                        <div class="inline-flex items-center justify-end">
                                             <button
                                                 type="button"
-                                                onclick={() => openEdit(supplier)}
-                                                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium border border-slate-200 dark:border-[#26334D] transition-colors"
+                                                onclick={(e) => toggleActionMenu(e, supplier.id)}
+                                                class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-bold text-xs"
+                                                title="Más opciones"
                                             >
-                                                Editar
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => destroy(supplier)}
-                                                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-600 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 text-xs font-medium border border-slate-200 dark:border-[#26334D] transition-colors"
-                                            >
-                                                Eliminar
+                                                •••
                                             </button>
                                         </div>
+
+                                        <!-- Menú Contextual Desplegable Fixed -->
+                                        {#if openActionMenuSupId === supplier.id}
+                                            <div
+                                                role="menu"
+                                                tabindex="-1"
+                                                onclick={(e) => e.stopPropagation()}
+                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuSupId = null; }}
+                                                class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]"
+                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                            >
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuSupId = null; openEdit(supplier); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                                    >
+                                                        <span>✏️</span>
+                                                        <span>Editar Proveedor</span>
+                                                    </button>
+                                                </div>
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuSupId = null; destroy(supplier); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                                    >
+                                                        <span>🗑️</span>
+                                                        <span>Eliminar Proveedor</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        {/if}
                                     </td>
                                 </tr>
+
 
                                 <!-- RENGLÓN EXPANDIDO -->
                                 {#if isExpanded}

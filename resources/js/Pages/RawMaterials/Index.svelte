@@ -36,6 +36,25 @@
 
     let viewMode = $state('table'); // 'table' | 'cards'
     let expandedRows = $state(new Set());
+    let openActionMenuMatId = $state(null);
+    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+
+    function toggleActionMenu(e, matId) {
+        e.stopPropagation();
+        if (openActionMenuMatId === matId) {
+            openActionMenuMatId = null;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        const openUpwards = window.innerHeight - rect.bottom < 220;
+        menuCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(12, window.innerWidth - rect.right),
+            openUpwards,
+            rectTop: rect.top,
+        };
+        openActionMenuMatId = matId;
+    }
 
     // Proveedores locales sincronizados para permitir quick create
     let localSuppliers = $state([]);
@@ -376,18 +395,15 @@
     }
 </script>
 
+<svelte:window onclick={() => openActionMenuMatId = null} onscroll={() => openActionMenuMatId = null} />
+
 <AppLayout title="Materia Prima e Inventario">
-    <div class="space-y-6">
+    <div class="space-y-4">
         <!-- ENCABEZADO Y ACCIONES -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-6 rounded-2xl shadow-sm text-slate-900 dark:text-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-[#4F46E5]/10 text-[#4F46E5] dark:text-[#818CF8] border border-[#4F46E5]/20">
-                        Módulo 6
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Materia Prima e Inventario</h1>
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Materia Prima e Inventario</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Control de stock, insumos primordiales para recetas BOM y vinculación con proveedores.
                 </p>
             </div>
@@ -396,7 +412,7 @@
                 <button
                     type="button"
                     onclick={() => (showUomModal = true)}
-                    class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
+                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
                 >
                     <svg class="w-4 h-4 text-[#4F46E5] dark:text-[#06B6D4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
@@ -406,7 +422,7 @@
                 <button
                     type="button"
                     onclick={openCreate}
-                    class="px-4 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
+                    class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
                 >
                     <span>+</span>
                     <span>Nueva Materia Prima</span>
@@ -488,20 +504,20 @@
             <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold border-b border-slate-200 dark:border-[#26334D] text-[10px] tracking-wider">
+                        <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold border-b border-slate-200 dark:border-[#26334D] text-[10px] tracking-wider whitespace-nowrap">
                             <tr>
-                                <th class="p-3.5 w-10 text-center"></th>
-                                <th class="p-4">Material / SKU</th>
-                                <th class="p-4 text-center">Unidad</th>
-                                <th class="p-4 text-right">Stock Actual</th>
-                                <th class="p-4 text-right">Reservado</th>
-                                <th class="p-4 text-right">Disponible</th>
-                                <th class="p-4 text-center">Alerta Mínima</th>
+                                <th class="py-2.5 px-3 w-8 text-center"></th>
+                                <th class="py-2.5 px-3">Material / SKU</th>
+                                <th class="py-2.5 px-3 text-center">Unidad</th>
+                                <th class="py-2.5 px-3 text-right">Stock Actual</th>
+                                <th class="py-2.5 px-3 text-right">Reservado</th>
+                                <th class="py-2.5 px-3 text-right">Disponible</th>
+                                <th class="py-2.5 px-3 text-center">Alerta Mínima</th>
                                 {#if hasFinancialAccess}
-                                    <th class="p-4 text-right">Costo Unitario</th>
+                                    <th class="py-2.5 px-3 text-right">Costo Unitario</th>
                                 {/if}
-                                <th class="p-4">Proveedores</th>
-                                <th class="p-4 text-right">Acciones</th>
+                                <th class="py-2.5 px-3">Proveedores</th>
+                                <th class="py-2.5 px-3 text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
@@ -513,41 +529,43 @@
                                 {@const isExpanded = expandedRows.has(mat.id)}
                                 <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isLowStock ? 'bg-rose-50/50 dark:bg-rose-950/10' : ''} {isExpanded ? 'bg-slate-50/90 dark:bg-slate-800/25' : ''}">
                                     <!-- Botón Expandir -->
-                                    <td class="p-3.5 text-center">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         <button
                                             type="button"
                                             onclick={() => toggleRow(mat.id)}
-                                            class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-[#06B6D4]' : ''}"
+                                            class="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-transform text-[10px] {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-[#06B6D4]' : ''}"
                                             title={isExpanded ? 'Colapsar detalles' : 'Expandir proveedores y detalles'}
                                         >
                                             ▶
                                         </button>
                                     </td>
-                                    <td class="p-4">
-                                        <button
-                                            type="button"
-                                            class="font-bold text-slate-900 dark:text-white text-sm hover:text-[#4F46E5] dark:hover:text-[#06B6D4] text-left block transition-colors"
-                                            onclick={() => toggleRow(mat.id)}
-                                        >
-                                            {mat.name}
-                                        </button>
-                                        <span class="font-mono text-[10px] text-slate-400 dark:text-slate-500">{mat.sku ?? 'Sin SKU'}</span>
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                class="font-bold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-[#06B6D4] text-left transition-colors"
+                                                onclick={() => toggleRow(mat.id)}
+                                            >
+                                                {mat.name}
+                                            </button>
+                                            <span class="font-mono text-[10px] text-slate-400 dark:text-slate-500">({mat.sku ?? 'Sin SKU'})</span>
+                                        </div>
                                     </td>
-                                    <td class="p-4 text-center font-mono text-slate-500 dark:text-slate-400 capitalize">
+                                    <td class="py-2.5 px-3 text-center font-mono text-slate-500 dark:text-slate-400 capitalize whitespace-nowrap">
                                         {mat.unit_of_measure}
                                     </td>
-                                    <td class="p-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                    <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                         {current.toFixed(2)}
                                     </td>
-                                    <td class="p-4 text-right font-mono font-semibold text-amber-600 dark:text-amber-400">
+                                    <td class="py-2.5 px-3 text-right font-mono font-semibold text-amber-600 dark:text-amber-400 whitespace-nowrap">
                                         {reserved.toFixed(2)}
                                     </td>
-                                    <td class="p-4 text-right font-mono font-bold {available <= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">
+                                    <td class="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap {available <= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">
                                         {available.toFixed(2)}
                                     </td>
-                                    <td class="p-4 text-center">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         {#if isLowStock}
-                                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono font-bold text-[10px] bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30 animate-pulse">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold text-[10px] bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30 animate-pulse">
                                                 ⚠ Min: {Number(mat.min_stock_alert)}
                                             </span>
                                         {:else}
@@ -557,49 +575,81 @@
                                         {/if}
                                     </td>
                                     {#if hasFinancialAccess}
-                                        <td class="p-4 text-right font-mono text-slate-900 dark:text-slate-200 font-semibold">
+                                        <td class="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-200 font-semibold whitespace-nowrap">
                                             {formatCurrency(mat.unit_cost)}
                                         </td>
                                     {/if}
-                                    <td class="p-4">
-                                        <div class="flex flex-wrap gap-1 max-w-xs">
-                                            {#each mat.suppliers ?? [] as sup}
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-1 max-w-[200px] overflow-hidden">
+                                            {#each (mat.suppliers ?? []).slice(0, 2) as sup}
                                                 <span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full {sup.pivot?.is_preferred ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 font-semibold' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/60'}">
                                                     {#if sup.pivot?.is_preferred}★{/if}
                                                     {sup.name}
                                                 </span>
-                                            {:else}
-                                                <span class="text-[10px] text-slate-400 italic">Insumo local</span>
                                             {/each}
+                                            {#if (mat.suppliers?.length ?? 0) > 2}
+                                                <span class="text-[10px] text-slate-400 font-mono">+{mat.suppliers.length - 2}</span>
+                                            {/if}
+                                            {#if !mat.suppliers?.length}
+                                                <span class="text-[10px] text-slate-400 italic">Insumo local</span>
+                                            {/if}
                                         </div>
                                     </td>
-                                    <td class="p-4 text-right">
-                                        <div class="flex items-center justify-end gap-1.5">
+                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                        <div class="inline-flex items-center justify-end">
                                             <button
                                                 type="button"
-                                                onclick={() => openAdjust(mat)}
-                                                class="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-semibold transition-colors"
-                                                title="Registrar Compra / Ajuste de Stock"
+                                                onclick={(e) => toggleActionMenu(e, mat.id)}
+                                                class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
+                                                title="Más opciones"
                                             >
-                                                ± Stock
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => openEdit(mat)}
-                                                class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-medium transition-colors"
-                                            >
-                                                Editar
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => destroy(mat)}
-                                                class="px-2 py-1 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-950 dark:text-slate-500 dark:hover:text-rose-300 border border-slate-200 dark:border-[#26334D] text-xs font-medium transition-colors"
-                                            >
-                                                ✕
+                                                •••
                                             </button>
                                         </div>
+
+                                        <!-- Menú Contextual Desplegable (Fixed) -->
+                                        {#if openActionMenuMatId === mat.id}
+                                            <div
+                                                role="menu"
+                                                tabindex="-1"
+                                                class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]"
+                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                                onclick={(e) => e.stopPropagation()}
+                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuMatId = null; }}
+                                            >
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuMatId = null; openEdit(mat); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                                    >
+                                                        <span>✏️</span>
+                                                        <span>Editar Insumo</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuMatId = null; openAdjust(mat); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                                                    >
+                                                        <span>📦</span>
+                                                        <span>Ajustar Stock / Compra</span>
+                                                    </button>
+                                                </div>
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuMatId = null; destroy(mat); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                                    >
+                                                        <span>🗑️</span>
+                                                        <span>Eliminar Insumo</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        {/if}
                                     </td>
                                 </tr>
+
 
                                 <!-- RENGLÓN EXPANDIDO (ACCORDION) -->
                                 {#if isExpanded}

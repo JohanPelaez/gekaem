@@ -210,27 +210,22 @@
 </script>
 
 <AppLayout title="Ajustes y Perfil">
-    <div class="space-y-6 max-w-6xl mx-auto">
+    <div class="space-y-4 w-full max-w-none">
         <!-- ENCABEZADO -->
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-6 rounded-3xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-slate-900 dark:text-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#4F46E5]/10 text-[#4F46E5] dark:text-[#818CF8] border border-[#4F46E5]/20">
-                        {canManageTenant ? 'Gestión Integral' : 'Cuenta de Usuario'}
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Ajustes y Configuración</h1>
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Ajustes y Configuración</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Administra tu perfil personal, la capacidad operativa del taller y los colaboradores del equipo.
                 </p>
             </div>
 
             <!-- SELECTOR DE PESTAÑAS -->
-            <div class="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-2xl self-start sm:self-auto overflow-x-auto">
+            <div class="flex items-center gap-1 p-1 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl self-start sm:self-auto overflow-x-auto shadow-sm">
                 <button
                     type="button"
                     onclick={() => activeTab = 'profile'}
-                    class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 {activeTab === 'profile' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800'}"
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 {activeTab === 'profile' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}"
                 >
                     <span>👤</span>
                     <span>Mi Perfil</span>
@@ -240,7 +235,7 @@
                     <button
                         type="button"
                         onclick={() => activeTab = 'tenant'}
-                        class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 {activeTab === 'tenant' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800'}"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 {activeTab === 'tenant' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         <span>⚙️</span>
                         <span>Configuración del Taller</span>
@@ -249,7 +244,7 @@
                     <button
                         type="button"
                         onclick={() => activeTab = 'team'}
-                        class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 {activeTab === 'team' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800'}"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 {activeTab === 'team' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         <span>👥</span>
                         <span>Equipo de Trabajo</span>
@@ -262,6 +257,7 @@
                 {/if}
             </div>
         </div>
+
 
         <!-- CONTENIDO DE LAS PESTAÑAS -->
         {#if activeTab === 'profile'}

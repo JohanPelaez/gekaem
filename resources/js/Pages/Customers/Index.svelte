@@ -20,6 +20,25 @@
     let showModal = $state(false);
     let editingCustomer = $state(null);
     let processing = $state(false);
+    let openActionMenuId = $state(null);
+    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+
+    function toggleActionMenu(e, id) {
+        e.stopPropagation();
+        if (openActionMenuId === id) {
+            openActionMenuId = null;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        const openUpwards = window.innerHeight - rect.bottom < 220;
+        menuCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(12, window.innerWidth - rect.right),
+            openUpwards,
+            rectTop: rect.top,
+        };
+        openActionMenuId = id;
+    }
 
     let form = $state({
         name: '',
@@ -124,19 +143,16 @@
     }
 </script>
 
+<svelte:window onclick={() => openActionMenuId = null} onscroll={() => openActionMenuId = null} />
+
 <AppLayout title="Clientes">
-    <div class="space-y-6">
+    <div class="space-y-4 w-full max-w-none">
         <!-- ENCABEZADO Y ACCIONES -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-6 rounded-2xl shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                        Módulo 3
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Directorio de Clientes</h1>
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Administra los clientes vinculados a los pedidos de producción. (Nota 5: Todo pedido requiere un cliente).
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Directorio de Clientes</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Administra los clientes vinculados a los pedidos de producción.
                 </p>
             </div>
             <div class="flex items-center gap-2 shrink-0 self-start sm:self-auto">
@@ -144,7 +160,7 @@
                 <button
                     type="button"
                     onclick={openCreate}
-                    class="px-4 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
+                    class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-1.5 shrink-0"
                 >
                     <span>+</span>
                     <span>Nuevo Cliente</span>
@@ -153,7 +169,7 @@
         </div>
 
         <!-- BUSCADOR -->
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-4 rounded-xl flex items-center gap-3 shadow-sm">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3 rounded-xl flex items-center gap-3 shadow-sm">
             <span class="text-slate-400 text-sm">🔍</span>
             <label for="c-search" class="sr-only">Buscar cliente</label>
             <input
@@ -182,89 +198,125 @@
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold border-b border-slate-200 dark:border-[#26334D] text-[10px] tracking-wider">
                             <tr>
-                                <th class="p-3.5 w-10 text-center"></th>
-                                <th class="p-4">Cliente</th>
-                                <th class="p-4">Contacto</th>
-                                <th class="p-4">Identificación</th>
-                                <th class="p-4">Ubicación / Dirección</th>
-                                <th class="p-4 text-center">Pedidos (US)</th>
-                                <th class="p-4 text-right">Acciones</th>
+                                <th class="py-2.5 px-3 w-10 text-center"></th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Cliente</th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Contacto</th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Identificación</th>
+                                <th class="py-2.5 px-3 whitespace-nowrap">Ubicación / Dirección</th>
+                                <th class="py-2.5 px-3 text-center whitespace-nowrap">Pedidos</th>
+                                <th class="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
                             {#each customers.data as customer (customer.id)}
                                 {@const isExpanded = expandedRows.has(customer.id)}
                                 <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-50/50 dark:bg-slate-800/25' : ''}">
-                                    <td class="p-3.5 text-center">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         <button
                                             type="button"
                                             onclick={() => toggleRow(customer.id)}
-                                            class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
+                                            class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 inline-flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
                                             title={isExpanded ? 'Colapsar detalles' : 'Expandir datos completos'}
                                         >
                                             ▶
                                         </button>
                                     </td>
-                                    <td class="p-4">
-                                        <button
-                                            type="button"
-                                            class="font-bold text-slate-900 dark:text-white text-sm hover:text-[#4F46E5] dark:hover:text-emerald-400 text-left block transition-colors"
-                                            onclick={() => toggleRow(customer.id)}
-                                        >
-                                            {customer.name}
-                                        </button>
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-1.5 max-w-[200px]">
+                                            <button
+                                                type="button"
+                                                class="font-semibold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-emerald-400 text-left truncate transition-colors"
+                                                onclick={() => toggleRow(customer.id)}
+                                                title={customer.name}
+                                            >
+                                                {customer.name}
+                                            </button>
+                                        </div>
                                         {#if customer.notes}
-                                            <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-xs">{customer.notes}</div>
+                                            <div class="text-[10px] text-slate-400 truncate max-w-[200px]">{customer.notes}</div>
                                         {/if}
                                     </td>
-                                    <td class="p-4">
-                                        <div class="font-medium text-slate-900 dark:text-slate-100">{customer.phone ?? 'Sin teléfono'}</div>
-                                        <div class="text-slate-500 dark:text-slate-400 text-[11px]">{customer.email ?? 'Sin email'}</div>
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <span class="font-medium text-slate-900 dark:text-slate-100 text-xs">{customer.phone ?? 'Sin teléfono'}</span>
+                                        {#if customer.email}
+                                            <span class="text-slate-400 text-[11px] block truncate max-w-[170px]">{customer.email}</span>
+                                        {/if}
                                     </td>
-                                    <td class="p-4">
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
                                         {#if customer.document_number || customer.tax_id}
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
                                                 {customer.document_number || customer.tax_id}
                                             </span>
-                                            {#if customer.document_number && customer.tax_id && customer.document_number !== customer.tax_id}
-                                                <div class="text-[10px] text-slate-400 font-sans mt-0.5">NIT: {customer.tax_id}</div>
-                                            {/if}
                                         {:else}
-                                            <span class="text-slate-400">N/A</span>
+                                            <span class="text-slate-400 text-xs">N/A</span>
                                         {/if}
                                     </td>
-                                    <td class="p-4 max-w-xs">
-                                        <div class="truncate text-slate-800 dark:text-slate-200">{customer.address ?? 'Sin dirección'}</div>
-                                        {#if customer.city || customer.department || customer.neighborhood}
-                                            <div class="mt-1 flex flex-wrap gap-1">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
-                                                    {[customer.neighborhood, customer.city, customer.department].filter(Boolean).join(', ')}
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-1.5 max-w-[220px]">
+                                            <span class="truncate text-slate-800 dark:text-slate-200 text-xs">{customer.address ?? 'Sin dirección'}</span>
+                                            {#if customer.city || customer.department}
+                                                <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40 shrink-0">
+                                                    {[customer.city, customer.department].filter(Boolean).join(', ')}
                                                 </span>
-                                            </div>
-                                        {/if}
+                                            {/if}
+                                        </div>
                                     </td>
-                                    <td class="p-4 text-center">
-                                        <span class="px-2.5 py-1 rounded-full font-mono font-bold text-xs {customer.orders_count > 0 ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                        <span class="px-2 py-0.5 rounded-full font-mono font-bold text-xs {customer.orders_count > 0 ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}">
                                             {customer.orders_count}
                                         </span>
                                     </td>
-                                    <td class="p-4 text-right">
-                                        <div class="flex items-center justify-end gap-2">
+                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                        <div class="inline-flex items-center justify-end">
                                             <button
                                                 type="button"
-                                                onclick={() => openEdit(customer)}
-                                                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium border border-slate-200 dark:border-[#26334D] transition-colors"
+                                                onclick={(e) => toggleActionMenu(e, customer.id)}
+                                                class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
+                                                title="Más opciones"
+                                                aria-label="Más opciones"
                                             >
-                                                Editar
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => destroy(customer)}
-                                                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-600 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 text-xs font-medium border border-slate-200 dark:border-[#26334D] transition-colors"
-                                            >
-                                                Eliminar
+                                                •••
                                             </button>
                                         </div>
+
+                                        {#if openActionMenuId === customer.id}
+                                            <div
+                                                role="menu"
+                                                tabindex="-1"
+                                                class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]/60 animate-in fade-in zoom-in-95 duration-100"
+                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                                onclick={(e) => e.stopPropagation()}
+                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuId = null; }}
+                                            >
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuId = null; openEdit(customer); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                                    >
+                                                        <span>✏️</span>
+                                                        <span>Editar Cliente</span>
+                                                    </button>
+                                                    <Link
+                                                        href={`/orders?customer_id=${customer.id}`}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                                    >
+                                                        <span>📦</span>
+                                                        <span>Ver Pedidos</span>
+                                                    </Link>
+                                                </div>
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuId = null; destroy(customer); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                                    >
+                                                        <span>🗑️</span>
+                                                        <span>Eliminar Cliente</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        {/if}
                                     </td>
                                 </tr>
 
