@@ -17,6 +17,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\UnitOfMeasureController;
 use App\Http\Controllers\WorkflowController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 // Rutas de Autenticación
@@ -25,11 +26,13 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/demo-login', [AuthController::class, 'demoLogin'])->name('demo-login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-// Redirección principal hacia el Tablero Kanban
-Route::get('/', fn () => redirect()->route('kanban.index'));
+// Redirección principal
+Route::get('/', fn () => redirect()->route('dashboard'));
 
 // Rutas protegidas de la aplicación
 Route::middleware(['auth'])->group(function (): void {
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
     // Módulo 5: Tablero Kanban (US = Pedidos, Tareas = Productos)
     Route::prefix('kanban')->name('kanban.')->group(function (): void {
         Route::get('/', [KanbanController::class, 'index'])->name('index');
@@ -55,6 +58,7 @@ Route::middleware(['auth'])->group(function (): void {
         Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
         Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
         Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');
+        Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
     });
 
     Route::delete('/payments/{payment}', [OrderPaymentController::class, 'destroy'])->name('payments.destroy');

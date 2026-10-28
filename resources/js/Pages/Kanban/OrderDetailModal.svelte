@@ -182,31 +182,31 @@
 </script>
 
 {#if isOpen && order}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-4xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
             <!-- CABECERA DEL PEDIDO -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-[#26334D] pb-4">
                 <div class="flex items-center gap-3">
-                    <span class="px-2.5 py-1 rounded-xl font-mono font-bold text-sm bg-slate-950 text-emerald-400 border border-slate-800">
+                    <span class="px-2.5 py-1 rounded-xl font-mono font-bold text-sm bg-slate-100 dark:bg-slate-950 text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-800 shadow-sm">
                         #{order.order_number}
                     </span>
                     <div>
-                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <span>Pedido #{order.order_number}</span>
                             {#if order.shipping_type === 'contraentrega'}
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                     🚚 Contraentrega
                                 </span>
                             {:else}
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#4F46E5]/10 text-[#4F46E5] dark:text-indigo-400 border border-[#4F46E5]/20">
                                     📦 Envío Incluido
                                 </span>
                             {/if}
                         </h2>
-                        <div class="flex items-center gap-2 mt-0.5 text-xs text-slate-400 font-mono">
+                        <div class="flex items-center gap-2 mt-0.5 text-xs text-[#64748B] dark:text-slate-400 font-mono">
                             <span>📅 Entrega: {formatDateTime(order.committed_delivery_at || order.predicted_delivery_at)}</span>
                             {#if deliveryBadge}
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold border {deliveryBadge.color}">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border {deliveryBadge.color}">
                                     {deliveryBadge.text}
                                 </span>
                             {/if}
@@ -217,7 +217,7 @@
                 <!-- SELECTOR DE ESTADO DEL PEDIDO Y BOTÓN CERRAR -->
                 <div class="flex items-center gap-2 self-end sm:self-auto">
                     <!-- Selector interactivo de Estado de Pedido -->
-                    <div class="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
+                    <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-[#0B0F17] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-[#26334D]">
                         <span
                             class="w-3 h-3 rounded-full shrink-0 shadow-sm"
                             style="background-color: {activeStatus?.color || '#64748b'};"
@@ -227,10 +227,10 @@
                             id="detail-order-status"
                             value={order.order_status_id || activeStatus?.id || ''}
                             onchange={handleStatusSelect}
-                            class="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer"
+                            class="bg-transparent text-slate-900 dark:text-white font-bold text-xs focus:outline-none cursor-pointer"
                         >
                             {#each orderStatuses as st}
-                                <option value={st.id} class="bg-slate-900 text-white">
+                                <option value={st.id} class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                                     {st.name}
                                 </option>
                             {/each}
@@ -240,7 +240,7 @@
                     <button
                         type="button"
                         onclick={closeModal}
-                        class="text-slate-400 hover:text-white p-1 rounded-lg"
+                        class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg"
                     >
                         ✕
                     </button>
@@ -248,33 +248,33 @@
             </div>
 
             <!-- BLOQUE DE CLIENTE Y DESTINO -->
-            <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                    <span class="font-bold text-slate-300 uppercase tracking-wider text-[11px]">Información del Cliente y Destino</span>
+            <div class="p-4 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-2 text-xs">
+                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                    <span class="font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider text-[11px]">Información del Cliente y Destino</span>
                     {#if order.customer?.document_number || order.customer?.tax_id}
-                        <span class="text-slate-500 font-mono text-[11px]">Doc: {order.customer.document_number || order.customer.tax_id}</span>
+                        <span class="text-[#64748B] dark:text-slate-500 font-mono text-[11px]">Doc: {order.customer.document_number || order.customer.tax_id}</span>
                     {/if}
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
                     <div>
-                        <span class="text-[10px] text-slate-500 uppercase font-bold block">Nombre Completo</span>
-                        <span class="text-white font-semibold text-sm">{order.customer?.name || 'Cliente no asignado'}</span>
+                        <span class="text-[10px] text-[#64748B] dark:text-slate-500 uppercase font-bold block">Nombre Completo</span>
+                        <span class="text-slate-900 dark:text-white font-semibold text-sm">{order.customer?.name || 'Cliente no asignado'}</span>
                     </div>
 
                     <div>
-                        <span class="text-[10px] text-slate-500 uppercase font-bold block">Contacto</span>
-                        <div class="text-slate-300 flex items-center gap-2">
+                        <span class="text-[10px] text-[#64748B] dark:text-slate-500 uppercase font-bold block">Contacto</span>
+                        <div class="text-slate-700 dark:text-slate-300 flex items-center gap-2">
                             {#if order.customer?.phone}
-                                <a href="tel:{order.customer.phone}" class="text-emerald-400 hover:underline">
+                                <a href="tel:{order.customer.phone}" class="text-emerald-600 dark:text-emerald-400 hover:underline">
                                     📞 {order.customer.phone}
                                 </a>
                             {:else}
-                                <span class="text-slate-500">Sin teléfono</span>
+                                <span class="text-slate-400">Sin teléfono</span>
                             {/if}
                             {#if order.customer?.email}
-                                <span class="text-slate-600">•</span>
-                                <a href="mailto:{order.customer.email}" class="text-sky-400 hover:underline truncate">
+                                <span class="text-slate-400">•</span>
+                                <a href="mailto:{order.customer.email}" class="text-[#4F46E5] dark:text-sky-400 hover:underline truncate">
                                     ✉️ {order.customer.email}
                                 </a>
                             {/if}
@@ -282,18 +282,18 @@
                     </div>
 
                     <div>
-                        <span class="text-[10px] text-slate-500 uppercase font-bold block">Ubicación</span>
-                        <span class="text-slate-200">
+                        <span class="text-[10px] text-[#64748B] dark:text-slate-500 uppercase font-bold block">Ubicación</span>
+                        <span class="text-slate-800 dark:text-slate-200">
                             {[order.customer?.city, order.customer?.department].filter(Boolean).join(', ') || 'Ciudad no especificada'}
                             {#if order.customer?.neighborhood}
-                                <span class="text-slate-400">({order.customer.neighborhood})</span>
+                                <span class="text-slate-500 dark:text-slate-400">({order.customer.neighborhood})</span>
                             {/if}
                         </span>
                     </div>
 
                     <div class="sm:col-span-2 lg:col-span-3">
-                        <span class="text-[10px] text-slate-500 uppercase font-bold block">Dirección de Entrega</span>
-                        <span class="text-slate-300 font-mono">{order.customer?.address || 'Sin dirección física registrada'}</span>
+                        <span class="text-[10px] text-[#64748B] dark:text-slate-500 uppercase font-bold block">Dirección de Entrega</span>
+                        <span class="text-slate-700 dark:text-slate-300 font-mono">{order.customer?.address || 'Sin dirección física registrada'}</span>
                     </div>
                 </div>
             </div>
@@ -301,10 +301,10 @@
             <!-- DESGLOSE DE PRODUCTOS Y TAREAS DE PRODUCCIÓN -->
             <div class="space-y-2">
                 <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold text-white uppercase tracking-wider">
+                    <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                         Productos en Producción ({getOrderTasks(order).length})
                     </span>
-                    <span class="text-[11px] text-slate-500">
+                    <span class="text-[11px] text-[#64748B] dark:text-slate-500">
                         Puedes cambiar la etapa operativa de cada producto directamente
                     </span>
                 </div>
@@ -316,31 +316,31 @@
                         {@const currentStage = stages.find((s) => s.id === task.current_stage_id) ?? task.current_stage ?? task.currentStage}
                         {@const isHighlighted = highlightedTaskId && Number(task.id) === Number(highlightedTaskId)}
                         <div
-                            class="p-3 bg-slate-950 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 {isHighlighted ? 'border-sky-500 ring-2 ring-sky-500/50 bg-sky-950/20 shadow-md' : 'border-slate-800 hover:border-slate-700'}"
+                            class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 {isHighlighted ? 'border-[#4F46E5] ring-2 ring-[#4F46E5]/40 bg-indigo-50/50 dark:bg-sky-950/20 shadow-md' : 'border-slate-200 dark:border-[#26334D] hover:border-slate-300 dark:hover:border-slate-600'}"
                         >
                             <div class="space-y-1 min-w-0">
                                 <div class="flex items-center gap-2">
-                                    <span class="font-bold text-white text-xs truncate">
+                                    <span class="font-bold text-slate-900 dark:text-white text-xs truncate">
                                         {task.item_name_snapshot || task.productVariant?.name_label || 'Producto'}
                                     </span>
                                     {#if task.productVariant?.product?.productType?.name}
-                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-800 text-slate-400">
+                                        <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400">
                                             {task.productVariant.product.productType.name}
                                         </span>
                                     {/if}
                                 </div>
 
-                                <div class="flex items-center gap-3 text-[11px] text-slate-400 font-mono flex-wrap">
-                                    <span>Cant: <strong class="text-slate-200">{Number(task.quantity)}</strong></span>
+                                <div class="flex items-center gap-3 text-[11px] text-[#64748B] dark:text-slate-400 font-mono flex-wrap">
+                                    <span>Cant: <strong class="text-slate-800 dark:text-slate-200">{Number(task.quantity)}</strong></span>
                                     <span>•</span>
-                                    <span>Flujo: <strong class="text-slate-300">{wf?.name || 'Estándar'}</strong></span>
+                                    <span>Flujo: <strong class="text-slate-700 dark:text-slate-300">{wf?.name || 'Estándar'}</strong></span>
                                     <span>•</span>
-                                    <span>Est.: <strong class="text-slate-300">{task.estimated_minutes} min</strong></span>
+                                    <span>Est.: <strong class="text-slate-700 dark:text-slate-300">{task.estimated_minutes} min</strong></span>
                                     {#if hasFinancialAccess && task.unit_price}
                                         <span>•</span>
-                                        <span class="text-emerald-400">{formatCurrency(task.unit_price)} c/u</span>
+                                        <span class="text-emerald-600 dark:text-emerald-400 font-semibold">{formatCurrency(task.unit_price)} c/u</span>
                                         {#if Number(task.discount_percentage) > 0}
-                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                                                 -{Number(task.discount_percentage)}% desc.
                                             </span>
                                         {/if}
@@ -350,9 +350,9 @@
 
                             <!-- Selector Coloreado de Etapa del Flujo -->
                             <div class="flex items-center gap-2 shrink-0 self-end md:self-auto">
-                                <span class="text-[11px] text-slate-500 font-semibold">Etapa:</span>
+                                <span class="text-[11px] text-[#64748B] dark:text-slate-500 font-semibold">Etapa:</span>
                                 <div
-                                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-700/80 bg-slate-900"
+                                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm"
                                     style="border-left: 4px solid {currentStage?.color || '#64748b'};"
                                 >
                                     <label for="detail-task-stage-{task.id}" class="sr-only">Etapa de la tarea</label>
@@ -360,10 +360,10 @@
                                         id="detail-task-stage-{task.id}"
                                         value={task.current_stage_id}
                                         onchange={(e) => handleStageSelect(task, e)}
-                                        class="bg-transparent text-white font-medium text-xs focus:outline-none cursor-pointer"
+                                        class="bg-transparent text-slate-900 dark:text-white font-medium text-xs focus:outline-none cursor-pointer"
                                     >
                                         {#each stages as stg}
-                                            <option value={stg.id} class="bg-slate-900 text-white">
+                                            <option value={stg.id} class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                                                 {stg.name}
                                             </option>
                                         {/each}
@@ -377,13 +377,13 @@
 
             <!-- BLOQUE FINANCIERO Y ABONOS (SOLO VISIBLE CON PERMISOS) -->
             {#if hasFinancialAccess}
-                <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
-                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-                        <span class="font-bold text-slate-300 uppercase tracking-wider text-[11px]">Estado Financiero del Pedido</span>
+                <div class="p-4 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                        <span class="font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider text-[11px]">Estado Financiero del Pedido</span>
                         <button
                             type="button"
                             onclick={() => showNewPaymentForm = !showNewPaymentForm}
-                            class="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 font-semibold text-xs border border-emerald-500/30 transition-colors flex items-center gap-1"
+                            class="px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-400 font-semibold text-xs border border-emerald-200 dark:border-emerald-500/30 transition-colors flex items-center gap-1"
                         >
                             <span>{showNewPaymentForm ? '✕ Cancelar' : '+ Registrar Abono'}</span>
                         </button>
@@ -391,19 +391,19 @@
 
                     <!-- Resumen de Saldos -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
-                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">Total del Pedido</span>
-                            <span class="font-mono font-bold text-white text-base">{formatCurrency(order.total_amount)}</span>
+                        <div class="p-3 bg-white dark:bg-[#151D2C] rounded-xl border border-slate-200 dark:border-[#26334D] shadow-sm">
+                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-0.5">Total del Pedido</span>
+                            <span class="font-mono font-bold text-slate-900 dark:text-white text-base">{formatCurrency(order.total_amount)}</span>
                         </div>
 
-                        <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
-                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">Total Abonado</span>
-                            <span class="font-mono font-bold text-emerald-400 text-base">{formatCurrency(order.paid_amount)}</span>
+                        <div class="p-3 bg-white dark:bg-[#151D2C] rounded-xl border border-slate-200 dark:border-[#26334D] shadow-sm">
+                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-0.5">Total Abonado</span>
+                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-base">{formatCurrency(order.paid_amount)}</span>
                         </div>
 
-                        <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
-                            <span class="text-[10px] text-slate-400 uppercase font-bold block mb-0.5">Saldo Pendiente</span>
-                            <span class="font-mono font-bold text-base {order.pending_balance > 0 ? 'text-amber-400' : 'text-emerald-400'}">
+                        <div class="p-3 bg-white dark:bg-[#151D2C] rounded-xl border border-slate-200 dark:border-[#26334D] shadow-sm">
+                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-0.5">Saldo Pendiente</span>
+                            <span class="font-mono font-bold text-base {order.pending_balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">
                                 {order.pending_balance > 0 ? formatCurrency(order.pending_balance) : '✓ Pagado ($0)'}
                             </span>
                         </div>
@@ -411,32 +411,32 @@
 
                     <!-- Formulario Rápido Colapsable de Nuevo Abono -->
                     {#if showNewPaymentForm}
-                        <form onsubmit={handlePaymentSubmit} class="p-3.5 bg-slate-900 rounded-xl border border-emerald-500/30 space-y-3 animate-in fade-in duration-150">
-                            <span class="text-xs font-bold text-emerald-400 block">Nuevo Abono a Pedido #{order.order_number}</span>
+                        <form onsubmit={handlePaymentSubmit} class="p-3.5 bg-white dark:bg-[#151D2C] rounded-xl border border-emerald-500/30 space-y-3 animate-in fade-in duration-150 shadow-sm">
+                            <span class="text-xs font-bold text-emerald-700 dark:text-emerald-400 block">Nuevo Abono a Pedido #{order.order_number}</span>
 
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div>
-                                    <label for="detail-pay-amount" class="block text-[11px] font-semibold text-slate-300 mb-1">Monto ($) *</label>
+                                    <label for="detail-pay-amount" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Monto ($) *</label>
                                     <CurrencyInput bind:value={paymentAmount} id="detail-pay-amount" required placeholder="0" />
                                 </div>
 
                                 <div>
-                                    <label for="detail-pay-date" class="block text-[11px] font-semibold text-slate-300 mb-1">Fecha de Pago *</label>
+                                    <label for="detail-pay-date" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Fecha de Pago *</label>
                                     <input
                                         id="detail-pay-date"
                                         type="date"
                                         bind:value={paymentDate}
                                         required
-                                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
+                                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5] font-mono"
                                     />
                                 </div>
 
                                 <div>
-                                    <label for="detail-pay-method" class="block text-[11px] font-semibold text-slate-300 mb-1">Método de Pago *</label>
+                                    <label for="detail-pay-method" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Método de Pago *</label>
                                     <select
                                         id="detail-pay-method"
                                         bind:value={paymentMethod}
-                                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                                     >
                                         <option value="transfer">Transferencia / Nequi / Daviplata</option>
                                         <option value="cash">Efectivo</option>
@@ -448,44 +448,44 @@
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label for="detail-pay-notes" class="block text-[11px] font-semibold text-slate-300 mb-1">Notas / Referencia</label>
+                                    <label for="detail-pay-notes" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Notas / Referencia</label>
                                     <input
                                         id="detail-pay-notes"
                                         type="text"
                                         bind:value={paymentNotes}
                                         placeholder="Ej. Aprobación #1234..."
-                                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                                     />
                                 </div>
 
                                 <div>
-                                    <label for="detail-pay-voucher" class="block text-[11px] font-semibold text-slate-300 mb-1">Comprobante de Pago (Foto o PDF)</label>
+                                    <label for="detail-pay-voucher" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Comprobante de Pago (Foto o PDF)</label>
                                     <input
                                         id="detail-pay-voucher"
                                         type="file"
                                         accept="image/*,.pdf"
                                         onchange={handleVoucherChange}
-                                        class="w-full text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
+                                        class="w-full text-slate-600 dark:text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
                                     />
                                 </div>
                             </div>
 
                             {#if paymentError}
-                                <p class="text-[11px] text-rose-400">{paymentError}</p>
+                                <p class="text-[11px] text-rose-600 dark:text-rose-400">{paymentError}</p>
                             {/if}
 
                             <div class="flex justify-end gap-2 pt-1">
                                 <button
                                     type="button"
                                     onclick={() => showNewPaymentForm = false}
-                                    class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                                    class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-xs font-semibold"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSavingPayment || !paymentAmount}
-                                    class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs shadow-md disabled:opacity-50"
+                                    class="px-4 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold rounded-xl text-xs shadow-sm disabled:opacity-50"
                                 >
                                     {isSavingPayment ? 'Guardando Abono...' : 'Guardar Abono'}
                                 </button>
@@ -495,27 +495,27 @@
 
                     <!-- Historial de Abonos -->
                     <div class="space-y-1.5 pt-1">
-                        <span class="text-[11px] font-bold text-slate-400 block">Historial de Pagos</span>
+                        <span class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 block">Historial de Pagos</span>
                         {#if !order.payments || order.payments.length === 0}
-                            <div class="p-3 text-center border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                            <div class="p-3 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-[#64748B] dark:text-slate-500 text-xs">
                                 No se han registrado abonos previos en este pedido.
                             </div>
                         {:else}
                             <div class="space-y-1.5">
                                 {#each order.payments as pay}
-                                    <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                                    <div class="p-2.5 bg-white dark:bg-[#151D2C] rounded-xl border border-slate-200 dark:border-[#26334D] flex items-center justify-between text-xs shadow-sm">
                                         <div class="flex items-center gap-3">
-                                            <span class="font-mono font-bold text-emerald-400">
+                                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">
                                                 {formatCurrency(pay.amount)}
                                             </span>
-                                            <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-slate-800 text-slate-300">
+                                            <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                                                 {pay.payment_method}
                                             </span>
-                                            <span class="text-slate-400 font-mono text-[11px]">
+                                            <span class="text-[#64748B] dark:text-slate-400 font-mono text-[11px]">
                                                 📅 {pay.payment_date}
                                             </span>
                                             {#if pay.notes}
-                                                <span class="text-slate-500 truncate max-w-xs">• "{pay.notes}"</span>
+                                                <span class="text-[#64748B] dark:text-slate-500 truncate max-w-xs">• "{pay.notes}"</span>
                                             {/if}
                                         </div>
 
@@ -524,7 +524,7 @@
                                                 <a
                                                     href={`/storage/${pay.voucher_path}`}
                                                     target="_blank"
-                                                    class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-400 text-[11px] font-semibold border border-slate-700 flex items-center gap-1"
+                                                    class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#4F46E5] dark:text-sky-400 text-[11px] font-semibold border border-slate-200 dark:border-slate-700 flex items-center gap-1"
                                                 >
                                                     <span>📎</span>
                                                     <span>Recibo</span>
@@ -533,7 +533,7 @@
                                             <button
                                                 type="button"
                                                 onclick={() => handleDeletePayment(pay)}
-                                                class="text-slate-500 hover:text-rose-400 p-1"
+                                                class="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1"
                                                 title="Eliminar abono"
                                             >
                                                 🗑
@@ -549,14 +549,14 @@
 
             <!-- NOTAS DEL PEDIDO -->
             {#if order.notes}
-                <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-                    <span class="text-[10px] text-slate-500 uppercase font-bold block">Notas / Instrucciones Especiales</span>
-                    <p class="text-xs text-slate-200">{order.notes}</p>
+                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-1">
+                    <span class="text-[10px] text-[#64748B] dark:text-slate-500 uppercase font-bold block">Notas / Instrucciones Especiales</span>
+                    <p class="text-xs text-slate-700 dark:text-slate-200">{order.notes}</p>
                 </div>
             {/if}
 
             <!-- PIE DEL MODAL (ACCIONES) -->
-            <div class="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
                     <button
                         type="button"
@@ -564,7 +564,7 @@
                             closeModal();
                             onEditOrder(order);
                         }}
-                        class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs border border-slate-700 transition-colors flex items-center gap-1.5"
+                        class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors flex items-center gap-1.5"
                     >
                         <span>✏️</span>
                         <span>Editar Pedido</span>
@@ -582,7 +582,7 @@
                                     router.visit(`/kanban?order_id=${targetId}`);
                                 }
                             }}
-                            class="px-3.5 py-2 rounded-xl bg-sky-950/70 hover:bg-sky-900/70 text-sky-400 font-semibold text-xs border border-sky-800/70 transition-colors flex items-center gap-1.5"
+                            class="px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#4F46E5] dark:bg-sky-950/70 dark:hover:bg-sky-900/70 dark:text-sky-400 font-semibold text-xs border border-indigo-200 dark:border-sky-800/70 transition-colors flex items-center gap-1.5"
                             title="Ir al tablero exclusivo del pedido #{order.order_number}"
                         >
                             <span>📋</span>
@@ -594,7 +594,7 @@
                 <button
                     type="button"
                     onclick={closeModal}
-                    class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs"
+                    class="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition"
                 >
                     Cerrar
                 </button>

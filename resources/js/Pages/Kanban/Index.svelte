@@ -713,43 +713,38 @@
 </script>
 
 <AppLayout title="Tablero Kanban de Producción">
-    <div class="space-y-5">
+    <div class="space-y-4 w-full max-w-none">
         <!-- ========================================== -->
         <!-- MODO 1: TABLERO GENERAL CENTRADO EN PEDIDOS -->
         <!-- ========================================== -->
         {#if !activeOrder}
             <!-- ENCABEZADO Y CONTROLES GENERALES -->
-            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-1">
                 <div>
-                    <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-sky-500/20 text-sky-400 border border-sky-500/30">
-                            Módulo 5
-                        </span>
-                        <h1 class="text-2xl font-bold tracking-tight text-white">Tablero de Producción por Pedidos</h1>
-                    </div>
-                    <p class="text-xs text-slate-400 mt-1">
-                        Monitorea el avance integral de cada pedido ("US") con columnas dinámicas personalizables y abre el detalle completo al tocar cualquier card.
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Tablero de Producción por Pedidos</h1>
+                    <p class="text-xs text-[#64748B] dark:text-slate-400 mt-0.5">
+                        Monitorea el avance integral de cada pedido con columnas dinámicas personalizables.
                     </p>
                 </div>
 
                 <!-- ACCIONES DE CABECERA: BOTÓN NUEVO PEDIDO + CONFIGURACIÓN DE ESTADOS + SELECTOR DE VISTA -->
                 <div class="flex items-center gap-2 shrink-0 self-start md:self-auto flex-wrap">
-                    <!-- Botón Crear Nuevo Pedido directamente en Kanban (Punto 2) -->
+                    <!-- Botón Crear Nuevo Pedido directamente en Kanban -->
                     <button
                         type="button"
                         onclick={openNewOrderModal}
-                        class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5"
+                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
                     >
                         <span>➕</span>
                         <span>Nuevo Pedido</span>
                     </button>
 
-                    <!-- Botón Configuración de Estados (Visible para Dueño y Admin - Punto 1) -->
+                    <!-- Botón Configuración de Estados (Visible para Dueño y Admin) -->
                     {#if isOwnerOrAdmin}
                         <button
                             type="button"
                             onclick={() => isStatusModalOpen = true}
-                            class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors flex items-center gap-1.5"
+                            class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition flex items-center gap-1.5"
                             title="Gestionar y reordenar estados de pedidos con Drag & Drop"
                         >
                             <span>⚙️</span>
@@ -758,11 +753,11 @@
                     {/if}
 
                     <!-- SELECTOR DE VISTA: TABLERO / TABLA -->
-                    <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center">
+                    <div class="bg-slate-100 dark:bg-[#0B0F17] p-1 rounded-xl border border-slate-200 dark:border-[#26334D] flex items-center shadow-sm">
                         <button
                             type="button"
                             onclick={() => setGeneralViewMode('kanban')}
-                            class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors {generalViewMode === 'kanban' ? 'bg-sky-500 text-white shadow' : 'text-slate-400 hover:text-white'}"
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all {generalViewMode === 'kanban' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 font-bold shadow-sm border border-slate-200 dark:border-[#4F46E5]/30' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}"
                         >
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
@@ -772,7 +767,7 @@
                         <button
                             type="button"
                             onclick={() => setGeneralViewMode('table')}
-                            class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors {generalViewMode === 'table' ? 'bg-sky-500 text-white shadow' : 'text-slate-400 hover:text-white'}"
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all {generalViewMode === 'table' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 font-bold shadow-sm border border-slate-200 dark:border-[#4F46E5]/30' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}"
                         >
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -783,7 +778,7 @@
 
                     <Link
                         href="/orders"
-                        class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors"
+                        class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition"
                     >
                         Gestionar Pedidos ➔
                     </Link>
@@ -791,27 +786,27 @@
             </div>
 
             <!-- BARRA DE FILTROS PROGRESIVOS -->
-            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3 shadow-sm">
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-4 rounded-3xl space-y-3 shadow-sm">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <!-- Buscador rápido -->
                     <div>
-                        <label for="filter-search" class="block text-[11px] font-semibold text-slate-400 mb-1">Buscar Pedido o Cliente</label>
+                        <label for="filter-search" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Buscar Pedido o Cliente</label>
                         <input
                             id="filter-search"
                             type="text"
                             bind:value={filters.search}
                             placeholder="Ej. #104 o 'Camila'..."
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs placeholder:text-slate-400 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                         />
                     </div>
 
                     <!-- Selector de Cliente -->
                     <div>
-                        <label for="filter-cust" class="block text-[11px] font-semibold text-slate-400 mb-1">Cliente</label>
+                        <label for="filter-cust" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Cliente</label>
                         <select
                             id="filter-cust"
                             bind:value={filters.customerId}
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
+                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                         >
                             <option value="">Todos los Clientes</option>
                             {#each customers as cust (cust.id)}
@@ -822,11 +817,11 @@
 
                     <!-- Estado del Pedido (Dinámico con localStatuses) -->
                     <div>
-                        <label for="filter-status" class="block text-[11px] font-semibold text-slate-400 mb-1">Estado del Pedido</label>
+                        <label for="filter-status" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Estado del Pedido</label>
                         <select
                             id="filter-status"
                             bind:value={filters.status}
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
+                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                         >
                             <option value="all">Todos los Estados</option>
                             {#each localStatuses as st (st.id)}
@@ -837,11 +832,11 @@
 
                     <!-- Fecha de Entrega -->
                     <div>
-                        <label for="filter-date" class="block text-[11px] font-semibold text-slate-400 mb-1">Fecha de Entrega</label>
+                        <label for="filter-date" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Fecha de Entrega</label>
                         <select
                             id="filter-date"
                             bind:value={filters.dateRange}
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-sky-500"
+                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                         >
                             <option value="all">Todas las Fechas</option>
                             <option value="late">⚠️ Atrasados</option>
@@ -851,15 +846,15 @@
                     </div>
                 </div>
 
-                <!-- Nivel 2: Filtros Específicos para Tabla de Producción -->
+                <!-- Nivel 2: Filtros Específicos para Tabla de Producción (Solo visible en 'table') -->
                 {#if generalViewMode === 'table'}
-                    <div class="pt-2 border-t border-slate-800/80 flex items-center gap-3 w-full flex-wrap text-xs">
+                    <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex items-center gap-3 w-full flex-wrap text-xs">
                         <div class="flex items-center gap-2">
-                            <label for="filter-kb-workflow" class="text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</label>
+                            <label for="filter-kb-workflow" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</label>
                             <select
                                 id="filter-kb-workflow"
                                 bind:value={filters.workflowId}
-                                class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500"
+                                class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5]"
                             >
                                 <option value="">Todos los Flujos</option>
                                 {#each workflows as wf (wf.id)}
@@ -869,11 +864,11 @@
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <label for="filter-kb-type" class="text-slate-400 font-semibold text-[11px] shrink-0">Tipo:</label>
+                            <label for="filter-kb-type" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Tipo:</label>
                             <select
                                 id="filter-kb-type"
                                 bind:value={filters.productTypeId}
-                                class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500 max-w-[180px] truncate"
+                                class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] max-w-[180px] truncate"
                             >
                                 <option value="">Todos los Tipos</option>
                                 {#each productTypes as pt (pt.id)}
@@ -883,11 +878,11 @@
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <label for="filter-kb-product" class="text-slate-400 font-semibold text-[11px] shrink-0">Producto:</label>
+                            <label for="filter-kb-product" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Producto:</label>
                             <select
                                 id="filter-kb-product"
                                 bind:value={filters.productId}
-                                class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-white text-xs focus:outline-none focus:border-sky-500 max-w-[200px] truncate"
+                                class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] max-w-[200px] truncate"
                             >
                                 <option value="">Todos los Productos</option>
                                 {#each products as prod (prod.id)}
@@ -899,8 +894,8 @@
                 {/if}
 
                 <!-- Barra Inferior de Conteo y Limpieza de Filtros -->
-                <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-3 text-xs">
-                    <span class="text-slate-500 text-[11px]">
+                <div class="pt-2 border-t border-slate-100 dark:border-[#26334D]/60 flex items-center justify-between gap-3 text-xs">
+                    <span class="text-[#64748B] dark:text-slate-400 text-[11px]">
                         {#if generalViewMode === 'table'}
                             {filteredTableTasks.length} producto(s) en {filteredOrders.length} pedido(s)
                         {:else}
@@ -911,7 +906,7 @@
                         <button
                             type="button"
                             onclick={resetFilters}
-                            class="text-rose-400 hover:text-rose-300 text-[11px] font-semibold underline px-2 py-0.5"
+                            class="text-rose-600 dark:text-rose-400 hover:underline text-[11px] font-semibold px-2 py-0.5"
                         >
                             Limpiar Filtros
                         </button>
@@ -919,13 +914,13 @@
                 </div>
             </div>
 
-            <!-- VISTA A: TABLERO KANBAN MACRO (COLUMNAS DINÁMICAS POR ESTADOS DE PEDIDO — PUNTOS 1 Y 18) -->
+            <!-- VISTA A: TABLERO KANBAN MACRO (COLUMNAS DINÁMICAS POR ESTADOS DE PEDIDO) -->
             {#if generalViewMode === 'kanban'}
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
                     {#each localStatuses as col (col.id)}
                         {@const colOrders = ordersByStatusId.get(col.id) || []}
                         <div
-                            class="bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {dragOverMacroStatusId === col.id ? 'ring-2 ring-sky-500 bg-slate-900' : ''}"
+                            class="bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {dragOverMacroStatusId === col.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
                             style="border-top: 4px solid {col.color || '#64748b'};"
                             ondragover={(e) => handleMacroDragOver(e, col.id)}
                             ondrop={(e) => handleMacroDrop(e, col.id)}
@@ -933,16 +928,16 @@
                             aria-label={`Columna ${col.name}`}
                         >
                             <!-- Cabecera de la Columna Dinámica -->
-                            <div class="p-4 border-b border-slate-800/80 flex items-center justify-between">
+                            <div class="p-4 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between">
                                 <div class="flex items-center gap-2 min-w-0">
-                                    <div class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {col.color || '#64748b'};"></div>
-                                    <h3 class="text-sm font-bold text-white tracking-wide truncate" title={col.name}>
+                                    <div class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background-color: {col.color || '#64748b'};"></div>
+                                    <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide truncate" title={col.name}>
                                         {col.name}
                                     </h3>
                                 </div>
                                 <span
-                                    class="px-2 py-0.5 rounded-full text-xs font-mono font-bold shrink-0"
-                                    style="background-color: {col.color || '#64748b'}22; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}44;"
+                                    class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold shrink-0 shadow-sm"
+                                    style="background-color: {col.color || '#64748b'}18; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}35;"
                                 >
                                     {colOrders.length}
                                 </span>
@@ -951,7 +946,7 @@
                             <!-- Lista de Tarjetas de Pedido en esta Columna -->
                             <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[780px]">
                                 {#if colOrders.length === 0}
-                                    <div class="py-12 text-center text-slate-600 text-xs italic">
+                                    <div class="py-12 text-center text-[#64748B] dark:text-slate-500 text-xs italic">
                                         No hay pedidos en este estado.
                                     </div>
                                 {:else}
@@ -962,7 +957,7 @@
                                         {@const delivBadge = getDeliveryBadge(order.committed_delivery_at, order.derived_status)}
 
                                         <div
-                                            class="bg-slate-950 border border-slate-800 hover:border-sky-500/50 rounded-xl p-3.5 space-y-3 shadow transition-all cursor-pointer group"
+                                            class="bg-white dark:bg-[#0B0F17]/90 border border-slate-200/90 dark:border-[#26334D] hover:border-[#4F46E5] dark:hover:border-[#06B6D4] rounded-xl p-3.5 space-y-3 shadow-sm transition-all cursor-pointer group"
                                             draggable="true"
                                             ondragstart={(e) => handleMacroDragStart(e, order.id)}
                                             onclick={() => openDetailModal(order)}
@@ -974,31 +969,31 @@
                                             <!-- Encabezado de la Tarjeta del Pedido -->
                                             <div class="flex items-start justify-between gap-2">
                                                 <div>
-                                                    <span class="font-mono text-xs font-black text-sky-400">
+                                                    <span class="font-mono text-xs font-black text-[#4F46E5] dark:text-sky-400">
                                                         #{order.order_number}
                                                     </span>
-                                                    <h4 class="text-sm font-bold text-white group-hover:text-sky-300 transition-colors line-clamp-1">
+                                                    <h4 class="text-sm font-bold text-slate-900 dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-sky-300 transition-colors line-clamp-1">
                                                         {order.customer?.name ?? 'Cliente'}
                                                     </h4>
                                                 </div>
 
                                                 {#if hasFinancialAccess}
-                                                    <span class="font-mono text-xs font-extrabold text-emerald-400 shrink-0">
+                                                    <span class="font-mono text-xs font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">
                                                         {formatCurrency(order.total_amount)}
                                                     </span>
                                                 {/if}
                                             </div>
 
                                             <!-- Fechas y Alertas de Entrega -->
-                                            <div class="flex items-center justify-between text-[11px] text-slate-400">
+                                            <div class="flex items-center justify-between text-[11px] text-[#64748B] dark:text-slate-400">
                                                 <div class="flex items-center gap-1">
                                                     <span>📅 Entrega:</span>
-                                                    <span class="font-medium text-slate-300">{formatDate(order.committed_delivery_at)}</span>
+                                                    <span class="font-medium text-slate-700 dark:text-slate-300">{formatDate(order.committed_delivery_at)}</span>
                                                 </div>
                                                 {#if delivBadge}
                                                     <span
-                                                        class="px-1.5 py-0.5 rounded text-[10px] font-bold"
-                                                        style="background-color: {delivBadge.color}22; color: {delivBadge.color}; border: 1px solid {delivBadge.color}44;"
+                                                        class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                                        style="background-color: {delivBadge.color}18; color: {delivBadge.color}; border: 1px solid {delivBadge.color}40;"
                                                     >
                                                         {delivBadge.text}
                                                     </span>
@@ -1007,30 +1002,30 @@
 
                                             <!-- Barra de Progreso de Tareas -->
                                             <div class="space-y-1">
-                                                <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                                                <div class="flex justify-between items-center text-[10px] text-[#64748B] dark:text-slate-400 font-mono">
                                                     <span>Progreso: {completedCount} de {tasks.length} tareas</span>
-                                                    <span class="font-bold text-slate-200">{progressPercent}%</span>
+                                                    <span class="font-bold text-slate-700 dark:text-slate-200">{progressPercent}%</span>
                                                 </div>
-                                                <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                                                <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
                                                     <div
-                                                        class="h-full rounded-full transition-all duration-300"
-                                                        style="width: {progressPercent}%; background-color: {col.color || '#38bdf8'};"
+                                                        class="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-[#4F46E5] to-[#06B6D4]"
+                                                        style="width: {progressPercent}%;"
                                                     ></div>
                                                 </div>
                                             </div>
 
                                             <!-- Resumen de Productos con sus Etapas Coloreadas -->
-                                            <div class="space-y-1.5 pt-2 border-t border-slate-900">
+                                            <div class="space-y-1.5 pt-2 border-t border-slate-100 dark:border-[#26334D]/60">
                                                 {#each tasks.slice(0, 3) as task}
                                                     {@const stage = getTaskStage(task)}
                                                     <div class="flex items-center justify-between text-[11px] gap-2">
-                                                        <span class="text-slate-300 truncate font-medium flex-1" title={task.item_name_snapshot}>
+                                                        <span class="text-slate-700 dark:text-slate-300 truncate font-medium flex-1" title={task.item_name_snapshot}>
                                                             {task.quantity > 1 ? `${task.quantity}x ` : ''}{task.item_name_snapshot}
                                                         </span>
                                                         {#if stage}
                                                             <span
-                                                                class="px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0 truncate max-w-[110px]"
-                                                                style="background-color: {stage.color || '#64748b'}22; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}55;"
+                                                                class="px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 truncate max-w-[110px]"
+                                                                style="background-color: {stage.color || '#64748b'}18; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}40;"
                                                                 title={stage.name}
                                                             >
                                                                 {stage.name}
@@ -1039,21 +1034,21 @@
                                                     </div>
                                                 {/each}
                                                 {#if tasks.length > 3}
-                                                    <span class="text-[10px] text-slate-500 font-medium block">
+                                                    <span class="text-[10px] text-[#64748B] dark:text-slate-500 font-medium block">
                                                         +{tasks.length - 3} producto(s) más...
                                                     </span>
                                                 {/if}
                                             </div>
 
                                             <!-- Pie de la Tarjeta: Botón Flujo Aislado -->
-                                            <div class="flex items-center justify-end pt-2 border-t border-slate-900">
+                                            <div class="flex items-center justify-end pt-2 border-t border-slate-100 dark:border-[#26334D]/60">
                                                 <button
                                                     type="button"
                                                     onclick={(e) => {
                                                         e.stopPropagation();
                                                         openOrderBoard(order.id);
                                                     }}
-                                                    class="py-1 px-2.5 rounded-lg bg-slate-900 hover:bg-sky-950/60 border border-slate-800 hover:border-sky-500/50 text-sky-400 text-[10px] font-bold transition-all flex items-center gap-1"
+                                                    class="py-1 px-2.5 rounded-lg bg-slate-50 hover:bg-indigo-50 dark:bg-slate-900 dark:hover:bg-sky-950/60 border border-slate-200 hover:border-[#4F46E5]/40 dark:border-slate-800 dark:hover:border-sky-500/50 text-[#4F46E5] dark:text-sky-400 text-[10px] font-bold transition-all flex items-center gap-1"
                                                     title="Ver tareas y flujos exclusivos de este pedido"
                                                 >
                                                     <span>Flujo</span>
@@ -1070,10 +1065,10 @@
 
             <!-- VISTA B: TABLA DE PRODUCCIÓN -->
             {:else}
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-950 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 border-b border-slate-200 dark:border-[#26334D] text-[10px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider">
                                 <tr>
                                     <th class="p-3.5"># Pedido</th>
                                     <th class="p-3.5">Cliente</th>
@@ -1085,10 +1080,10 @@
                                     <th class="p-3.5 text-right">Acción</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-800/80">
+                            <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-900 dark:text-slate-100">
                                 {#if filteredTableTasks.length === 0}
                                     <tr>
-                                        <td colspan="8" class="p-8 text-center text-slate-500 text-xs italic">
+                                        <td colspan="8" class="p-8 text-center text-[#64748B] dark:text-slate-500 text-xs italic">
                                             No se encontraron tareas de producción con los filtros seleccionados.
                                         </td>
                                     </tr>
@@ -1099,22 +1094,22 @@
                                         {@const delivBadge = getDeliveryBadge(task.committed_delivery_at, task.order_status)}
 
                                         <tr
-                                            class="hover:bg-slate-800/40 transition-colors cursor-pointer"
+                                            class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
                                             onclick={() => openDetailModal(task.rawOrder, task.id)}
                                         >
-                                            <td class="p-3.5 font-mono font-bold text-sky-400">
+                                            <td class="p-3.5 font-mono font-bold text-[#4F46E5] dark:text-sky-400">
                                                 #{task.order_number}
                                             </td>
-                                            <td class="p-3.5 text-white font-medium">
+                                            <td class="p-3.5 text-slate-900 dark:text-white font-medium">
                                                 {task.customer_name}
                                             </td>
-                                            <td class="p-3.5 text-slate-200">
+                                            <td class="p-3.5 text-slate-800 dark:text-slate-200">
                                                 <div class="flex items-center gap-1.5">
-                                                    <span class="font-bold text-white">{task.quantity}x</span>
+                                                    <span class="font-bold text-slate-900 dark:text-white">{task.quantity}x</span>
                                                     <span>{task.item_name_snapshot}</span>
                                                 </div>
                                             </td>
-                                            <td class="p-3.5 text-slate-400">
+                                            <td class="p-3.5 text-[#64748B] dark:text-slate-400">
                                                 {task.workflow?.name ?? 'Sin Flujo'}
                                             </td>
                                             <td class="p-3.5" onclick={(e) => e.stopPropagation()}>
@@ -1123,7 +1118,7 @@
                                                     id="table-stage-sel-{task.id}"
                                                     value={task.current_stage_id}
                                                     onchange={(e) => handleTableTaskStageChange(task, e.target.value)}
-                                                    class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-semibold focus:outline-none focus:border-sky-500"
+                                                    class="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:border-[#4F46E5]"
                                                     style="border-left: 4px solid {currentStage?.color || '#64748b'};"
                                                 >
                                                     {#each targetWorkflowStages as stage}
@@ -1131,16 +1126,16 @@
                                                     {/each}
                                                 </select>
                                             </td>
-                                            <td class="p-3.5 font-mono text-amber-300">
+                                            <td class="p-3.5 font-mono text-amber-600 dark:text-amber-300">
                                                 ⏱ {task.estimated_minutes} min
                                             </td>
                                             <td class="p-3.5">
                                                 <div class="flex items-center gap-1.5">
-                                                    <span class="text-slate-300">{formatDate(task.committed_delivery_at)}</span>
+                                                    <span class="text-slate-700 dark:text-slate-300">{formatDate(task.committed_delivery_at)}</span>
                                                     {#if delivBadge}
                                                         <span
-                                                            class="px-1.5 py-0.5 rounded text-[9px] font-bold"
-                                                            style="background-color: {delivBadge.color}22; color: {delivBadge.color}; border: 1px solid {delivBadge.color}44;"
+                                                            class="px-2 py-0.5 rounded-full text-[9px] font-bold"
+                                                            style="background-color: {delivBadge.color}18; color: {delivBadge.color}; border: 1px solid {delivBadge.color}40;"
                                                         >
                                                             {delivBadge.text}
                                                         </span>
@@ -1151,7 +1146,7 @@
                                                 <button
                                                     type="button"
                                                     onclick={() => openOrderBoard(task.order_id)}
-                                                    class="px-2.5 py-1 rounded-lg bg-sky-950/70 hover:bg-sky-900/70 text-sky-400 text-xs font-bold border border-sky-800/70 transition-colors"
+                                                    class="px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-[#4F46E5] dark:bg-sky-950/70 dark:hover:bg-sky-900/70 dark:text-sky-400 text-xs font-bold border border-indigo-200 dark:border-sky-800/70 transition-colors"
                                                 >
                                                     Abrir Pedido
                                                 </button>
@@ -1174,7 +1169,7 @@
                 <button
                     type="button"
                     onclick={closeOrderBoard}
-                    class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
+                    class="px-4 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
                 >
                     <span>←</span>
                     <span>Volver al Tablero General de Pedidos</span>
@@ -1184,47 +1179,47 @@
                     <button
                         type="button"
                         onclick={() => openDetailModal(activeOrder)}
-                        class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5"
+                        class="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
                     >
                         <span>👁️</span>
                         <span>Ver Ficha Completa</span>
                     </button>
-                    <span class="text-slate-500 text-xs">Tablero Aislado del Pedido:</span>
-                    <span class="font-mono text-sm font-black text-sky-400">#{activeOrder.order_number}</span>
+                    <span class="text-[#64748B] dark:text-slate-500 text-xs">Tablero Aislado del Pedido:</span>
+                    <span class="font-mono text-sm font-black text-[#4F46E5] dark:text-sky-400">#{activeOrder.order_number}</span>
                 </div>
             </div>
 
             <!-- FICHA PRINCIPAL DEL PEDIDO AISLADO -->
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 shadow-sm space-y-4">
                 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <h2 class="text-xl font-bold text-white">
+                            <h2 class="text-xl font-bold text-slate-900 dark:text-white">
                                 Pedido #{activeOrder.order_number} — {activeOrder.customer?.name ?? 'Cliente'}
                             </h2>
                             {#if hasFinancialAccess}
-                                <span class="font-mono text-sm font-bold text-emerald-400 bg-emerald-950/50 px-2.5 py-0.5 rounded-lg border border-emerald-800/40">
+                                <span class="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
                                     {formatCurrency(activeOrder.total_amount)}
                                 </span>
                             {/if}
                         </div>
-                        <div class="flex items-center gap-4 text-xs text-slate-400 mt-1 flex-wrap">
-                            <span>📅 Entrega Comprometida: <strong class="text-slate-200">{formatDate(activeOrder.committed_delivery_at)}</strong></span>
-                            <span>⏱ Tiempo Total: <strong class="text-amber-300 font-mono">{activeOrder.formatted_time}</strong></span>
+                        <div class="flex items-center gap-4 text-xs text-[#64748B] dark:text-slate-400 mt-1 flex-wrap">
+                            <span>📅 Entrega Comprometida: <strong class="text-slate-800 dark:text-slate-200">{formatDate(activeOrder.committed_delivery_at)}</strong></span>
+                            <span>⏱ Tiempo Total: <strong class="text-amber-600 dark:text-amber-300 font-mono">{activeOrder.formatted_time}</strong></span>
                             {#if hasFinancialAccess && activeOrder.pending_balance > 0}
-                                <span>Saldo Pendiente: <strong class="text-rose-400 font-mono">{formatCurrency(activeOrder.pending_balance)}</strong></span>
+                                <span>Saldo Pendiente: <strong class="text-rose-600 dark:text-rose-400 font-mono">{formatCurrency(activeOrder.pending_balance)}</strong></span>
                             {/if}
                         </div>
                     </div>
 
                     <!-- SELECTOR RÁPIDO DE ESTADO DEL PEDIDO (CON ESTADOS DINÁMICOS) -->
                     <div class="flex items-center gap-2 self-start lg:self-auto">
-                        <label for="isolated-order-st" class="text-xs text-slate-400 font-semibold">Estado del Pedido:</label>
+                        <label for="isolated-order-st" class="text-xs text-[#64748B] dark:text-slate-400 font-semibold">Estado del Pedido:</label>
                         <select
                             id="isolated-order-st"
                             value={activeOrder.order_status_id}
                             onchange={(e) => updateOrderStatus(activeOrder.id, Number(e.target.value))}
-                            class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white text-xs font-semibold focus:outline-none focus:border-sky-500"
+                            class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:border-[#4F46E5]"
                         >
                             {#each localStatuses as st}
                                 <option value={st.id}>{st.name}</option>
@@ -1235,17 +1230,17 @@
 
                 <!-- PESTAÑAS DE FLUJO AISLADAS -->
                 {#if orderWorkflows.length > 1}
-                    <div class="pt-3 border-t border-slate-800 flex items-center gap-2 overflow-x-auto">
-                        <span class="text-xs text-slate-400 font-semibold shrink-0">Flujos en este Pedido:</span>
+                    <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex items-center gap-2 overflow-x-auto">
+                        <span class="text-xs text-[#64748B] dark:text-slate-400 font-semibold shrink-0">Flujos en este Pedido:</span>
                         {#each orderWorkflows as wf (wf.id)}
                             {@const isActive = Number(activeOrderWorkflow?.id) === Number(wf.id)}
                             <button
                                 type="button"
                                 onclick={() => selectedOrderWorkflowId = wf.id}
-                                class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 {isActive ? 'bg-sky-600 text-white shadow-md shadow-sky-600/20' : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'}"
+                                class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 {isActive ? 'bg-[#4F46E5] text-white shadow-md shadow-indigo-600/20' : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'}"
                             >
                                 <span>{wf.name}</span>
-                                <span class="px-1.5 py-0.2 rounded-full text-[10px] {isActive ? 'bg-sky-800 text-white' : 'bg-slate-800 text-slate-400'}">
+                                <span class="px-1.5 py-0.2 rounded-full text-[10px] {isActive ? 'bg-[#4338CA] text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}">
                                     {wf.tasksCount}
                                 </span>
                             </button>
@@ -1256,15 +1251,15 @@
 
             <!-- TABLERO KANBAN DE ETAPAS PARA EL FLUJO ACTIVO DEL PEDIDO -->
             {#if activeOrderStages.length === 0}
-                <div class="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-400 text-sm">
-                    Este flujo no tiene etapas configuradas. Ve al Módulo de Flujos para agregar etapas.
+                <div class="p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl text-[#64748B] dark:text-slate-400 text-sm">
+                    Este flujo no tiene etapas configuradas. Ve a Tipos de Flujos para agregar etapas.
                 </div>
             {:else}
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4 items-start">
                     {#each activeOrderStages as stage (stage.id)}
                         {@const stageTasks = activeOrderTasks.filter(t => Number(t.current_stage_id ?? getTaskStage(t)?.id) === Number(stage.id))}
                         <div
-                            class="bg-slate-900 border border-slate-800 rounded-2xl flex flex-col min-h-[500px] shadow-sm transition-colors {dragOverStageId === stage.id ? 'ring-2 ring-sky-500 bg-slate-900/90' : ''}"
+                            class="bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[500px] shadow-sm transition-colors {dragOverStageId === stage.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
                             style="border-top: 4px solid {stage.color || '#64748b'};"
                             ondragover={(e) => handleTaskDragOver(e, stage.id)}
                             ondrop={(e) => handleTaskDrop(e, stage.id)}
@@ -1272,16 +1267,16 @@
                             aria-label={`Etapa ${stage.name}`}
                         >
                             <!-- Cabecera de la Etapa / Columna -->
-                            <div class="p-3.5 border-b border-slate-800 flex items-center justify-between">
+                            <div class="p-3.5 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between">
                                 <div class="flex items-center gap-2">
-                                    <div class="w-2.5 h-2.5 rounded-full" style="background-color: {stage.color || '#64748b'};"></div>
-                                    <h3 class="text-xs font-bold text-white tracking-wide truncate max-w-[130px]" title={stage.name}>
+                                    <div class="w-2.5 h-2.5 rounded-full shadow-sm" style="background-color: {stage.color || '#64748b'};"></div>
+                                    <h3 class="text-xs font-bold text-slate-900 dark:text-white tracking-wide truncate max-w-[130px]" title={stage.name}>
                                         {stage.name}
                                     </h3>
                                 </div>
                                 <span
-                                    class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
-                                    style="background-color: {stage.color || '#64748b'}22; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}44;"
+                                    class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-sm"
+                                    style="background-color: {stage.color || '#64748b'}18; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}35;"
                                 >
                                     {stageTasks.length}
                                 </span>
@@ -1290,13 +1285,13 @@
                             <!-- Lista de Tareas en esta Etapa -->
                             <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[700px]">
                                 {#if stageTasks.length === 0}
-                                    <div class="py-12 text-center text-slate-600 text-xs italic">
+                                    <div class="py-12 text-center text-[#64748B] dark:text-slate-500 text-xs italic">
                                         Sin productos en esta columna.
                                     </div>
                                 {:else}
                                     {#each stageTasks as task (task.id)}
                                         <div
-                                            class="bg-slate-950 border border-slate-800 hover:border-sky-500/50 rounded-xl p-3 space-y-2.5 shadow transition-all cursor-pointer group"
+                                            class="bg-white dark:bg-[#0B0F17]/90 border border-slate-200/90 dark:border-[#26334D] hover:border-[#4F46E5] dark:hover:border-[#06B6D4] rounded-xl p-3 space-y-2.5 shadow-sm transition-all cursor-pointer group"
                                             draggable="true"
                                             ondragstart={(e) => handleTaskDragStart(e, task.id)}
                                             onclick={() => openTaskDetailModal(task)}
@@ -1306,18 +1301,18 @@
                                             title="Toca para ver la ficha técnica y receta del producto"
                                         >
                                             <div class="flex items-start justify-between gap-1.5">
-                                                <h4 class="text-xs font-bold text-white group-hover:text-sky-300 transition-colors">
+                                                <h4 class="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-sky-300 transition-colors">
                                                     {task.item_name_snapshot}
                                                 </h4>
-                                                <span class="font-mono text-[10px] font-bold text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded shrink-0">
+                                                <span class="font-mono text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded shrink-0">
                                                     {task.quantity}x
                                                 </span>
                                             </div>
 
-                                            <div class="flex items-center justify-between text-[10px] text-slate-400">
-                                                <span class="font-mono text-amber-300">⏱ {task.estimated_minutes} min</span>
+                                            <div class="flex items-center justify-between text-[10px] text-[#64748B] dark:text-slate-400">
+                                                <span class="font-mono text-amber-600 dark:text-amber-300 font-medium">⏱ {task.estimated_minutes} min</span>
                                                 {#if task.materials_consumed}
-                                                    <span class="text-emerald-400 flex items-center gap-0.5 font-semibold" title="Materias primas descontadas del inventario">
+                                                    <span class="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 font-semibold" title="Materias primas descontadas del inventario">
                                                         <span>✓</span>
                                                         <span>BOM Ok</span>
                                                     </span>

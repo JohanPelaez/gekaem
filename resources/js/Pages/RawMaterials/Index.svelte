@@ -36,6 +36,25 @@
 
     let viewMode = $state('table'); // 'table' | 'cards'
     let expandedRows = $state(new Set());
+    let openActionMenuMatId = $state(null);
+    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+
+    function toggleActionMenu(e, matId) {
+        e.stopPropagation();
+        if (openActionMenuMatId === matId) {
+            openActionMenuMatId = null;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        const openUpwards = window.innerHeight - rect.bottom < 220;
+        menuCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(12, window.innerWidth - rect.right),
+            openUpwards,
+            rectTop: rect.top,
+        };
+        openActionMenuMatId = matId;
+    }
 
     // Proveedores locales sincronizados para permitir quick create
     let localSuppliers = $state([]);
@@ -376,18 +395,15 @@
     }
 </script>
 
+<svelte:window onclick={() => openActionMenuMatId = null} onscroll={() => openActionMenuMatId = null} />
+
 <AppLayout title="Materia Prima e Inventario">
-    <div class="space-y-6">
+    <div class="space-y-4">
         <!-- ENCABEZADO Y ACCIONES -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                        Módulo 6
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-white">Materia Prima e Inventario</h1>
-                </div>
-                <p class="text-xs text-slate-400 mt-1">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Materia Prima e Inventario</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Control de stock, insumos primordiales para recetas BOM y vinculación con proveedores.
                 </p>
             </div>
@@ -396,9 +412,9 @@
                 <button
                     type="button"
                     onclick={() => (showUomModal = true)}
-                    class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
+                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
                 >
-                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4 text-[#4F46E5] dark:text-[#06B6D4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
                     </svg>
                     <span>Unidades de Medida</span>
@@ -406,7 +422,7 @@
                 <button
                     type="button"
                     onclick={openCreate}
-                    class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-lg shadow-emerald-600/20 flex items-center gap-2 shrink-0"
+                    class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
                 >
                     <span>+</span>
                     <span>Nueva Materia Prima</span>
@@ -415,9 +431,9 @@
         </div>
 
         <!-- BUSCADOR Y FILTROS COMBINADOS -->
-        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            <div class="flex-1 bg-slate-950 border border-slate-800 px-3 py-2 rounded-xl flex items-center gap-2">
-                <span class="text-slate-500 text-xs">🔍</span>
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
+            <div class="flex-1 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] px-3 py-2 rounded-xl flex items-center gap-2">
+                <span class="text-slate-400 text-xs">🔍</span>
                 <label for="search-materials" class="sr-only">Buscar materia prima</label>
                 <input
                     id="search-materials"
@@ -425,10 +441,10 @@
                     bind:value={search}
                     oninput={handleSearchInput}
                     placeholder="Buscar materia prima por nombre o SKU..."
-                    class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
+                    class="w-full bg-transparent text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none"
                 />
                 {#if search}
-                    <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-500 text-xs hover:text-white">✕</button>
+                    <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-400 hover:text-slate-700 dark:hover:text-white text-xs">✕</button>
                 {/if}
             </div>
 
@@ -439,7 +455,7 @@
                     id="filter-uom"
                     bind:value={unitFilter}
                     onchange={applyFilters}
-                    class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                    class="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#4F46E5]"
                 >
                     <option value="">Todas las Unidades</option>
                     {#each sortedUnitsOfMeasure as uom}
@@ -451,7 +467,7 @@
                 <select
                     bind:value={supplierFilter}
                     onchange={applyFilters}
-                    class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-emerald-500"
+                    class="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#4F46E5]"
                 >
                     <option value="">Todos los Proveedores</option>
                     {#each localSuppliers as sup}
@@ -463,7 +479,7 @@
                 <button
                     type="button"
                     onclick={() => { lowStockFilter = !lowStockFilter; applyFilters(); }}
-                    class="px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors {lowStockFilter ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'}"
+                    class="px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors {lowStockFilter ? 'bg-rose-50 text-rose-600 border-rose-300 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40' : 'bg-slate-50 dark:bg-[#0B0F17] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-[#26334D] hover:text-slate-900 dark:hover:text-slate-200'}"
                     title="Filtrar solo insumos con stock por debajo o igual al umbral mínimo"
                 >
                     <span>⚠</span>
@@ -474,7 +490,7 @@
                     <button
                         type="button"
                         onclick={clearFilters}
-                        class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs transition-colors font-medium"
+                        class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#26334D] text-xs transition-colors font-medium"
                         title="Limpiar filtros"
                     >
                         Limpiar
@@ -485,157 +501,191 @@
 
         <!-- VISTA TABLA (DEFAULT) -->
         {#if viewMode === 'table'}
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-950/80 text-slate-400 uppercase font-semibold border-b border-slate-800 text-[10px] tracking-wider">
+                        <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold border-b border-slate-200 dark:border-[#26334D] text-[10px] tracking-wider whitespace-nowrap">
                             <tr>
-                                <th class="p-3.5 w-10 text-center"></th>
-                                <th class="p-4">Material / SKU</th>
-                                <th class="p-4 text-center">Unidad</th>
-                                <th class="p-4 text-right">Stock Actual</th>
-                                <th class="p-4 text-right">Reservado</th>
-                                <th class="p-4 text-right">Disponible</th>
-                                <th class="p-4 text-center">Alerta Mínima</th>
+                                <th class="py-2.5 px-3 w-8 text-center"></th>
+                                <th class="py-2.5 px-3">Material / SKU</th>
+                                <th class="py-2.5 px-3 text-center">Unidad</th>
+                                <th class="py-2.5 px-3 text-right">Stock Actual</th>
+                                <th class="py-2.5 px-3 text-right">Reservado</th>
+                                <th class="py-2.5 px-3 text-right">Disponible</th>
+                                <th class="py-2.5 px-3 text-center">Alerta Mínima</th>
                                 {#if hasFinancialAccess}
-                                    <th class="p-4 text-right">Costo Unitario</th>
+                                    <th class="py-2.5 px-3 text-right">Costo Unitario</th>
                                 {/if}
-                                <th class="p-4">Proveedores</th>
-                                <th class="p-4 text-right">Acciones</th>
+                                <th class="py-2.5 px-3">Proveedores</th>
+                                <th class="py-2.5 px-3 text-right">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                        <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
                             {#each rawMaterials.data as mat (mat.id)}
                                 {@const current = Number(mat.current_stock)}
                                 {@const reserved = Number(mat.reserved_stock)}
                                 {@const available = current - reserved}
                                 {@const isLowStock = current <= Number(mat.min_stock_alert)}
                                 {@const isExpanded = expandedRows.has(mat.id)}
-                                <tr class="hover:bg-slate-800/40 transition-colors {isLowStock ? 'bg-rose-950/10' : ''} {isExpanded ? 'bg-slate-800/25' : ''}">
+                                <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isLowStock ? 'bg-rose-50/50 dark:bg-rose-950/10' : ''} {isExpanded ? 'bg-slate-50/90 dark:bg-slate-800/25' : ''}">
                                     <!-- Botón Expandir -->
-                                    <td class="p-3.5 text-center">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         <button
                                             type="button"
                                             onclick={() => toggleRow(mat.id)}
-                                            class="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-emerald-400' : ''}"
+                                            class="w-5 h-5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-transform text-[10px] {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-[#06B6D4]' : ''}"
                                             title={isExpanded ? 'Colapsar detalles' : 'Expandir proveedores y detalles'}
                                         >
                                             ▶
                                         </button>
                                     </td>
-                                    <td class="p-4">
-                                        <button
-                                            type="button"
-                                            class="font-bold text-white text-sm hover:text-emerald-400 text-left block transition-colors"
-                                            onclick={() => toggleRow(mat.id)}
-                                        >
-                                            {mat.name}
-                                        </button>
-                                        <span class="font-mono text-[10px] text-slate-500">{mat.sku ?? 'Sin SKU'}</span>
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                class="font-bold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-[#06B6D4] text-left transition-colors"
+                                                onclick={() => toggleRow(mat.id)}
+                                            >
+                                                {mat.name}
+                                            </button>
+                                            <span class="font-mono text-[10px] text-slate-400 dark:text-slate-500">({mat.sku ?? 'Sin SKU'})</span>
+                                        </div>
                                     </td>
-                                    <td class="p-4 text-center font-mono text-slate-400 capitalize">
+                                    <td class="py-2.5 px-3 text-center font-mono text-slate-500 dark:text-slate-400 capitalize whitespace-nowrap">
                                         {mat.unit_of_measure}
                                     </td>
-                                    <td class="p-4 text-right font-mono font-bold text-slate-200">
+                                    <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                         {current.toFixed(2)}
                                     </td>
-                                    <td class="p-4 text-right font-mono text-amber-300">
+                                    <td class="py-2.5 px-3 text-right font-mono font-semibold text-amber-600 dark:text-amber-400 whitespace-nowrap">
                                         {reserved.toFixed(2)}
                                     </td>
-                                    <td class="p-4 text-right font-mono font-bold {available <= 0 ? 'text-rose-400' : 'text-emerald-400'}">
+                                    <td class="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap {available <= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">
                                         {available.toFixed(2)}
                                     </td>
-                                    <td class="p-4 text-center">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         {#if isLowStock}
-                                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono font-bold text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono font-bold text-[10px] bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30 animate-pulse">
                                                 ⚠ Min: {Number(mat.min_stock_alert)}
                                             </span>
                                         {:else}
-                                            <span class="font-mono text-slate-400 text-[11px]">
+                                            <span class="font-mono text-slate-500 dark:text-slate-400 text-[11px]">
                                                 Min: {Number(mat.min_stock_alert)}
                                             </span>
                                         {/if}
                                     </td>
                                     {#if hasFinancialAccess}
-                                        <td class="p-4 text-right font-mono text-slate-300 font-semibold">
+                                        <td class="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-200 font-semibold whitespace-nowrap">
                                             {formatCurrency(mat.unit_cost)}
                                         </td>
                                     {/if}
-                                    <td class="p-4">
-                                        <div class="flex flex-wrap gap-1 max-w-xs">
-                                            {#each mat.suppliers ?? [] as sup}
-                                                <span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded {sup.pivot?.is_preferred ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold' : 'bg-slate-800 text-slate-400 border border-slate-700/60'}">
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-1 max-w-[200px] overflow-hidden">
+                                            {#each (mat.suppliers ?? []).slice(0, 2) as sup}
+                                                <span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full {sup.pivot?.is_preferred ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 font-semibold' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/60'}">
                                                     {#if sup.pivot?.is_preferred}★{/if}
                                                     {sup.name}
                                                 </span>
-                                            {:else}
-                                                <span class="text-[10px] text-slate-500 italic">Insumo local</span>
                                             {/each}
+                                            {#if (mat.suppliers?.length ?? 0) > 2}
+                                                <span class="text-[10px] text-slate-400 font-mono">+{mat.suppliers.length - 2}</span>
+                                            {/if}
+                                            {#if !mat.suppliers?.length}
+                                                <span class="text-[10px] text-slate-400 italic">Insumo local</span>
+                                            {/if}
                                         </div>
                                     </td>
-                                    <td class="p-4 text-right">
-                                        <div class="flex items-center justify-end gap-1.5">
+                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                        <div class="inline-flex items-center justify-end">
                                             <button
                                                 type="button"
-                                                onclick={() => openAdjust(mat)}
-                                                class="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-colors"
-                                                title="Registrar Compra / Ajuste de Stock"
+                                                onclick={(e) => toggleActionMenu(e, mat.id)}
+                                                class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
+                                                title="Más opciones"
                                             >
-                                                ± Stock
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => openEdit(mat)}
-                                                class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
-                                            >
-                                                Editar
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => destroy(mat)}
-                                                class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-500 hover:text-rose-300 text-xs font-medium transition-colors"
-                                            >
-                                                ✕
+                                                •••
                                             </button>
                                         </div>
+
+                                        <!-- Menú Contextual Desplegable (Fixed) -->
+                                        {#if openActionMenuMatId === mat.id}
+                                            <div
+                                                role="menu"
+                                                tabindex="-1"
+                                                class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]"
+                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                                onclick={(e) => e.stopPropagation()}
+                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuMatId = null; }}
+                                            >
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuMatId = null; openEdit(mat); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                                    >
+                                                        <span>✏️</span>
+                                                        <span>Editar Insumo</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuMatId = null; openAdjust(mat); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                                                    >
+                                                        <span>📦</span>
+                                                        <span>Ajustar Stock / Compra</span>
+                                                    </button>
+                                                </div>
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuMatId = null; destroy(mat); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                                    >
+                                                        <span>🗑️</span>
+                                                        <span>Eliminar Insumo</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        {/if}
                                     </td>
                                 </tr>
 
+
                                 <!-- RENGLÓN EXPANDIDO (ACCORDION) -->
                                 {#if isExpanded}
-                                    <tr class="bg-slate-950/70 border-b border-slate-800">
+                                    <tr class="bg-slate-50/70 dark:bg-[#0B0F17]/70 border-b border-slate-200 dark:border-[#26334D]">
                                         <td colspan="10" class="p-4 sm:p-5">
                                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <!-- Desglose de Proveedores -->
-                                                <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                                                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block border-b border-slate-800 pb-1.5">
+                                                <div class="p-3.5 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl space-y-2">
+                                                    <span class="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block border-b border-slate-100 dark:border-[#26334D] pb-1.5">
                                                         Proveedores Vinculados ({mat.suppliers?.length ?? 0})
                                                     </span>
                                                     <div class="space-y-1.5 max-h-40 overflow-y-auto">
                                                         {#each mat.suppliers ?? [] as sup}
-                                                            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950/80 border border-slate-800 text-xs">
+                                                            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
                                                                 <div>
-                                                                    <span class="font-bold text-white flex items-center gap-1.5">
+                                                                    <span class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                                                                         {#if sup.pivot?.is_preferred}
-                                                                            <span class="text-amber-400 text-xs" title="Proveedor preferido">★</span>
+                                                                            <span class="text-amber-500 dark:text-amber-400 text-xs" title="Proveedor preferido">★</span>
                                                                         {/if}
                                                                         {sup.name}
                                                                     </span>
-                                                                    <span class="text-[10px] text-slate-400">{sup.phone ?? 'Sin teléfono'} • {sup.email ?? 'Sin email'}</span>
+                                                                    <span class="text-[10px] text-slate-500 dark:text-slate-400">{sup.phone ?? 'Sin teléfono'} • {sup.email ?? 'Sin email'}</span>
                                                                 </div>
                                                                 <div class="text-right">
                                                                     {#if hasFinancialAccess}
-                                                                        <span class="font-mono text-emerald-400 font-bold block">
+                                                                        <span class="font-mono text-emerald-600 dark:text-emerald-400 font-bold block">
                                                                             {sup.pivot?.purchase_price ? formatCurrency(sup.pivot.purchase_price) : 'Sin precio pactado'}
                                                                         </span>
                                                                     {/if}
                                                                     {#if sup.lead_time_days}
-                                                                        <span class="text-[10px] text-slate-500">Lead time: {sup.lead_time_days}d</span>
+                                                                        <span class="text-[10px] text-slate-400 dark:text-slate-500">Lead time: {sup.lead_time_days}d</span>
                                                                     {/if}
                                                                 </div>
                                                             </div>
                                                         {:else}
-                                                            <span class="text-slate-500 text-xs italic py-2 block">
+                                                            <span class="text-slate-400 dark:text-slate-500 text-xs italic py-2 block">
                                                                 No tiene proveedores registrados. Es un insumo de fabricación interna o compra libre.
                                                             </span>
                                                         {/each}
@@ -643,28 +693,28 @@
                                                 </div>
 
                                                 <!-- Métricas y Estado de Stock -->
-                                                <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-2.5">
-                                                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block border-b border-slate-800 pb-1.5">
+                                                <div class="p-3.5 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl space-y-2.5">
+                                                    <span class="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider block border-b border-slate-100 dark:border-[#26334D] pb-1.5">
                                                         Diagnóstico de Inventario
                                                     </span>
                                                     <div class="grid grid-cols-3 gap-2 text-center">
-                                                        <div class="p-2 bg-slate-950 rounded-lg border border-slate-800">
-                                                            <span class="text-[10px] text-slate-400 block">En Bodega</span>
-                                                            <span class="font-mono font-bold text-white text-sm">{current.toFixed(2)}</span>
+                                                        <div class="p-2 bg-slate-50 dark:bg-[#0B0F17] rounded-lg border border-slate-200 dark:border-[#26334D]">
+                                                            <span class="text-[10px] text-slate-500 dark:text-slate-400 block">En Bodega</span>
+                                                            <span class="font-mono font-bold text-slate-900 dark:text-white text-sm">{current.toFixed(2)}</span>
                                                         </div>
-                                                        <div class="p-2 bg-slate-950 rounded-lg border border-slate-800">
-                                                            <span class="text-[10px] text-amber-400 block">Comprometido</span>
-                                                            <span class="font-mono font-bold text-amber-300 text-sm">{reserved.toFixed(2)}</span>
+                                                        <div class="p-2 bg-slate-50 dark:bg-[#0B0F17] rounded-lg border border-slate-200 dark:border-[#26334D]">
+                                                            <span class="text-[10px] text-amber-600 dark:text-amber-400 block">Comprometido</span>
+                                                            <span class="font-mono font-bold text-amber-600 dark:text-amber-300 text-sm">{reserved.toFixed(2)}</span>
                                                         </div>
-                                                        <div class="p-2 bg-slate-950 rounded-lg border border-slate-800">
-                                                            <span class="text-[10px] text-emerald-400 block">Libre</span>
-                                                            <span class="font-mono font-bold text-emerald-300 text-sm">{available.toFixed(2)}</span>
+                                                        <div class="p-2 bg-slate-50 dark:bg-[#0B0F17] rounded-lg border border-slate-200 dark:border-[#26334D]">
+                                                            <span class="text-[10px] text-emerald-600 dark:text-emerald-400 block">Libre</span>
+                                                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-300 text-sm">{available.toFixed(2)}</span>
                                                         </div>
                                                     </div>
                                                     {#if hasFinancialAccess}
                                                         <div class="flex items-center justify-between text-xs pt-1">
-                                                            <span class="text-slate-400">Valorización total en stock:</span>
-                                                            <span class="font-mono font-bold text-emerald-400">{formatCurrency(current * Number(mat.unit_cost))}</span>
+                                                            <span class="text-slate-500 dark:text-slate-400">Valorización total en stock:</span>
+                                                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(current * Number(mat.unit_cost))}</span>
                                                         </div>
                                                     {/if}
                                                 </div>
@@ -674,7 +724,7 @@
                                 {/if}
                             {:else}
                                 <tr>
-                                    <td colspan="10" class="p-10 text-center text-slate-500 text-xs">
+                                    <td colspan="10" class="p-10 text-center text-slate-400 dark:text-slate-500 text-xs">
                                         No se encontraron materias primas registradas.
                                     </td>
                                 </tr>
@@ -692,98 +742,98 @@
                     {@const reserved = Number(mat.reserved_stock)}
                     {@const available = current - reserved}
                     {@const isLowStock = current <= Number(mat.min_stock_alert)}
-                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-md hover:border-slate-700 transition-colors {isLowStock ? 'ring-1 ring-rose-500/30' : ''}">
+                    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl p-5 flex flex-col justify-between shadow-sm hover:border-[#4F46E5] dark:hover:border-[#06B6D4] transition {isLowStock ? 'ring-1 ring-rose-400 dark:ring-rose-500/30' : ''}">
                         <div>
                             <div class="flex items-start justify-between gap-2 mb-2">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700 capitalize">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 capitalize">
                                     {mat.unit_of_measure}
                                 </span>
                                 {#if hasFinancialAccess}
-                                    <span class="font-mono text-emerald-400 font-extrabold text-base">
+                                    <span class="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-base">
                                         {formatCurrency(mat.unit_cost)}
                                     </span>
                                 {/if}
                             </div>
 
-                            <h3 class="text-base font-bold text-white">{mat.name}</h3>
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">{mat.name}</h3>
                             {#if mat.sku}
-                                <span class="font-mono text-[11px] text-slate-500 block mt-0.5">SKU: {mat.sku}</span>
+                                <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500 block mt-0.5">SKU: {mat.sku}</span>
                             {/if}
 
                             <!-- Métricas de Stock -->
-                            <div class="mt-3.5 p-3 bg-slate-950/70 rounded-xl border border-slate-800/80 grid grid-cols-3 gap-2 text-center text-xs">
+                            <div class="mt-3.5 p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] grid grid-cols-3 gap-2 text-center text-xs">
                                 <div>
-                                    <span class="text-[10px] text-slate-400 block">Actual</span>
-                                    <span class="font-mono font-bold text-slate-200">{current.toFixed(2)}</span>
+                                    <span class="text-[10px] text-slate-500 dark:text-slate-400 block">Actual</span>
+                                    <span class="font-mono font-bold text-slate-900 dark:text-slate-200">{current.toFixed(2)}</span>
                                 </div>
                                 <div>
-                                    <span class="text-[10px] text-amber-400 block">Reservado</span>
-                                    <span class="font-mono font-bold text-amber-300">{reserved.toFixed(2)}</span>
+                                    <span class="text-[10px] text-amber-600 dark:text-amber-400 block">Reservado</span>
+                                    <span class="font-mono font-bold text-amber-600 dark:text-amber-300">{reserved.toFixed(2)}</span>
                                 </div>
                                 <div>
-                                    <span class="text-[10px] text-emerald-400 block">Disponible</span>
-                                    <span class="font-mono font-bold {available <= 0 ? 'text-rose-400' : 'text-emerald-400'}">{available.toFixed(2)}</span>
+                                    <span class="text-[10px] text-emerald-600 dark:text-emerald-400 block">Disponible</span>
+                                    <span class="font-mono font-bold {available <= 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}">{available.toFixed(2)}</span>
                                 </div>
                             </div>
 
                             <!-- Alerta de Stock Mínimo -->
                             <div class="mt-2.5 flex items-center justify-between text-xs">
-                                <span class="text-slate-400 text-[11px]">Umbral de Alerta:</span>
+                                <span class="text-slate-500 dark:text-slate-400 text-[11px]">Umbral de Alerta:</span>
                                 {#if isLowStock}
-                                    <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono text-[10px] font-bold animate-pulse">
+                                    <span class="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-500/30 font-mono text-[10px] font-bold animate-pulse">
                                         ⚠ Stock Bajo ({Number(mat.min_stock_alert)})
                                     </span>
                                 {:else}
-                                    <span class="font-mono text-slate-400 text-[11px]">
+                                    <span class="font-mono text-slate-500 dark:text-slate-400 text-[11px]">
                                         {Number(mat.min_stock_alert)} {mat.unit_of_measure}
                                     </span>
                                 {/if}
                             </div>
 
                             <!-- Proveedores -->
-                            <div class="mt-3 pt-2.5 border-t border-slate-800/60">
-                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                            <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-[#26334D]">
+                                <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                                     Proveedores ({mat.suppliers?.length ?? 0}):
                                 </span>
                                 <div class="flex flex-wrap gap-1">
                                     {#each mat.suppliers ?? [] as sup}
-                                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
+                                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60">
                                             {#if sup.pivot?.is_preferred}★ {/if}{sup.name}
                                         </span>
                                     {:else}
-                                        <span class="text-[10px] text-slate-500 italic">Insumo local</span>
+                                        <span class="text-[10px] text-slate-400 italic">Insumo local</span>
                                     {/each}
                                 </div>
                             </div>
                         </div>
 
                         <!-- Acciones -->
-                        <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                        <div class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex items-center justify-end gap-2">
                             <button
                                 type="button"
                                 onclick={() => openAdjust(mat)}
-                                class="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold"
+                                class="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-semibold transition-colors"
                             >
                                 ± Stock
                             </button>
                             <button
                                 type="button"
                                 onclick={() => openEdit(mat)}
-                                class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+                                class="px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition-colors"
                             >
                                 Editar
                             </button>
                             <button
                                 type="button"
                                 onclick={() => destroy(mat)}
-                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 text-xs font-semibold"
+                                class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-950 dark:text-slate-400 dark:hover:text-rose-300 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition-colors"
                             >
                                 Eliminar
                             </button>
                         </div>
                     </div>
                 {:else}
-                    <div class="col-span-full p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-500 text-xs">
+                    <div class="col-span-full p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl text-slate-400 dark:text-slate-500 text-xs shadow-sm">
                         No hay materias primas registradas. Haz clic en "Nueva Materia Prima" para comenzar.
                     </div>
                 {/each}
@@ -792,7 +842,7 @@
 
         <!-- PAGINACIÓN -->
         {#if rawMaterials.links && rawMaterials.links.length > 3}
-            <div class="p-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+            <div class="p-4 border-t border-slate-200 dark:border-[#26334D] flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <div>
                     Mostrando {rawMaterials.from ?? 0} a {rawMaterials.to ?? 0} de {rawMaterials.total} insumos
                 </div>
@@ -801,7 +851,7 @@
                         {#if link.url}
                             <Link
                                 href={link.url}
-                                class="px-3 py-1.5 rounded-lg border text-xs font-medium {link.active ? 'bg-emerald-600 text-white border-emerald-600 font-bold' : 'bg-slate-800 border-slate-700 text-slate-300'}"
+                                class="px-3 py-1.5 rounded-xl border text-xs font-medium transition {link.active ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border-slate-200 dark:border-[#26334D]'}"
                             >
                                 {@html link.label}
                             </Link>
@@ -815,39 +865,39 @@
 
 <!-- MODAL CREAR / EDITAR MATERIA PRIMA (Nota 4) -->
 {#if showMaterialModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 class="text-base font-bold text-white">
+    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">
                     {editingMaterial ? `Editar Insumo: ${editingMaterial.name}` : 'Registrar Materia Prima'}
                 </h3>
-                <button type="button" onclick={() => showMaterialModal = false} class="text-slate-400 hover:text-white">✕</button>
+                <button type="button" onclick={() => showMaterialModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
             </div>
 
             <form onsubmit={submitMaterial} class="space-y-4 text-xs">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label for="m-name" class="block font-semibold text-slate-300 mb-1">Nombre del Material *</label>
+                        <label for="m-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre del Material *</label>
                         <input
                             id="m-name"
                             type="text"
                             bind:value={materialForm.name}
                             placeholder="Ej. Tela Drill Algodón"
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                         />
                         {#if errors.name}
-                            <p class="text-[10px] text-rose-400 mt-1">{errors.name}</p>
+                            <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
                         {/if}
                     </div>
                     <div>
-                        <label for="m-sku" class="block font-semibold text-slate-300 mb-1">Código SKU / Referencia</label>
+                        <label for="m-sku" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Código SKU / Referencia</label>
                         <input
                             id="m-sku"
                             type="text"
                             bind:value={materialForm.sku}
                             placeholder="Ej. MAT-DRL-01"
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs font-mono"
                         />
                     </div>
                 </div>
@@ -855,11 +905,11 @@
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
                         <div class="flex items-center justify-between mb-1">
-                            <label for="m-unit" class="block font-semibold text-slate-300">Unidad de Medida *</label>
+                            <label for="m-unit" class="block font-semibold text-slate-700 dark:text-slate-300">Unidad de Medida *</label>
                             <button
                                 type="button"
                                 onclick={() => (quickUomModalOpen = true)}
-                                class="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+                                class="text-[10px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold transition-colors"
                             >
                                 + Nueva
                             </button>
@@ -868,7 +918,7 @@
                             id="m-unit"
                             bind:value={materialForm.unit_of_measure}
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs capitalize"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs capitalize"
                         >
                             {#each sortedUnitsOfMeasure as uom}
                                 {#if typeof uom === 'object' && uom !== null}
@@ -884,7 +934,7 @@
 
                     {#if !editingMaterial}
                         <div>
-                            <label for="m-stock" class="block font-semibold text-slate-300 mb-1">Stock Actual *</label>
+                            <label for="m-stock" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Stock Actual *</label>
                             <input
                                 id="m-stock"
                                 type="number"
@@ -892,13 +942,13 @@
                                 min="0"
                                 bind:value={materialForm.current_stock}
                                 required
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                                class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs font-mono"
                             />
                         </div>
                     {/if}
 
                     <div>
-                        <label for="m-alert" class="block font-semibold text-slate-300 mb-1">Stock Mínimo (Alerta) *</label>
+                        <label for="m-alert" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Stock Mínimo (Alerta) *</label>
                         <input
                             id="m-alert"
                             type="number"
@@ -906,37 +956,37 @@
                             min="0"
                             bind:value={materialForm.min_stock_alert}
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs font-mono"
                         />
                     </div>
 
                     {#if hasFinancialAccess}
                         <div>
-                            <label for="m-cost" class="block font-semibold text-slate-300 mb-1">Costo por Unidad ($) *</label>
+                            <label for="m-cost" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Costo por Unidad ($) *</label>
                             <CurrencyInput bind:value={materialForm.unit_cost} id="m-cost" required />
                         </div>
                     {/if}
                 </div>
 
                 <!-- SECCIÓN DE PROVEEDORES OPCIONALES (NOTA 4) -->
-                <div class="pt-3 border-t border-slate-800 space-y-3">
+                <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] space-y-3">
                     <div class="flex items-center justify-between">
                         <div>
-                            <span class="font-bold text-white text-xs">Proveedores Asociados (Nota 4: 0, 1 o múltiples)</span>
+                            <span class="font-bold text-slate-900 dark:text-white text-xs">Proveedores Asociados (Nota 4: 0, 1 o múltiples)</span>
                             <p class="text-[11px] text-slate-500">Puedes dejarlo sin proveedor si el insumo es de elaboración interna.</p>
                         </div>
                         <div class="flex items-center gap-2">
                             <button
                                 type="button"
                                 onclick={() => quickSupplierModalOpen = true}
-                                class="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold"
+                                class="text-[11px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold"
                             >
                                 + Nuevo Proveedor
                             </button>
                             <button
                                 type="button"
                                 onclick={addSupplierRow}
-                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs border border-slate-700 flex items-center gap-1"
+                                class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] flex items-center gap-1"
                             >
                                 <span>+</span>
                                 <span>Asociar Proveedor</span>
@@ -945,13 +995,13 @@
                     </div>
 
                     {#if materialForm.suppliers.length === 0}
-                        <div class="p-3 text-center bg-slate-950/60 rounded-xl border border-dashed border-slate-800 text-slate-500 text-[11px]">
+                        <div class="p-3 text-center bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-dashed border-slate-200 dark:border-[#26334D] text-slate-400 text-[11px]">
                             Ningún proveedor vinculado. El material operará como insumo local.
                         </div>
                     {:else}
                         <div class="space-y-2">
                             <!-- Cabecera de columnas para proveedores -->
-                            <div class="hidden sm:flex items-center gap-2 px-2.5 py-1 text-[11px] font-semibold text-slate-400 border-b border-slate-800/60">
+                            <div class="hidden sm:flex items-center gap-2 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-[#26334D]/60">
                                 <span class="flex-1">Proveedor *</span>
                                 {#if hasFinancialAccess}
                                     <span class="w-32">Precio de Compra ($)</span>
@@ -961,13 +1011,13 @@
                             </div>
 
                             {#each materialForm.suppliers as supRow, idx}
-                                <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center gap-2">
+                                <div class="p-2.5 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] flex flex-col sm:flex-row sm:items-center gap-2">
                                     <div class="flex-1">
-                                        <label for="sup-sel-{idx}" class="sm:hidden block font-semibold text-slate-400 text-[10px] mb-1">Proveedor *</label>
+                                        <label for="sup-sel-{idx}" class="sm:hidden block font-semibold text-slate-500 dark:text-slate-400 text-[10px] mb-1">Proveedor *</label>
                                         <select
                                             id="sup-sel-{idx}"
                                             bind:value={supRow.supplier_id}
-                                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+                                            class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white text-xs"
                                         >
                                             {#each localSuppliers as s}
                                                 <option value={s.id}>{s.name}</option>
@@ -976,7 +1026,7 @@
                                     </div>
                                     {#if hasFinancialAccess}
                                         <div class="w-full sm:w-32">
-                                            <label for="sup-price-{idx}" class="sm:hidden block font-semibold text-slate-400 text-[10px] mb-1">Precio de Compra ($)</label>
+                                            <label for="sup-price-{idx}" class="sm:hidden block font-semibold text-slate-500 dark:text-slate-400 text-[10px] mb-1">Precio de Compra ($)</label>
                                             <CurrencyInput
                                                 id="sup-price-{idx}"
                                                 bind:value={supRow.purchase_price}
@@ -984,18 +1034,18 @@
                                             />
                                         </div>
                                     {/if}
-                                    <label class="flex items-center gap-1.5 text-[11px] text-slate-300 whitespace-nowrap cursor-pointer self-start sm:self-center py-1">
+                                    <label class="flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-slate-300 whitespace-nowrap cursor-pointer self-start sm:self-center py-1">
                                         <input
                                             type="checkbox"
                                             bind:checked={supRow.is_preferred}
-                                            class="rounded bg-slate-900 border-slate-700 text-emerald-500"
+                                            class="rounded bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-[#4F46E5] focus:ring-[#4F46E5]"
                                         />
                                         <span>Preferido</span>
                                     </label>
                                     <button
                                         type="button"
                                         onclick={() => removeSupplierRow(idx)}
-                                        class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 self-end sm:self-center"
+                                        class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 self-end sm:self-center"
                                         title="Quitar proveedor"
                                     >
                                         ✕
@@ -1006,18 +1056,18 @@
                     {/if}
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]">
                     <button
                         type="button"
                         onclick={() => showMaterialModal = false}
-                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                        class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold"
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         disabled={materialProcessing}
-                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50"
                     >
                         {editingMaterial ? 'Actualizar Material' : 'Guardar Material'}
                     </button>
@@ -1029,24 +1079,24 @@
 
 <!-- MODAL REGISTRO DE MOVIMIENTO / AJUSTE DE STOCK -->
 {#if showMovementModal && adjustingMaterial}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div>
-                    <h3 class="text-base font-bold text-white">Ajuste de Stock: {adjustingMaterial.name}</h3>
-                    <span class="text-[11px] text-slate-400">Stock actual: {Number(adjustingMaterial.current_stock)} {adjustingMaterial.unit_of_measure}</span>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Ajuste de Stock: {adjustingMaterial.name}</h3>
+                    <span class="text-[11px] text-slate-500 dark:text-slate-400">Stock actual: {Number(adjustingMaterial.current_stock)} {adjustingMaterial.unit_of_measure}</span>
                 </div>
-                <button type="button" onclick={() => showMovementModal = false} class="text-slate-400 hover:text-white">✕</button>
+                <button type="button" onclick={() => showMovementModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
             </div>
 
             <form onsubmit={submitMovement} class="space-y-4 text-xs">
                 <div>
-                    <label for="mov-type" class="block font-semibold text-slate-300 mb-1">Tipo de Movimiento *</label>
+                    <label for="mov-type" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Tipo de Movimiento *</label>
                     <select
                         id="mov-type"
                         bind:value={movementForm.type}
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                     >
                         <option value="purchase">Compra de Insumos (Entrada)</option>
                         <option value="adjustment">Ajuste Manual de Inventario</option>
@@ -1057,19 +1107,19 @@
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label for="mov-dir" class="block font-semibold text-slate-300 mb-1">Operación *</label>
+                        <label for="mov-dir" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Operación *</label>
                         <select
                             id="mov-dir"
                             bind:value={movementForm.direction}
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                         >
                             <option value="add">+ Sumar a Stock</option>
                             <option value="subtract">- Restar de Stock</option>
                         </select>
                     </div>
                     <div>
-                        <label for="mov-qty" class="block font-semibold text-slate-300 mb-1">Cantidad *</label>
+                        <label for="mov-qty" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Cantidad *</label>
                         <input
                             id="mov-qty"
                             type="number"
@@ -1077,34 +1127,34 @@
                             min="0.001"
                             bind:value={movementForm.quantity}
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono font-bold"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs font-mono font-bold"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label for="mov-notes" class="block font-semibold text-slate-300 mb-1">Notas / Justificación</label>
+                    <label for="mov-notes" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Notas / Justificación</label>
                     <input
                         id="mov-notes"
                         type="text"
                         bind:value={movementForm.notes}
                         placeholder="Ej. Factura #402 / Corrección de inventario"
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]">
                     <button
                         type="button"
                         onclick={() => showMovementModal = false}
-                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                        class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold"
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         disabled={movementProcessing}
-                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50"
                     >
                         Registrar Movimiento
                     </button>
@@ -1130,63 +1180,63 @@
 
 <!-- MODAL COMPLETO DE GESTIÓN DE UNIDADES DE MEDIDA -->
 {#if showUomModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" role="dialog" aria-modal="true">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" role="dialog" aria-modal="true">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-hidden flex flex-col">
             <!-- Header -->
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-sm">
+                    <div class="w-8 h-8 rounded-xl bg-[#4F46E5]/10 border border-[#4F46E5]/20 flex items-center justify-center text-[#4F46E5] dark:text-[#06B6D4] font-bold text-sm">
                         📐
                     </div>
                     <div>
-                        <span class="text-[10px] uppercase font-bold tracking-wider text-emerald-400 block">Catálogo del Taller</span>
-                        <h3 class="text-base font-bold text-white">Unidades de Medida</h3>
+                        <span class="text-[10px] uppercase font-bold tracking-wider text-[#4F46E5] dark:text-[#06B6D4] block">Catálogo del Taller</span>
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">Unidades de Medida</h3>
                     </div>
                 </div>
                 <button
                     type="button"
                     onclick={() => (showUomModal = false)}
-                    class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                    class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                     ✕
                 </button>
             </div>
 
             <!-- Formulario Crear Nueva Unidad -->
-            <form onsubmit={handleCreateUom} class="p-3.5 bg-slate-950/80 border border-slate-800 rounded-xl space-y-2">
-                <span class="text-xs font-bold text-slate-300 block">Agregar Nueva Unidad</span>
+            <form onsubmit={handleCreateUom} class="p-3.5 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl space-y-2">
+                <span class="text-xs font-bold text-slate-900 dark:text-slate-200 block">Agregar Nueva Unidad</span>
                 {#if uomError}
-                    <div class="p-2 bg-rose-950/60 border border-rose-800/80 rounded-lg text-rose-300 text-xs">
+                    <div class="p-2 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/80 rounded-lg text-rose-600 dark:text-rose-300 text-xs">
                         {uomError}
                     </div>
                 {/if}
                 <div class="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
                     <div class="sm:col-span-3">
-                        <label for="new-uom-name" class="block text-[11px] font-semibold text-slate-300 mb-1">Nombre (ej. Metro) *</label>
+                        <label for="new-uom-name" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre (ej. Metro) *</label>
                         <input
                             id="new-uom-name"
                             type="text"
                             bind:value={newUomName}
                             placeholder="Ej. Metro, Litro, Rollo"
                             required
-                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                            class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] font-medium"
                         />
                     </div>
                     <div class="sm:col-span-2 flex gap-2 items-end">
                         <div class="flex-1">
-                            <label for="new-uom-abbr" class="block text-[11px] font-semibold text-slate-300 mb-1">Abreviatura (ej. m)</label>
+                            <label for="new-uom-abbr" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Abreviatura (ej. m)</label>
                             <input
                                 id="new-uom-abbr"
                                 type="text"
                                 bind:value={newUomAbbr}
                                 placeholder="Ej. m, kg"
-                                class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono"
+                                class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] font-mono"
                             />
                         </div>
                         <button
                             type="submit"
                             disabled={uomLoading || !newUomName.trim()}
-                            class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold shrink-0 transition-colors flex items-center gap-1 shadow-md shadow-emerald-900/20 mb-[1px]"
+                            class="px-3.5 py-2 bg-[#4F46E5] hover:bg-[#4338CA] disabled:opacity-50 text-white rounded-xl text-xs font-bold shrink-0 transition flex items-center gap-1 shadow-sm mb-[1px]"
                         >
                             {#if uomLoading}
                                 <span>...</span>
@@ -1201,31 +1251,31 @@
             <!-- Listado de Unidades Existentes -->
             <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-72">
                 {#if sortedUnitsOfMeasure.length === 0}
-                    <div class="p-8 text-center text-slate-500 text-xs bg-slate-950/40 rounded-xl border border-dashed border-slate-800">
+                    <div class="p-8 text-center text-slate-400 dark:text-slate-500 text-xs bg-slate-50 dark:bg-[#0B0F17]/40 rounded-xl border border-dashed border-slate-200 dark:border-[#26334D]">
                         No hay unidades de medida registradas.
                     </div>
                 {:else}
                     {#each sortedUnitsOfMeasure as uom (uom.id || uom.name)}
-                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/80 hover:border-slate-700/80 transition-colors text-xs">
+                        <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] hover:border-slate-300 dark:hover:border-slate-700 transition-colors text-xs">
                             {#if editingUomId === uom.id}
-                                <div class="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 flex-1 mr-2 p-2 bg-slate-900/80 rounded-xl border border-emerald-500/50">
+                                <div class="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 flex-1 mr-2 p-2 bg-white dark:bg-[#151D2C] rounded-xl border border-[#4F46E5]">
                                     <div class="flex-1">
-                                        <label for="edit-uom-name-{uom.id}" class="block text-[10px] font-semibold text-slate-400 mb-0.5">Nombre (ej. Metro) *</label>
+                                        <label for="edit-uom-name-{uom.id}" class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">Nombre (ej. Metro) *</label>
                                         <input
                                             id="edit-uom-name-{uom.id}"
                                             type="text"
                                             bind:value={editUomName}
-                                            class="w-full bg-slate-900 border border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none font-medium"
+                                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] font-medium"
                                             placeholder="Nombre"
                                         />
                                     </div>
                                     <div class="w-full sm:w-24">
-                                        <label for="edit-uom-abbr-{uom.id}" class="block text-[10px] font-semibold text-slate-400 mb-0.5">Abreviatura (ej. m)</label>
+                                        <label for="edit-uom-abbr-{uom.id}" class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">Abreviatura (ej. m)</label>
                                         <input
                                             id="edit-uom-abbr-{uom.id}"
                                             type="text"
                                             bind:value={editUomAbbr}
-                                            class="w-full bg-slate-900 border border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none font-mono"
+                                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] font-mono"
                                             placeholder="Abrev."
                                         />
                                     </div>
@@ -1234,14 +1284,14 @@
                                             type="button"
                                             onclick={() => handleUpdateUom(uom.id)}
                                             disabled={uomLoading}
-                                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors"
+                                            class="px-3 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-lg font-bold text-xs transition-colors"
                                         >
                                             Guardar
                                         </button>
                                         <button
                                             type="button"
                                             onclick={cancelEditUom}
-                                            class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors"
+                                            class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] rounded-lg text-xs transition-colors"
                                         >
                                             Cancelar
                                         </button>
@@ -1249,9 +1299,9 @@
                                 </div>
                             {:else}
                                 <div class="flex items-center gap-2.5">
-                                    <span class="font-semibold text-slate-200 text-sm">{uom.name}</span>
+                                    <span class="font-semibold text-slate-900 dark:text-slate-200 text-sm">{uom.name}</span>
                                     {#if uom.abbreviation}
-                                        <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-emerald-400 text-[11px] font-mono font-medium">
+                                        <span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#4F46E5] dark:text-[#06B6D4] text-[11px] font-mono font-medium">
                                             {uom.abbreviation}
                                         </span>
                                     {/if}
@@ -1260,7 +1310,7 @@
                                     <button
                                         type="button"
                                         onclick={() => startEditUom(uom)}
-                                        class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors text-xs flex items-center gap-1"
+                                        class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors text-xs flex items-center gap-1"
                                         title="Editar unidad"
                                     >
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1271,7 +1321,7 @@
                                     <button
                                         type="button"
                                         onclick={() => handleDeleteUom(uom)}
-                                        class="p-1.5 rounded-lg hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 transition-colors text-xs flex items-center gap-1"
+                                        class="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 dark:hover:bg-rose-950/60 dark:hover:text-rose-400 transition-colors text-xs flex items-center gap-1"
                                         title="Eliminar unidad"
                                     >
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1286,12 +1336,12 @@
             </div>
 
             <!-- Footer -->
-            <div class="border-t border-slate-800 pt-3 flex items-center justify-between text-[11px] text-slate-400">
+            <div class="border-t border-slate-200 dark:border-[#26334D] pt-3 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                 <span>{localUnitsOfMeasure.length} unidades disponibles para inventario y recetas</span>
                 <button
                     type="button"
                     onclick={() => (showUomModal = false)}
-                    class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition-colors"
+                    class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold rounded-xl text-xs transition-colors"
                 >
                     Cerrar
                 </button>

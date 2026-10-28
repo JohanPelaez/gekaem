@@ -169,6 +169,20 @@ class OrderController extends Controller
     }
 
     /**
+     * Delete an order and its associated tasks/payments.
+     */
+    public function destroy(Order $order): RedirectResponse
+    {
+        DB::transaction(function () use ($order): void {
+            $order->payments()->delete();
+            $order->productionTasks()->delete();
+            $order->delete();
+        });
+
+        return redirect()->route('orders.index')->with('success', "Pedido #{$order->order_number} eliminado correctamente.");
+    }
+
+    /**
      * Resolve the active tenant.
      */
     protected function resolveTenant(): Tenant

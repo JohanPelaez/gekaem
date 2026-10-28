@@ -43,11 +43,11 @@
     }
 </script>
 
-<div class="inline-flex items-center p-1 bg-slate-950 border border-slate-800 rounded-xl shadow-inner text-xs" role="group" aria-label="Cambiar vista">
+<div class="inline-flex items-center p-1 bg-slate-100 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl shadow-sm text-xs" role="group" aria-label="Cambiar vista">
     <button
         type="button"
         onclick={() => setView('table')}
-        class="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all {mode === 'table' ? 'bg-slate-800 text-emerald-400 shadow-sm border border-slate-700 font-bold' : 'text-slate-400 hover:text-slate-200'}"
+        class="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all {mode === 'table' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-[#4F46E5]/30 font-bold' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}"
         title="Vista en Tabla Expandible"
         aria-pressed={mode === 'table'}
     >
@@ -60,7 +60,7 @@
     <button
         type="button"
         onclick={() => setView('cards')}
-        class="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all {mode === 'cards' ? 'bg-slate-800 text-emerald-400 shadow-sm border border-slate-700 font-bold' : 'text-slate-400 hover:text-slate-200'}"
+        class="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all {mode === 'cards' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-[#4F46E5]/30 font-bold' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}"
         title="Vista en Tarjetas"
         aria-pressed={mode === 'cards'}
     >
@@ -74,7 +74,7 @@
         <button
             type="button"
             onclick={() => setView('calendar')}
-            class="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all {mode === 'calendar' ? 'bg-slate-800 text-emerald-400 shadow-sm border border-slate-700 font-bold' : 'text-slate-400 hover:text-slate-200'}"
+            class="px-3 py-1.5 rounded-lg font-semibold flex items-center gap-1.5 transition-all {mode === 'calendar' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 shadow-sm border border-slate-200 dark:border-[#4F46E5]/30 font-bold' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'}"
             title="Vista en Calendario Mensual"
             aria-pressed={mode === 'calendar'}
         >

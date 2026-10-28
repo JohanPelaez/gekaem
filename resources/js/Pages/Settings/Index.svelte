@@ -210,27 +210,22 @@
 </script>
 
 <AppLayout title="Ajustes y Perfil">
-    <div class="space-y-6 max-w-6xl mx-auto">
+    <div class="space-y-4 w-full max-w-none">
         <!-- ENCABEZADO -->
-        <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                        {canManageTenant ? 'Gestión Integral' : 'Cuenta de Usuario'}
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-white">Ajustes y Configuración</h1>
-                </div>
-                <p class="text-xs text-slate-400 mt-1">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Ajustes y Configuración</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Administra tu perfil personal, la capacidad operativa del taller y los colaboradores del equipo.
                 </p>
             </div>
 
             <!-- SELECTOR DE PESTAÑAS -->
-            <div class="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-2xl self-start sm:self-auto overflow-x-auto">
+            <div class="flex items-center gap-1 p-1 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl self-start sm:self-auto overflow-x-auto shadow-sm">
                 <button
                     type="button"
                     onclick={() => activeTab = 'profile'}
-                    class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 {activeTab === 'profile' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}"
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 {activeTab === 'profile' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}"
                 >
                     <span>👤</span>
                     <span>Mi Perfil</span>
@@ -240,7 +235,7 @@
                     <button
                         type="button"
                         onclick={() => activeTab = 'tenant'}
-                        class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 {activeTab === 'tenant' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 {activeTab === 'tenant' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         <span>⚙️</span>
                         <span>Configuración del Taller</span>
@@ -249,12 +244,12 @@
                     <button
                         type="button"
                         onclick={() => activeTab = 'team'}
-                        class="px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 {activeTab === 'team' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'}"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 {activeTab === 'team' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         <span>👥</span>
                         <span>Equipo de Trabajo</span>
                         {#if teamMembers.length > 0}
-                            <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold {activeTab === 'team' ? 'bg-emerald-900 text-emerald-200' : 'bg-slate-800 text-slate-300'}">
+                            <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold {activeTab === 'team' ? 'bg-indigo-900 text-indigo-100' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}">
                                 {teamMembers.length}
                             </span>
                         {/if}
@@ -263,50 +258,51 @@
             </div>
         </div>
 
+
         <!-- CONTENIDO DE LAS PESTAÑAS -->
         {#if activeTab === 'profile'}
             <!-- PESTAÑA 1: MI PERFIL (VISIBLE PARA TODOS) -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- FORMULARIO 1: DATOS PERSONALES -->
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-md space-y-5">
-                    <div class="border-b border-slate-800 pb-3 flex items-center justify-between">
+                <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl p-6 shadow-sm space-y-5 text-slate-900 dark:text-slate-100">
+                    <div class="border-b border-slate-100 dark:border-[#26334D] pb-3 flex items-center justify-between">
                         <div>
-                            <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                                 <span>👤</span> Información Personal
                             </h2>
-                            <p class="text-xs text-slate-400">Actualiza tu nombre y correo electrónico de acceso.</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Actualiza tu nombre y correo electrónico de acceso.</p>
                         </div>
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border {profileUser?.role === 'owner' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : profileUser?.is_super_admin ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-sky-500/20 text-sky-300 border-sky-500/30'}">
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border {profileUser?.role === 'owner' ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30' : profileUser?.is_super_admin ? 'bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30' : 'bg-sky-50 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/30'}">
                             Rol: {profileUser?.role === 'owner' ? 'Dueño' : profileUser?.is_super_admin ? 'SuperAdmin' : 'Trabajador'}
                         </span>
                     </div>
 
                     <form onsubmit={submitProfile} class="space-y-4 text-xs">
                         <div>
-                            <label for="prof-name" class="block font-semibold text-slate-300 mb-1.5">Nombre Completo *</label>
+                            <label for="prof-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Nombre Completo *</label>
                             <input
                                 id="prof-name"
                                 type="text"
                                 bind:value={profileForm.name}
                                 required
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                             />
                             {#if errors.name}
-                                <p class="text-[11px] text-rose-400 mt-1">{errors.name}</p>
+                                <p class="text-[11px] text-rose-500 mt-1">{errors.name}</p>
                             {/if}
                         </div>
 
                         <div>
-                            <label for="prof-email" class="block font-semibold text-slate-300 mb-1.5">Correo Electrónico *</label>
+                            <label for="prof-email" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Correo Electrónico *</label>
                             <input
                                 id="prof-email"
                                 type="email"
                                 bind:value={profileForm.email}
                                 required
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                             />
                             {#if errors.email}
-                                <p class="text-[11px] text-rose-400 mt-1">{errors.email}</p>
+                                <p class="text-[11px] text-rose-500 mt-1">{errors.email}</p>
                             {/if}
                         </div>
 
@@ -314,7 +310,7 @@
                             <button
                                 type="submit"
                                 disabled={profileProcessing}
-                                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/25 transition-all disabled:opacity-50"
+                                class="px-5 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm transition-all disabled:opacity-50"
                             >
                                 {profileProcessing ? 'Guardando...' : 'Actualizar Información'}
                             </button>
@@ -323,32 +319,32 @@
                 </div>
 
                 <!-- FORMULARIO 2: CAMBIO DE CONTRASEÑA -->
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-md space-y-5">
-                    <div class="border-b border-slate-800 pb-3">
-                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl p-6 shadow-sm space-y-5 text-slate-900 dark:text-slate-100">
+                    <div class="border-b border-slate-100 dark:border-[#26334D] pb-3">
+                        <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <span>🔒</span> Seguridad y Contraseña
                         </h2>
-                        <p class="text-xs text-slate-400">Garantiza la seguridad de tu cuenta actualizando tu contraseña periódicamente.</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Garantiza la seguridad de tu cuenta actualizando tu contraseña periódicamente.</p>
                     </div>
 
                     <form onsubmit={submitPassword} class="space-y-4 text-xs">
                         <div>
-                            <label for="pwd-curr" class="block font-semibold text-slate-300 mb-1.5">Contraseña Actual *</label>
+                            <label for="pwd-curr" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Contraseña Actual *</label>
                             <input
                                 id="pwd-curr"
                                 type="password"
                                 bind:value={passwordForm.current_password}
                                 required
                                 placeholder="••••••••"
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                             />
                             {#if errors.current_password}
-                                <p class="text-[11px] text-rose-400 mt-1">{errors.current_password}</p>
+                                <p class="text-[11px] text-rose-500 mt-1">{errors.current_password}</p>
                             {/if}
                         </div>
 
                         <div>
-                            <label for="pwd-new" class="block font-semibold text-slate-300 mb-1.5">Nueva Contraseña (mínimo 8 caracteres) *</label>
+                            <label for="pwd-new" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Nueva Contraseña (mínimo 8 caracteres) *</label>
                             <input
                                 id="pwd-new"
                                 type="password"
@@ -356,15 +352,15 @@
                                 required
                                 minlength="8"
                                 placeholder="••••••••"
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                             />
                             {#if errors.password}
-                                <p class="text-[11px] text-rose-400 mt-1">{errors.password}</p>
+                                <p class="text-[11px] text-rose-500 mt-1">{errors.password}</p>
                             {/if}
                         </div>
 
                         <div>
-                            <label for="pwd-conf" class="block font-semibold text-slate-300 mb-1.5">Confirmar Nueva Contraseña *</label>
+                            <label for="pwd-conf" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Confirmar Nueva Contraseña *</label>
                             <input
                                 id="pwd-conf"
                                 type="password"
@@ -372,7 +368,7 @@
                                 required
                                 minlength="8"
                                 placeholder="••••••••"
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                             />
                         </div>
 
@@ -380,7 +376,7 @@
                             <button
                                 type="submit"
                                 disabled={passwordProcessing}
-                                class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-semibold text-xs transition-all disabled:opacity-50"
+                                class="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#4F46E5] dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-indigo-300 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition-all disabled:opacity-50"
                             >
                                 {passwordProcessing ? 'Cambiando...' : 'Cambiar Contraseña'}
                             </button>
@@ -391,35 +387,35 @@
 
         {:else if activeTab === 'tenant' && canManageTenant}
             <!-- PESTAÑA 2: CONFIGURACIÓN DEL TALLER (SOLO DUEÑO Y ADMIN) -->
-            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-md space-y-6">
-                <div class="border-b border-slate-800 pb-3">
-                    <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl p-6 shadow-sm space-y-6 text-slate-900 dark:text-slate-100">
+                <div class="border-b border-slate-100 dark:border-[#26334D] pb-3">
+                    <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <span>⚙️</span> Parámetros Productivos del Taller
                     </h2>
-                    <p class="text-xs text-slate-400">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
                         Estos valores alimentan el motor MRP ligero, el cálculo de fechas de entrega y el control de holgura.
                     </p>
                 </div>
 
                 <form onsubmit={submitSettings} class="space-y-5 text-xs">
                     <div>
-                        <label for="t-name" class="block font-semibold text-slate-300 mb-1.5">Nombre Comercial del Taller *</label>
+                        <label for="t-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Nombre Comercial del Taller *</label>
                         <input
                             id="t-name"
                             type="text"
                             bind:value={settingsForm.name}
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-emerald-500 font-medium"
+                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5] font-medium"
                         />
                         {#if errors.name}
-                            <p class="text-[11px] text-rose-400 mt-1">{errors.name}</p>
+                            <p class="text-[11px] text-rose-500 mt-1">{errors.name}</p>
                         {/if}
                     </div>
 
                     <!-- Jornada Productiva en Horas y Minutos calculados dinámicamente -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 bg-slate-950 rounded-2xl border border-slate-800">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D]">
                         <div>
-                            <label for="t-hours" class="block font-semibold text-slate-300 mb-1.5">
+                            <label for="t-hours" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                                 Jornada Laboral Diaria (en Horas) *
                             </label>
                             <div class="flex items-center gap-2.5">
@@ -431,23 +427,23 @@
                                     max="24"
                                     bind:value={settingsForm.daily_hours}
                                     required
-                                    class="w-32 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-white font-mono font-bold text-sm focus:outline-none focus:border-emerald-500"
+                                    class="w-32 bg-white dark:bg-[#151D2C] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-slate-900 dark:text-white font-mono font-bold text-sm focus:outline-none focus:border-[#4F46E5]"
                                 />
-                                <span class="text-slate-400 font-medium">horas / día</span>
+                                <span class="text-slate-500 dark:text-slate-400 font-medium">horas / día</span>
                             </div>
-                            <span class="text-[10px] text-slate-500 mt-1.5 block">
+                            <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 block">
                                 Tiempo efectivo de trabajo productivo diario por turno.
                             </span>
                         </div>
 
                         <div class="flex flex-col justify-center">
-                            <span class="block font-semibold text-slate-400 mb-1 text-[11px]">Equivalente en Minutos Productivos:</span>
-                            <div class="text-2xl font-mono font-black text-amber-300 flex items-center gap-2">
+                            <span class="block font-semibold text-slate-500 dark:text-slate-400 mb-1 text-[11px]">Equivalente en Minutos Productivos:</span>
+                            <div class="text-2xl font-mono font-black text-amber-500 dark:text-amber-300 flex items-center gap-2">
                                 <span>⏱</span>
                                 <span>{productiveMinutesDerived} min</span>
                             </div>
-                            <span class="text-[10px] text-slate-500 mt-1 block">
-                                Se almacena como <code class="text-slate-400">daily_productive_minutes</code> para la predicción de pedidos.
+                            <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                                Se almacena como <code class="text-slate-600 dark:text-slate-400">daily_productive_minutes</code> para la predicción de pedidos.
                             </span>
                         </div>
                     </div>
@@ -455,7 +451,7 @@
                     <!-- Holgura, Trabajadores Paralelos y Moneda -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
-                            <label for="t-buffer" class="block font-semibold text-slate-300 mb-1.5">Holgura por Defecto (%) *</label>
+                            <label for="t-buffer" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Holgura por Defecto (%) *</label>
                             <input
                                 id="t-buffer"
                                 type="number"
@@ -463,36 +459,36 @@
                                 max="100"
                                 bind:value={settingsForm.default_buffer_percent}
                                 required
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-emerald-400 font-mono font-bold text-xs focus:outline-none focus:border-emerald-500"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs focus:outline-none focus:border-[#4F46E5]"
                             />
-                            <span class="text-[10px] text-slate-500 mt-1 block">Margen de holgura para imprevistos (0 a 100%)</span>
+                            <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">Margen de holgura para imprevistos (0 a 100%)</span>
                             {#if errors.default_buffer_percent}
-                                <p class="text-[11px] text-rose-400 mt-1">{errors.default_buffer_percent}</p>
+                                <p class="text-[11px] text-rose-500 mt-1">{errors.default_buffer_percent}</p>
                             {/if}
                         </div>
 
                         <div>
-                            <label for="t-workers" class="block font-semibold text-slate-300 mb-1.5">Operarios Simultáneos (Capacidad)</label>
+                            <label for="t-workers" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Operarios Simultáneos (Capacidad)</label>
                             <input
                                 id="t-workers"
                                 type="number"
                                 min="1"
                                 max="50"
                                 bind:value={settingsForm.parallel_workers}
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono font-bold text-xs focus:outline-none focus:border-emerald-500"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none focus:border-[#4F46E5]"
                             />
-                            <span class="text-[10px] text-slate-500 mt-1 block">Estaciones o personas trabajando a la vez</span>
+                            <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">Estaciones o personas trabajando a la vez</span>
                             {#if errors.parallel_workers}
-                                <p class="text-[11px] text-rose-400 mt-1">{errors.parallel_workers}</p>
+                                <p class="text-[11px] text-rose-500 mt-1">{errors.parallel_workers}</p>
                             {/if}
                         </div>
 
                         <div>
-                            <label for="t-curr" class="block font-semibold text-slate-300 mb-1.5">Moneda del Taller</label>
+                            <label for="t-curr" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Moneda del Taller</label>
                             <select
                                 id="t-curr"
                                 bind:value={settingsForm.currency}
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                             >
                                 <option value="COP">COP ($ Pesos Colombianos)</option>
                                 <option value="USD">USD ($ Dólares Americanos)</option>
@@ -504,30 +500,30 @@
 
                     <!-- Días Laborales de la Semana -->
                     <div>
-                        <span class="block font-semibold text-slate-300 mb-1.5">Días Laborales de la Semana</span>
+                        <span class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Días Laborales de la Semana</span>
                         <div class="flex flex-wrap gap-2">
                             {#each weekDays as day}
                                 {@const isChecked = settingsForm.workdays.includes(day.id)}
                                 <button
                                     type="button"
                                     onclick={() => toggleWorkday(day.id)}
-                                    class="px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 {isChecked ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm' : 'bg-slate-950 text-slate-500 border-slate-800 hover:text-slate-300'}"
+                                    class="px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 {isChecked ? 'bg-[#4F46E5] text-white border-[#4F46E5] shadow-sm' : 'bg-white dark:bg-[#0B0F17] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-[#26334D] hover:text-slate-900 dark:hover:text-slate-200'}"
                                 >
                                     <span>{isChecked ? '✓' : '○'}</span>
                                     <span>{day.name}</span>
                                 </button>
                             {/each}
                         </div>
-                        <span class="text-[10px] text-slate-500 mt-1.5 block">
+                        <span class="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 block">
                             Los días no seleccionados se consideran días no laborables al predecir la fecha de entrega de los pedidos.
                         </span>
                     </div>
 
-                    <div class="pt-4 border-t border-slate-800 flex justify-end">
+                    <div class="pt-4 border-t border-slate-100 dark:border-[#26334D] flex justify-end">
                         <button
                             type="submit"
                             disabled={settingsProcessing}
-                            class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/25 transition-all disabled:opacity-50"
+                            class="px-6 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm transition-all disabled:opacity-50"
                         >
                             {settingsProcessing ? 'Guardando...' : 'Guardar Ajustes del Taller'}
                         </button>
@@ -537,20 +533,20 @@
 
         {:else if activeTab === 'team' && canManageTenant}
             <!-- PESTAÑA 3: EQUIPO DE TRABAJO (SOLO DUEÑO Y ADMIN) -->
-            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-md space-y-6">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl p-6 shadow-sm space-y-6 text-slate-900 dark:text-slate-100">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-[#26334D] pb-3">
                     <div>
-                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <span>👥</span> Equipo del Taller
                         </h2>
-                        <p class="text-xs text-slate-400">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
                             Administra los trabajadores operativos y colaboradores asignados a tu taller.
                         </p>
                     </div>
                     <button
                         type="button"
                         onclick={() => showAddMemberModal = true}
-                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm transition-colors flex items-center gap-1.5 self-start sm:self-auto"
                     >
                         <span>+</span>
                         <span>Agregar Miembro</span>
@@ -560,12 +556,12 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {#each teamMembers as member (member.id)}
                         {@const isOwner = member.pivot?.role === 'owner'}
-                        <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-start justify-between text-xs space-y-1">
+                        <div class="p-4 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] flex items-start justify-between text-xs space-y-1">
                             <div class="space-y-1 min-w-0 pr-2">
-                                <div class="font-bold text-white truncate text-sm">{member.name}</div>
-                                <div class="text-slate-400 text-[11px] font-mono truncate">{member.email}</div>
+                                <div class="font-bold text-slate-900 dark:text-white truncate text-sm">{member.name}</div>
+                                <div class="text-slate-400 dark:text-slate-500 text-[11px] font-mono truncate">{member.email}</div>
                                 <div class="pt-1">
-                                    <span class="inline-block text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border {isOwner ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-sky-500/20 text-sky-300 border-sky-500/30'}">
+                                    <span class="inline-block text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border {isOwner ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30' : 'bg-sky-50 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/30'}">
                                         {isOwner ? 'Dueño / Administrador' : 'Trabajador Operativo'}
                                     </span>
                                 </div>
@@ -575,7 +571,7 @@
                                 <button
                                     type="button"
                                     onclick={() => openEditMember(member)}
-                                    class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+                                    class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition-colors"
                                     title="Editar datos del miembro"
                                 >
                                     Editar
@@ -584,7 +580,7 @@
                                     <button
                                         type="button"
                                         onclick={() => removeMember(member)}
-                                        class="text-slate-500 hover:text-rose-400 text-xs p-1 rounded-lg hover:bg-rose-950/20 transition-colors"
+                                        class="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors"
                                         title="Remover colaborador del taller"
                                     >
                                         ✕
@@ -595,7 +591,7 @@
                     {/each}
 
                     {#if teamMembers.length === 0}
-                        <div class="col-span-full p-8 text-center bg-slate-950 rounded-2xl border border-dashed border-slate-800 text-slate-500 text-xs">
+                        <div class="col-span-full p-8 text-center bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-dashed border-slate-200 dark:border-[#26334D] text-slate-400 dark:text-slate-500 text-xs">
                             No hay miembros registrados en este taller.
                         </div>
                     {/if}
@@ -607,40 +603,40 @@
 
 <!-- MODAL AGREGAR MIEMBRO AL EQUIPO -->
 {#if showAddMemberModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 class="text-base font-bold text-white">Agregar Miembro al Equipo</h3>
-                <button type="button" onclick={() => showAddMemberModal = false} class="text-slate-400 hover:text-white">✕</button>
+    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-3">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Agregar Miembro al Equipo</h3>
+                <button type="button" onclick={() => showAddMemberModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
             </div>
 
             <form onsubmit={submitMember} class="space-y-4 text-xs">
                 <div>
-                    <label for="m-name" class="block font-semibold text-slate-300 mb-1">Nombre Completo *</label>
+                    <label for="m-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre Completo *</label>
                     <input
                         id="m-name"
                         type="text"
                         bind:value={memberForm.name}
                         placeholder="Ej. Andrés Ramírez"
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                 </div>
 
                 <div>
-                    <label for="m-email" class="block font-semibold text-slate-300 mb-1">Correo Electrónico *</label>
+                    <label for="m-email" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Correo Electrónico *</label>
                     <input
                         id="m-email"
                         type="email"
                         bind:value={memberForm.email}
                         placeholder="andres@taller.com"
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                 </div>
 
                 <div>
-                    <label for="m-pass" class="block font-semibold text-slate-300 mb-1">Contraseña Temporal *</label>
+                    <label for="m-pass" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Contraseña Temporal *</label>
                     <input
                         id="m-pass"
                         type="password"
@@ -648,34 +644,34 @@
                         placeholder="••••••••"
                         required
                         minlength="6"
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                 </div>
 
                 <div>
-                    <label for="m-role" class="block font-semibold text-slate-300 mb-1">Rol en este Taller *</label>
+                    <label for="m-role" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Rol en este Taller *</label>
                     <select
                         id="m-role"
                         bind:value={memberForm.role}
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                     >
                         <option value="worker">Trabajador (Módulos Kanban, Pedidos, Productos, Inventario)</option>
                         <option value="owner">Dueño Co-Administrador (Acceso a configuración)</option>
                     </select>
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-[#26334D]">
                     <button
                         type="button"
                         onclick={() => showAddMemberModal = false}
-                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                        class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold"
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         disabled={memberProcessing}
-                        class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/25 disabled:opacity-50"
+                        class="px-5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50"
                     >
                         Guardar Miembro
                     </button>
@@ -687,86 +683,86 @@
 
 <!-- MODAL EDITAR MIEMBRO DEL EQUIPO -->
 {#if showEditMemberModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 class="text-base font-bold text-white">Editar Miembro del Equipo</h3>
-                <button type="button" onclick={() => showEditMemberModal = false} class="text-slate-400 hover:text-white">✕</button>
+    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-3">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Editar Miembro del Equipo</h3>
+                <button type="button" onclick={() => showEditMemberModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
             </div>
 
             <form onsubmit={submitEditMember} class="space-y-4 text-xs">
                 <div>
-                    <label for="em-name" class="block font-semibold text-slate-300 mb-1">Nombre Completo *</label>
+                    <label for="em-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre Completo *</label>
                     <input
                         id="em-name"
                         type="text"
                         bind:value={editMemberForm.name}
                         placeholder="Ej. Andrés Ramírez"
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                     {#if errors.name}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.name}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
                     {/if}
                 </div>
 
                 <div>
-                    <label for="em-email" class="block font-semibold text-slate-300 mb-1">Correo Electrónico *</label>
+                    <label for="em-email" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Correo Electrónico *</label>
                     <input
                         id="em-email"
                         type="email"
                         bind:value={editMemberForm.email}
                         placeholder="andres@taller.com"
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                     {#if errors.email}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.email}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.email}</p>
                     {/if}
                 </div>
 
                 <div>
-                    <label for="em-role" class="block font-semibold text-slate-300 mb-1">Rol en este Taller *</label>
+                    <label for="em-role" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Rol en este Taller *</label>
                     <select
                         id="em-role"
                         bind:value={editMemberForm.role}
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                     >
                         <option value="worker">Trabajador (Módulos Kanban, Pedidos, Productos, Inventario)</option>
                         <option value="owner">Dueño Co-Administrador (Acceso a configuración)</option>
                     </select>
                     {#if errors.role}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.role}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.role}</p>
                     {/if}
                 </div>
 
                 <div>
-                    <label for="em-pass" class="block font-semibold text-slate-300 mb-1">Nueva Contraseña (dejar en blanco para mantener la actual)</label>
+                    <label for="em-pass" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nueva Contraseña (dejar en blanco para mantener la actual)</label>
                     <input
                         id="em-pass"
                         type="password"
                         bind:value={editMemberForm.password}
                         placeholder="•••••••• (opcional)"
                         minlength="6"
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                     {#if errors.password}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.password}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.password}</p>
                     {/if}
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-[#26334D]">
                     <button
                         type="button"
                         onclick={() => showEditMemberModal = false}
-                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                        class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold"
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         disabled={editMemberProcessing}
-                        class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/25 disabled:opacity-50"
+                        class="px-5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50"
                     >
                         {editMemberProcessing ? 'Actualizando...' : 'Actualizar Miembro'}
                     </button>

@@ -16,6 +16,25 @@
 
     let viewMode = $state('table'); // 'table' | 'cards'
     let expandedRows = $state(new Set());
+    let openActionMenuSupId = $state(null);
+    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+
+    function toggleActionMenu(e, supId) {
+        e.stopPropagation();
+        if (openActionMenuSupId === supId) {
+            openActionMenuSupId = null;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        const openUpwards = window.innerHeight - rect.bottom < 220;
+        menuCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(12, window.innerWidth - rect.right),
+            openUpwards,
+            rectTop: rect.top,
+        };
+        openActionMenuSupId = supId;
+    }
 
     let showModal = $state(false);
     let editingSupplier = $state(null);
@@ -115,18 +134,15 @@
     }
 </script>
 
+<svelte:window onclick={() => openActionMenuSupId = null} onscroll={() => openActionMenuSupId = null} />
+
 <AppLayout title="Proveedores">
-    <div class="space-y-6">
+    <div class="space-y-4">
         <!-- ENCABEZADO Y ACCIONES -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                        Módulo 4
-                    </span>
-                    <h1 class="text-2xl font-bold tracking-tight text-white">Directorio de Proveedores</h1>
-                </div>
-                <p class="text-xs text-slate-400 mt-1">
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Directorio de Proveedores</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Gestión de abastecimiento, insumos suministrados y tiempos de reposición (Lead Time).
                 </p>
             </div>
@@ -135,7 +151,7 @@
                 <button
                     type="button"
                     onclick={openCreate}
-                    class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-lg shadow-emerald-600/20 flex items-center gap-2 shrink-0"
+                    class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
                 >
                     <span>+</span>
                     <span>Nuevo Proveedor</span>
@@ -144,7 +160,7 @@
         </div>
 
         <!-- BUSCADOR -->
-        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-3">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3 rounded-xl flex items-center gap-3 shadow-sm">
             <span class="text-slate-400 text-sm">🔍</span>
             <label for="s-search" class="sr-only">Buscar proveedor</label>
             <input
@@ -153,13 +169,13 @@
                 bind:value={search}
                 oninput={handleSearchInput}
                 placeholder="Buscar por razón social, persona de contacto, teléfono o email..."
-                class="w-full bg-transparent text-white placeholder-slate-500 text-xs focus:outline-none"
+                class="w-full bg-transparent text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none"
             />
             {#if search}
                 <button
                     type="button"
                     onclick={() => { search = ''; handleSearchInput(); }}
-                    class="text-xs text-slate-500 hover:text-white"
+                    class="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
                 >
                     Limpiar
                 </button>
@@ -168,135 +184,164 @@
 
         <!-- VISTA TABLA (DEFAULT) -->
         {#if viewMode === 'table'}
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-950/80 text-slate-400 uppercase font-semibold border-b border-slate-800 text-[10px] tracking-wider">
+                        <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold border-b border-slate-200 dark:border-[#26334D] text-[10px] tracking-wider whitespace-nowrap">
                             <tr>
-                                <th class="p-3.5 w-10 text-center"></th>
-                                <th class="p-4">Proveedor</th>
-                                <th class="p-4">Persona de Contacto</th>
-                                <th class="p-4">Contacto Directo</th>
-                                <th class="p-4 text-center">Tiempo Reposición (Lead Time)</th>
-                                <th class="p-4">Materiales Suministrados</th>
-                                <th class="p-4 text-right">Acciones</th>
+                                <th class="py-2.5 px-3 w-8 text-center"></th>
+                                <th class="py-2.5 px-3">Proveedor</th>
+                                <th class="py-2.5 px-3">Persona de Contacto</th>
+                                <th class="py-2.5 px-3">Contacto Directo</th>
+                                <th class="py-2.5 px-3 text-center">Lead Time</th>
+                                <th class="py-2.5 px-3">Materiales Suministrados</th>
+                                <th class="py-2.5 px-3 text-right">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                        <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
                             {#each suppliers.data as supplier (supplier.id)}
                                 {@const isExpanded = expandedRows.has(supplier.id)}
-                                <tr class="hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-800/25' : ''}">
-                                    <td class="p-3.5 text-center">
+                                <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-50/50 dark:bg-slate-800/25' : ''}">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
                                         <button
                                             type="button"
                                             onclick={() => toggleRow(supplier.id)}
-                                            class="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-emerald-400' : ''}"
+                                            class="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 flex items-center justify-center transition-transform text-[10px] {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
                                             title={isExpanded ? 'Colapsar detalles' : 'Expandir datos completos'}
                                         >
                                             ▶
                                         </button>
                                     </td>
-                                    <td class="p-4">
-                                        <button
-                                            type="button"
-                                            class="font-bold text-white text-sm hover:text-emerald-400 text-left block transition-colors"
-                                            onclick={() => toggleRow(supplier.id)}
-                                        >
-                                            {supplier.name}
-                                        </button>
-                                        {#if supplier.payment_methods}
-                                            <div class="text-[11px] text-emerald-400/90 truncate max-w-xs flex items-center gap-1 mt-0.5">
-                                                <span>💳</span>
-                                                <span>{supplier.payment_methods}</span>
-                                            </div>
-                                        {/if}
-                                        {#if supplier.notes}
-                                            <div class="text-[11px] text-slate-400 truncate max-w-xs mt-0.5">{supplier.notes}</div>
-                                        {/if}
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                class="font-bold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-emerald-400 text-left transition-colors"
+                                                onclick={() => toggleRow(supplier.id)}
+                                            >
+                                                {supplier.name}
+                                            </button>
+                                            {#if supplier.payment_methods}
+                                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                                                    💳 {supplier.payment_methods}
+                                                </span>
+                                            {/if}
+                                        </div>
                                     </td>
-                                    <td class="p-4 text-slate-300">
+                                    <td class="py-2.5 px-3 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium">
                                         {supplier.contact_name ?? 'No especificado'}
                                     </td>
-                                    <td class="p-4">
-                                        <div>{supplier.phone ?? 'Sin teléfono'}</div>
-                                        <div class="text-slate-400 text-[11px]">{supplier.email ?? 'Sin email'}</div>
+                                    <td class="py-2.5 px-3 whitespace-nowrap font-mono text-xs">
+                                        <span class="text-slate-900 dark:text-slate-100">{supplier.phone ?? (supplier.email ?? 'Sin contacto')}</span>
                                     </td>
-                                    <td class="p-4 text-center">
-                                        <span class="px-2.5 py-1 rounded-full font-mono font-bold text-xs bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                        <span class="px-2 py-0.5 rounded-full font-mono font-bold text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
                                             {supplier.lead_time_days} {supplier.lead_time_days === 1 ? 'día' : 'días'}
                                         </span>
                                     </td>
-                                    <td class="p-4">
-                                        <div class="flex flex-wrap gap-1 max-w-xs">
-                                            {#each supplier.raw_materials ?? [] as mat}
-                                                <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
+                                    <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-1 max-w-[200px] overflow-hidden">
+                                            {#each (supplier.raw_materials ?? []).slice(0, 2) as mat}
+                                                <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                     {mat.name}
                                                 </span>
-                                            {:else}
-                                                <span class="text-slate-600 text-[11px]">Sin materiales vinculados</span>
                                             {/each}
+                                            {#if (supplier.raw_materials?.length ?? 0) > 2}
+                                                <span class="text-[10px] text-slate-400 font-mono">+{supplier.raw_materials.length - 2}</span>
+                                            {/if}
+                                            {#if !supplier.raw_materials?.length}
+                                                <span class="text-slate-400 dark:text-slate-500 text-[11px] italic">Sin materiales</span>
+                                            {/if}
                                         </div>
                                     </td>
-                                    <td class="p-4 text-right">
-                                        <div class="flex items-center justify-end gap-2">
+                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                        <div class="inline-flex items-center justify-end">
                                             <button
                                                 type="button"
-                                                onclick={() => openEdit(supplier)}
-                                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors"
+                                                onclick={(e) => toggleActionMenu(e, supplier.id)}
+                                                class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-bold text-xs"
+                                                title="Más opciones"
                                             >
-                                                Editar
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onclick={() => destroy(supplier)}
-                                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 text-xs font-medium transition-colors"
-                                            >
-                                                Eliminar
+                                                •••
                                             </button>
                                         </div>
+
+                                        <!-- Menú Contextual Desplegable Fixed -->
+                                        {#if openActionMenuSupId === supplier.id}
+                                            <div
+                                                role="menu"
+                                                tabindex="-1"
+                                                onclick={(e) => e.stopPropagation()}
+                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuSupId = null; }}
+                                                class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]"
+                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                            >
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuSupId = null; openEdit(supplier); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                                    >
+                                                        <span>✏️</span>
+                                                        <span>Editar Proveedor</span>
+                                                    </button>
+                                                </div>
+                                                <div class="py-0.5">
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => { openActionMenuSupId = null; destroy(supplier); }}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                                    >
+                                                        <span>🗑️</span>
+                                                        <span>Eliminar Proveedor</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        {/if}
                                     </td>
                                 </tr>
 
+
                                 <!-- RENGLÓN EXPANDIDO -->
                                 {#if isExpanded}
-                                    <tr class="bg-slate-950/70 border-b border-slate-800">
+                                    <tr class="bg-slate-50/90 dark:bg-[#0B0F17]/70 border-b border-slate-200 dark:border-[#26334D]">
                                         <td colspan="7" class="p-4 sm:p-5">
                                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-1.5">
-                                                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block border-b border-slate-800 pb-1">
+                                                <div class="p-3.5 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl space-y-1.5 shadow-sm">
+                                                    <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider block border-b border-slate-100 dark:border-[#26334D] pb-1">
                                                         Contacto y Despacho
                                                     </span>
                                                     <div class="text-xs space-y-1 pt-1">
-                                                        <div class="flex justify-between"><span class="text-slate-400">Persona de contacto:</span> <span class="font-medium text-white">{supplier.contact_name ?? 'N/A'}</span></div>
-                                                        <div class="flex justify-between"><span class="text-slate-400">Teléfono:</span> <span class="font-medium text-white">{supplier.phone ?? 'N/A'}</span></div>
-                                                        <div class="flex justify-between"><span class="text-slate-400">Email:</span> <span class="font-medium text-white">{supplier.email ?? 'N/A'}</span></div>
-                                                        <div class="flex justify-between"><span class="text-slate-400">Lead time de entrega:</span> <span class="font-bold text-amber-300">{supplier.lead_time_days} días</span></div>
+                                                        <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Persona de contacto:</span> <span class="font-medium text-slate-900 dark:text-white">{supplier.contact_name ?? 'N/A'}</span></div>
+                                                        <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Teléfono:</span> <span class="font-medium text-slate-900 dark:text-white">{supplier.phone ?? 'N/A'}</span></div>
+                                                        <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Email:</span> <span class="font-medium text-slate-900 dark:text-white">{supplier.email ?? 'N/A'}</span></div>
+                                                        <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Lead time de entrega:</span> <span class="font-bold text-amber-600 dark:text-amber-300">{supplier.lead_time_days} días</span></div>
                                                         {#if supplier.payment_methods}
-                                                            <div class="pt-1.5 border-t border-slate-800 text-slate-300">
+                                                            <div class="pt-1.5 border-t border-slate-100 dark:border-[#26334D] text-slate-700 dark:text-slate-300">
                                                                 <span class="text-slate-400 block text-[10px] uppercase font-semibold">Medios de Pago:</span>
-                                                                <span class="font-medium text-emerald-400">{supplier.payment_methods}</span>
+                                                                <span class="font-medium text-emerald-600 dark:text-emerald-400">{supplier.payment_methods}</span>
                                                             </div>
                                                         {/if}
                                                         {#if supplier.notes}
-                                                            <div class="pt-1.5 border-t border-slate-800 text-slate-400 italic text-[11px]">
+                                                            <div class="pt-1.5 border-t border-slate-100 dark:border-[#26334D] text-slate-500 dark:text-slate-400 italic text-[11px]">
                                                                 "{supplier.notes}"
                                                             </div>
                                                         {/if}
                                                     </div>
                                                 </div>
 
-                                                <div class="p-3.5 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-                                                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider block border-b border-slate-800 pb-1">
+                                                <div class="p-3.5 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl space-y-2 shadow-sm">
+                                                    <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider block border-b border-slate-100 dark:border-[#26334D] pb-1">
                                                         Materiales Suministrados ({supplier.raw_materials?.length ?? 0})
                                                     </span>
-                                                    <div class="space-y-1 max-h-32 overflow-y-auto pt-1">
+                                                    <div class="space-y-1 max-h-36 overflow-y-auto pt-1">
                                                         {#each supplier.raw_materials ?? [] as mat}
-                                                            <div class="flex items-center justify-between p-1.5 bg-slate-950 rounded-lg text-xs text-slate-300 border border-slate-800">
+                                                            <div class="flex items-center justify-between p-1.5 bg-slate-50 dark:bg-[#0B0F17] rounded-lg text-xs text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#26334D]">
                                                                 <span class="font-medium">{mat.name}</span>
                                                                 <span class="text-[10px] text-slate-400 font-mono capitalize">({mat.unit_of_measure})</span>
                                                             </div>
                                                         {:else}
-                                                            <span class="text-slate-500 text-xs italic">No tiene materiales asociados en recetas o inventario.</span>
+                                                            <span class="text-slate-400 dark:text-slate-500 text-xs italic">No tiene materiales asociados en recetas o inventario.</span>
                                                         {/each}
                                                     </div>
                                                 </div>
@@ -306,7 +351,7 @@
                                 {/if}
                             {:else}
                                 <tr>
-                                    <td colspan="7" class="p-10 text-center text-slate-500 text-xs">
+                                    <td colspan="7" class="p-10 text-center text-slate-400 dark:text-slate-500 text-xs">
                                         No se encontraron proveedores registrados.
                                     </td>
                                 </tr>
@@ -320,81 +365,81 @@
         {:else}
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {#each suppliers.data as supplier (supplier.id)}
-                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-md hover:border-slate-700 transition-colors">
+                    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 flex flex-col justify-between shadow-sm hover:border-[#4F46E5] dark:hover:border-[#06B6D4] transition">
                         <div>
                             <div class="flex items-start justify-between gap-2 mb-2">
-                                <span class="px-2.5 py-1 rounded-full font-mono font-bold text-xs bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                <span class="px-2.5 py-1 rounded-full font-mono font-bold text-xs bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
                                     {supplier.lead_time_days} {supplier.lead_time_days === 1 ? 'día' : 'días'}
                                 </span>
-                                <span class="text-[11px] text-slate-500 font-medium">Lead Time</span>
+                                <span class="text-[11px] text-slate-400 font-medium">Lead Time</span>
                             </div>
 
-                            <h3 class="text-base font-bold text-white">{supplier.name}</h3>
+                            <h3 class="text-base font-bold text-slate-900 dark:text-white">{supplier.name}</h3>
 
-                            <div class="mt-3.5 p-3 bg-slate-950/70 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
+                            <div class="mt-3.5 p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-1.5 text-xs">
                                 <div class="flex justify-between items-center">
-                                    <span class="text-slate-400">Contacto:</span>
-                                    <span class="font-medium text-slate-200">{supplier.contact_name ?? 'No especificado'}</span>
+                                    <span class="text-slate-500 dark:text-slate-400">Contacto:</span>
+                                    <span class="font-medium text-slate-800 dark:text-slate-200">{supplier.contact_name ?? 'No especificado'}</span>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-slate-400">Teléfono:</span>
-                                    <span class="font-medium text-slate-200">{supplier.phone ?? 'N/A'}</span>
+                                    <span class="text-slate-500 dark:text-slate-400">Teléfono:</span>
+                                    <span class="font-medium text-slate-800 dark:text-slate-200">{supplier.phone ?? 'N/A'}</span>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-slate-400">Email:</span>
-                                    <span class="font-medium text-slate-200 truncate max-w-[170px]">{supplier.email ?? 'N/A'}</span>
+                                    <span class="text-slate-500 dark:text-slate-400">Email:</span>
+                                    <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[170px]">{supplier.email ?? 'N/A'}</span>
                                 </div>
                                 {#if supplier.payment_methods}
-                                    <div class="flex justify-between items-start gap-1 pt-1 border-t border-slate-800/60">
-                                        <span class="text-slate-400 shrink-0">Pagos:</span>
-                                        <span class="font-medium text-emerald-400 text-right truncate max-w-[160px]">{supplier.payment_methods}</span>
+                                    <div class="flex justify-between items-start gap-1 pt-1 border-t border-slate-200/60 dark:border-[#26334D]/60">
+                                        <span class="text-slate-500 dark:text-slate-400 shrink-0">Pagos:</span>
+                                        <span class="font-medium text-emerald-600 dark:text-emerald-400 text-right truncate max-w-[160px]">{supplier.payment_methods}</span>
                                     </div>
                                 {/if}
                             </div>
 
                             {#if supplier.notes}
-                                <div class="mt-2 text-[11px] text-slate-400 italic">
+                                <div class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 italic">
                                     "{supplier.notes}"
                                 </div>
                             {/if}
 
                             <!-- Insumos Vinculados -->
-                            <div class="mt-3 pt-2.5 border-t border-slate-800/60">
-                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                            <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-[#26334D]">
+                                <span class="text-[10px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block mb-1">
                                     Materiales ({supplier.raw_materials?.length ?? 0}):
                                 </span>
                                 <div class="flex flex-wrap gap-1">
                                     {#each supplier.raw_materials ?? [] as mat}
-                                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700/60">
+                                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                             {mat.name}
                                         </span>
                                     {:else}
-                                        <span class="text-slate-500 text-[10px] italic">Sin materiales</span>
+                                        <span class="text-slate-400 text-[10px] italic">Sin materiales</span>
                                     {/each}
                                 </div>
                             </div>
                         </div>
 
                         <!-- Acciones -->
-                        <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                        <div class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex items-center justify-end gap-2">
                             <button
                                 type="button"
                                 onclick={() => openEdit(supplier)}
-                                class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+                                class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-[#26334D]"
                             >
                                 Editar
                             </button>
                             <button
                                 type="button"
                                 onclick={() => destroy(supplier)}
-                                class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 text-xs font-semibold"
+                                class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-600 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 text-xs font-semibold border border-slate-200 dark:border-[#26334D]"
                             >
                                 Eliminar
                             </button>
                         </div>
                     </div>
                 {:else}
-                    <div class="col-span-full p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl text-slate-500 text-xs">
+                    <div class="col-span-full p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl text-slate-400 dark:text-slate-500 text-xs shadow-sm">
                         No hay proveedores registrados. Haz clic en "Nuevo Proveedor" para comenzar.
                     </div>
                 {/each}
@@ -403,7 +448,7 @@
 
         <!-- PAGINACIÓN -->
         {#if suppliers.links && suppliers.links.length > 3}
-            <div class="p-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+            <div class="p-4 border-t border-slate-200 dark:border-[#26334D] flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                 <div>
                     Mostrando {suppliers.from ?? 0} a {suppliers.to ?? 0} de {suppliers.total} proveedores
                 </div>
@@ -412,7 +457,7 @@
                         {#if link.url}
                             <Link
                                 href={link.url}
-                                class="px-3 py-1.5 rounded-lg border text-xs font-medium {link.active ? 'bg-emerald-600 text-white border-emerald-600 font-bold' : 'bg-slate-800 border-slate-700 text-slate-300'}"
+                                class="px-3 py-1.5 rounded-lg border text-xs font-medium {link.active ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300'}"
                             >
                                 {@html link.label}
                             </Link>
@@ -426,67 +471,67 @@
 
 <!-- MODAL CREAR / EDITAR PROVEEDOR -->
 {#if showModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 class="text-base font-bold text-white">
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">
                     {editingSupplier ? `Editar Proveedor: ${editingSupplier.name}` : 'Registrar Nuevo Proveedor'}
                 </h3>
-                <button type="button" onclick={() => showModal = false} class="text-slate-400 hover:text-white">✕</button>
+                <button type="button" onclick={() => showModal = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-white">✕</button>
             </div>
 
             <form onsubmit={submit} class="space-y-4 text-xs">
                 <div>
-                    <label for="s-name" class="block font-semibold text-slate-300 mb-1">Razón Social / Nombre Comercial *</label>
+                    <label for="s-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Razón Social / Nombre Comercial *</label>
                     <input
                         id="s-name"
                         type="text"
                         bind:value={form.name}
                         placeholder="Ej. Distribuidora Textil Andina"
                         required
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     />
                     {#if errors.name}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.name}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
                     {/if}
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label for="s-contact" class="block font-semibold text-slate-300 mb-1">Persona de Contacto</label>
+                        <label for="s-contact" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Persona de Contacto</label>
                         <input
                             id="s-contact"
                             type="text"
                             bind:value={form.contact_name}
                             placeholder="Ej. Andrés Ramírez"
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                         />
                     </div>
                     <div>
-                        <label for="s-phone" class="block font-semibold text-slate-300 mb-1">Teléfono / WhatsApp</label>
+                        <label for="s-phone" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Teléfono / WhatsApp</label>
                         <input
                             id="s-phone"
                             type="text"
                             bind:value={form.phone}
                             placeholder="+57 310 987 6543"
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                         />
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label for="s-email" class="block font-semibold text-slate-300 mb-1">Correo Electrónico</label>
+                        <label for="s-email" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Correo Electrónico</label>
                         <input
                             id="s-email"
                             type="email"
                             bind:value={form.email}
                             placeholder="ventas@proveedor.com"
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                         />
                     </div>
                     <div>
-                        <label for="s-lead" class="block font-semibold text-slate-300 mb-1">Tiempo de Entrega (Días) *</label>
+                        <label for="s-lead" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Tiempo de Entrega (Días) *</label>
                         <input
                             id="s-lead"
                             type="number"
@@ -494,51 +539,51 @@
                             max="365"
                             bind:value={form.lead_time_days}
                             required
-                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs font-mono font-bold"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs font-mono font-bold"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label for="s-payment" class="block font-semibold text-slate-300 mb-1">Medios de Pago (Ej. Nequi, Bancolombia, Efectivo, Cuenta #)</label>
+                    <label for="s-payment" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Medios de Pago (Ej. Nequi, Bancolombia, Efectivo, Cuenta #)</label>
                     <input
                         id="s-payment"
                         type="text"
                         bind:value={form.payment_methods}
                         placeholder="Ej. Bancolombia Ahorros # 123-456789-00 / Nequi 3001234567"
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     />
                     {#if errors.payment_methods}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.payment_methods}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.payment_methods}</p>
                     {/if}
                 </div>
 
                 <div>
-                    <label for="s-notes" class="block font-semibold text-slate-300 mb-1">Notas / Observaciones</label>
+                    <label for="s-notes" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Notas / Observaciones</label>
                     <textarea
                         id="s-notes"
                         bind:value={form.notes}
                         rows="3"
                         placeholder="Condiciones comerciales, acuerdos de crédito, descuentos por volumen..."
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     ></textarea>
                     {#if errors.notes}
-                        <p class="text-[10px] text-rose-400 mt-1">{errors.notes}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.notes}</p>
                     {/if}
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]">
                     <button
                         type="button"
                         onclick={() => showModal = false}
-                        class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                        class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold"
                     >
                         Cancelar
                     </button>
                     <button
                         type="submit"
                         disabled={processing}
-                        class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50 transition"
                     >
                         {editingSupplier ? 'Actualizar Proveedor' : 'Guardar Proveedor'}
                     </button>
