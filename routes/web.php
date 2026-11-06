@@ -19,15 +19,20 @@ use App\Http\Controllers\UnitOfMeasureController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 // Rutas de Autenticación
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/demo-login', [AuthController::class, 'demoLogin'])->name('demo-login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::get('/register', fn () => redirect()->route('login'))->name('register');
 
-// Redirección principal
-Route::get('/', fn () => redirect()->route('dashboard'));
+// Ruta Principal Pública (Landing Comercial gipPyme)
+Route::get('/', fn () => Inertia::render('Welcome', [
+    'canLogin' => Route::has('login'),
+    'canRegister' => Route::has('register'),
+]))->name('home');
 
 // Rutas protegidas de la aplicación
 Route::middleware(['auth'])->group(function (): void {

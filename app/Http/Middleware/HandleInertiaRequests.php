@@ -41,9 +41,9 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        // En entorno local, autologuear solo si no está en rutas de autenticación
+        // En entorno local, autologuear solo si no está en rutas de autenticación ni en la landing pública
         if (!auth()->check() && app()->environment('local')) {
-            if (!$request->is('login') && !$request->is('logout') && !$request->is('demo-login')) {
+            if (!$request->is('login') && !$request->is('logout') && !$request->is('demo-login') && !$request->is('/')) {
                 $firstUser = User::first();
                 if ($firstUser !== null) {
                     auth()->login($firstUser);
