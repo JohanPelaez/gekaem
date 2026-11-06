@@ -213,6 +213,141 @@
         activeSubImageIndex = 0;
     }
 
+    // =========================================================================
+    // Estado reactivo del Centro de Control Kanban (#kanban)
+    // =========================================================================
+    let activeKanbanTab = $state(0);
+    let kanbanImgErrors = $state({});
+
+    const kanbanTabs = [
+        {
+            id: "macro",
+            dockLabel: "Tablero Macro",
+            icon: "🗂️",
+            badge: "CONTROL GLOBAL • SWIMLANES POR PEDIDO",
+            title: "Tablero Macro de Pedidos",
+            image: {
+                src: "/images/landing/kanban-macro.png",
+                label: "Tablero Macro de Pedidos del Taller",
+                caption:
+                    "Vista integral de todos los pedidos activos divididos en carriles horizontales y columnas dinámicas.",
+            },
+            highlights: [
+                {
+                    icon: "🔀",
+                    title: "Swimlanes por Pedido",
+                    desc: "Cada orden organiza sus productos en carriles limpios e independientes para evitar confusiones.",
+                },
+                {
+                    icon: "⚡",
+                    title: "Sincronización en Vivo",
+                    desc: "Al mover la última tarea a despacho, el estado del pedido cambia a 'Listo' automáticamente.",
+                },
+                {
+                    icon: "📊",
+                    title: "Detección de Cuellos de Botella",
+                    desc: "Visualiza al instante qué etapas acumulan más trabajo antes de que se retrasen tus entregas.",
+                },
+            ],
+        },
+        {
+            id: "aislado",
+            dockLabel: "Vista Aislada por Pedido",
+            icon: "🔍",
+            badge: "FOCO TOTAL • SEGUIMIENTO POR ORDEN",
+            title: "Tablero Aislado por Pedido",
+            image: {
+                src: "/images/landing/kanban-aislado.png",
+                label: "Tablero Aislado de Producción por Pedido",
+                caption:
+                    "Filtro focalizado exclusivamente en las tareas, etapas y variantes de un pedido específico.",
+            },
+            highlights: [
+                {
+                    icon: "🎯",
+                    title: "Enfoque sin Dispersión",
+                    desc: "Examina únicamente las prendas, tallas y variantes correspondientes a la orden seleccionada.",
+                },
+                {
+                    icon: "🏷️",
+                    title: "Ficha Técnica y Tiempos",
+                    desc: "Consulta minutos estimados, operario a cargo y códigos de barras CODE128 al instante.",
+                },
+                {
+                    icon: "🧱",
+                    title: "Consumo Automático BOM",
+                    desc: "Verifica que los insumos y materias primas hayan sido reservados y descontados del kardex.",
+                },
+            ],
+        },
+        {
+            id: "flujos",
+            dockLabel: "Tipos de Flujos y WIP",
+            icon: "⚙️",
+            badge: "ARQUITECTURA MULTIFLUJO • CAPACIDAD BALANCEADA",
+            title: "Tipos de Flujos y Límites WIP",
+            image: {
+                src: "/images/landing/kanban-flujos.png",
+                label: "Configuración de Flujos de Producción",
+                caption:
+                    "Diseña flujos diferenciados por línea de producto con límites WIP y colores distintivos.",
+            },
+            highlights: [
+                {
+                    icon: "🔀",
+                    title: "Rutas por Tipo de Producto",
+                    desc: "Asigna a cada artículo de tu catálogo su propio flujo de producción especializado.",
+                },
+                {
+                    icon: "🛑",
+                    title: "Límites WIP Estrictos",
+                    desc: "Fija un tope máximo de tareas por columna para evitar sobrecargar a tus trabajadores.",
+                },
+                {
+                    icon: "📋",
+                    title: "Reglas de Estado Universales",
+                    desc: "Mapea tus etapas a categorías fijas (Pendiente, En Progreso, Bloqueado, Hecho) sin esfuerzo.",
+                },
+            ],
+        },
+        {
+            id: "estados",
+            dockLabel: "Estados y Colores HEX",
+            icon: "🎨",
+            badge: "PERSONALIZACIÓN 100% • DRAG & DROP",
+            title: "Estados y Columnas Personalizables",
+            image: {
+                src: "/images/landing/kanban-modal-estado.png",
+                label: "Modal de Creación y Edición de Estados",
+                caption:
+                    "Crea, edita, cambia el color HEX y reordena columnas fácilmente con arrastrar y soltar (Drag & Drop).",
+            },
+            highlights: [
+                {
+                    icon: "🖐️",
+                    title: "Arrastra y Suelta Intuitivo",
+                    desc: "Reordena la secuencia lógica de tus columnas arrastrando y soltando dentro del flujo.",
+                },
+                {
+                    icon: "🎨",
+                    title: "Paleta de Colores HEX",
+                    desc: "Identifica visualmente cada etapa desde cualquier rincón del taller con colores propios.",
+                },
+                {
+                    icon: "✨",
+                    title: "Sincronización Instantánea",
+                    desc: "Cualquier cambio en los estados se refleja de inmediato en los tableros Kanban del equipo.",
+                },
+            ],
+        },
+    ];
+
+    let currentKanban = $derived(kanbanTabs[activeKanbanTab]);
+
+    function selectKanbanTab(index) {
+        activeKanbanTab = index;
+    }
+
     // Estado del menú móvil y scroll
     let mobileMenuOpen = $state(false);
     let isScrolled = $state(false);
@@ -377,10 +512,10 @@
                 </button>
                 <button
                     type="button"
-                    onclick={() => scrollToSection("flujos")}
+                    onclick={() => scrollToSection("kanban")}
                     class="px-3 py-2 rounded-lg hover:text-[#4F46E5] dark:hover:text-[#06B6D4] hover:bg-slate-100/70 dark:hover:bg-[#151D2C]/70 transition-all cursor-pointer"
                 >
-                    Flujos Kanban
+                    Kanban Multiflujo
                 </button>
                 <button
                     type="button"
@@ -505,10 +640,10 @@
                     </button>
                     <button
                         type="button"
-                        onclick={() => scrollToSection("flujos")}
+                        onclick={() => scrollToSection("kanban")}
                         class="text-left px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#151D2C]"
                     >
-                        🔄 Flujos Kanban
+                        ⚡ Tablero Kanban
                     </button>
                     <button
                         type="button"
@@ -1605,106 +1740,189 @@
     {/if}
 
     <!-- ========================================================================= -->
-    <!-- 5. SECCIÓN DE FLUJOS KANBAN                                               -->
+    <!-- 5. SPOTLIGHT / CENTRO DE CONTROL DINÁMICO KANBAN (#kanban)                -->
     <!-- ========================================================================= -->
     <section
-        id="flujos"
-        class="py-20 sm:py-28 border-t border-slate-200/70 dark:border-[#26334D]/70"
+        id="kanban"
+        class="bg-slate-900 text-white dark:bg-[#080C14] border-y border-slate-800 py-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden"
     >
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <span id="flujos" class="sr-only">Flujos y Tableros Kanban</span>
+
+        <!-- Destellos sutiles de luz en Cian y Azul Eléctrico en las esquinas -->
+        <div
+            class="absolute -top-40 -left-40 w-96 h-96 bg-[#06B6D4]/15 rounded-full blur-[100px] pointer-events-none"
+        ></div>
+        <div
+            class="absolute -bottom-40 -right-40 w-96 h-96 bg-[#3B82F6]/15 rounded-full blur-[100px] pointer-events-none"
+        ></div>
+        <div
+            class="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-b from-[#06B6D4]/10 via-[#4F46E5]/5 to-transparent blur-[120px] pointer-events-none rounded-full"
+        ></div>
+
+        <div class="max-w-6xl mx-auto relative z-10 text-center">
+            <!-- 1. TÍTULO DE IMPACTO SUPERIOR -->
             <div
-                class="bg-gradient-to-br from-indigo-900/10 via-slate-900/5 to-cyan-900/10 dark:from-[#151D2C] dark:to-[#0B0F17] rounded-3xl p-8 sm:p-14 border border-slate-200/80 dark:border-[#26334D] flex flex-col lg:flex-row items-center justify-between gap-10"
+                class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/30 text-xs font-bold text-[#06B6D4] uppercase tracking-wider mb-4 shadow-sm"
             >
-                <div class="max-w-xl text-left">
-                    <span
-                        class="text-xs font-bold uppercase tracking-wider text-[#06B6D4]"
-                    >
-                        Flujos a la medida de tu producción
-                    </span>
-                    <h2
-                        class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mt-2"
-                    >
-                        Etapas dinámicas adaptadas a cada tipo de producto
-                    </h2>
-                    <p
-                        class="mt-4 text-base text-[#64748B] dark:text-slate-300 leading-relaxed"
-                    >
-                        Crea flujos específicos: diseño, corte, confección,
-                        ensamblado, control de calidad y empaque. Cada columna
-                        sincroniza automáticamente el estado global del pedido.
-                    </p>
+                <span>⚡ CONTROL VISUAL EN TIEMPO REAL</span>
+            </div>
 
-                    <div
-                        class="mt-8 flex flex-col sm:flex-row items-center gap-4"
-                    >
-                        <Link
-                            href="/register"
-                            class="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm text-white bg-[#4F46E5] hover:bg-[#4338CA] shadow-lg shadow-[#4F46E5]/25 transition-all text-center"
+            <h2
+                class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight max-w-4xl mx-auto"
+            >
+                Un tablero Kanban que se adapta a tu taller, y no al revés
+            </h2>
+
+            <p
+                class="mt-4 text-base sm:text-lg text-slate-300 leading-relaxed max-w-3xl mx-auto"
+            >
+                Crea tantos flujos y estados como necesites, arrastra tarjetas entre columnas y mantén a todo tu equipo sincronizado sin fricción.
+            </p>
+
+            <!-- 2. SELECTOR FLOTANTE MINIMALISTA ESTILO DOCK / PÍLDORA -->
+            <div class="mt-8 sm:mt-10 flex justify-center">
+                <nav
+                    class="inline-flex flex-wrap items-center justify-center p-1.5 rounded-full bg-slate-800/90 dark:bg-[#151D2C]/90 border border-slate-700/80 dark:border-[#26334D] shadow-2xl shadow-black/40 backdrop-blur-xl gap-1 sm:gap-1.5"
+                    aria-label="Selector de Vistas Kanban"
+                >
+                    {#each kanbanTabs as tab, idx}
+                        <button
+                            type="button"
+                            onclick={() => selectKanbanTab(idx)}
+                            class="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-300 flex items-center gap-2 cursor-pointer select-none {activeKanbanTab === idx
+                                ? 'bg-gradient-to-r from-[#06B6D4] to-[#3B82F6] text-white shadow-lg shadow-[#06B6D4]/30 font-bold scale-[1.02]'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-700/50 dark:hover:bg-[#1E293B]/70'}"
                         >
-                            Comenzar con Flujos Preconfigurados
-                        </Link>
+                            <span class="text-base sm:text-lg leading-none">{tab.icon}</span>
+                            <span>{tab.dockLabel}</span>
+                        </button>
+                    {/each}
+                </nav>
+            </div>
+
+            <!-- 3. VENTANA PRINCIPAL CENTRALIZADA (MARCO DE CRISTAL OSCURO PULIDO) -->
+            <div class="mt-8 sm:mt-10">
+                <div
+                    class="relative bg-[#151D2C]/90 border border-[#26334D] shadow-[0_25px_60px_-15px_rgba(6,182,212,0.15)] rounded-2xl p-2 sm:p-3 backdrop-blur-xl text-left"
+                >
+                    <!-- Barra de ventana estilo macOS / SaaS -->
+                    <div
+                        class="h-10 sm:h-12 px-3 sm:px-4 bg-[#0B0F17]/80 rounded-t-xl border-b border-[#26334D] flex items-center justify-between gap-3"
+                    >
+                        <!-- Puntos macOS y Título de la vista -->
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <span class="w-3 h-3 rounded-full bg-[#EF4444] inline-block shadow-sm"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#F59E0B] inline-block shadow-sm"></span>
+                                <span class="w-3 h-3 rounded-full bg-[#10B981] inline-block shadow-sm"></span>
+                            </div>
+                            <span class="text-xs sm:text-sm font-bold text-slate-200 ml-1 truncate" title={currentKanban.image.label}>
+                                {currentKanban.image.label}
+                            </span>
+                        </div>
+
+                        <!-- Indicador en tiempo real + Botón Zoom -->
+                        <div class="flex items-center gap-2 shrink-0">
+                            <span
+                                class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            >
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Sincronizado en Vivo
+                            </span>
+
+                            <button
+                                type="button"
+                                onclick={() => (zoomedImage = currentKanban.image)}
+                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-[#1E293B] hover:bg-[#26334D] border border-slate-700/80 text-slate-200 shadow-sm transition-all cursor-pointer"
+                                title="Ampliar captura en pantalla completa"
+                            >
+                                <span>🔍</span>
+                                <span class="hidden sm:inline">Ampliar</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor de Imagen con Transición Fluida -->
+                    <div
+                        class="h-[340px] sm:h-[480px] lg:h-[540px] w-full overflow-hidden bg-[#0B0F17] rounded-b-xl flex items-center justify-center p-2 relative cursor-zoom-in group"
+                        onclick={() => (zoomedImage = currentKanban.image)}
+                        role="button"
+                        tabindex="0"
+                        onkeydown={(e) =>
+                            (e.key === "Enter" || e.key === " ") &&
+                            (zoomedImage = currentKanban.image)}
+                        title="Haz clic para ver la captura ampliada"
+                    >
+                        {#if !kanbanImgErrors[currentKanban.image.src]}
+                            <img
+                                src={currentKanban.image.src}
+                                alt={currentKanban.image.label}
+                                onerror={() => (kanbanImgErrors[currentKanban.image.src] = true)}
+                                class="w-full h-full object-contain object-top transition-all duration-300 group-hover:scale-[1.01]"
+                            />
+                        {:else}
+                            <div class="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-gradient-to-br from-[#151D2C] to-[#0B0F17]">
+                                <div class="w-16 h-16 rounded-2xl bg-[#06B6D4]/10 text-[#06B6D4] flex items-center justify-center text-3xl mb-3 shadow-inner">
+                                    📋
+                                </div>
+                                <div class="font-bold text-white text-base">
+                                    {currentKanban.image.label}
+                                </div>
+                                <p class="text-xs text-slate-400 mt-1 max-w-sm">
+                                    {currentKanban.image.caption}
+                                </p>
+                            </div>
+                        {/if}
+
+                        <!-- Caption translúcido inferior -->
+                        <div
+                            class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3.5 sm:p-4 pointer-events-none text-white rounded-b-xl flex items-center justify-between gap-4"
+                        >
+                            <p class="text-xs sm:text-sm font-medium drop-shadow text-slate-200 line-clamp-1">
+                                {currentKanban.image.caption}
+                            </p>
+                            <span class="text-[11px] text-[#06B6D4] font-semibold hidden md:inline shrink-0">
+                                💡 Clic para ampliar a pantalla completa
+                            </span>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="w-full lg:w-auto flex-1 max-w-lg space-y-3">
+            <!-- 4. BARRA DE HIGHLIGHTS DINÁMICOS EN 3 COLUMNAS -->
+            <div class="mt-8 sm:mt-10 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 text-left">
+                {#each currentKanban.highlights as hl}
                     <div
-                        class="p-4 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200/80 dark:border-[#26334D] shadow-sm flex items-center gap-4"
+                        class="p-5 sm:p-6 rounded-2xl bg-slate-800/60 dark:bg-[#121927]/80 border border-slate-700/60 dark:border-[#26334D] backdrop-blur-md hover:border-[#06B6D4]/50 transition-all duration-300 group shadow-lg"
                     >
-                        <span
-                            class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-500 font-bold flex items-center justify-center text-sm"
-                            >1</span
+                        <div
+                            class="w-10 h-10 rounded-xl bg-[#06B6D4]/10 border border-[#06B6D4]/30 text-[#06B6D4] flex items-center justify-center text-lg mb-3.5 group-hover:scale-110 transition-transform shadow-inner"
                         >
-                        <div>
-                            <div
-                                class="text-sm font-bold text-slate-900 dark:text-white"
-                            >
-                                Cola Pendiente
-                            </div>
-                            <div class="text-xs text-slate-500">
-                                Cálculo de minutos en cola en base a la jornada
-                                de 8 horas.
-                            </div>
+                            {hl.icon}
                         </div>
-                    </div>
-                    <div
-                        class="p-4 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200/80 dark:border-[#26334D] shadow-sm flex items-center gap-4"
-                    >
-                        <span
-                            class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-500 font-bold flex items-center justify-center text-sm"
-                            >2</span
+                        <h4
+                            class="text-sm sm:text-base font-bold text-white group-hover:text-[#06B6D4] transition-colors"
                         >
-                        <div>
-                            <div
-                                class="text-sm font-bold text-slate-900 dark:text-white"
-                            >
-                                En Producción / Taller
-                            </div>
-                            <div class="text-xs text-slate-500">
-                                Consumo de materia prima y trazabilidad por
-                                trabajador.
-                            </div>
-                        </div>
-                    </div>
-                    <div
-                        class="p-4 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200/80 dark:border-[#26334D] shadow-sm flex items-center gap-4"
-                    >
-                        <span
-                            class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-500 font-bold flex items-center justify-center text-sm"
-                            >3</span
+                            {hl.title}
+                        </h4>
+                        <p
+                            class="text-xs sm:text-sm text-slate-400 mt-1.5 leading-relaxed"
                         >
-                        <div>
-                            <div
-                                class="text-sm font-bold text-slate-900 dark:text-white"
-                            >
-                                Listo & Despachado
-                            </div>
-                            <div class="text-xs text-slate-500">
-                                Registro de entrega final, cobro de saldo y
-                                archivo automático.
-                            </div>
-                        </div>
+                            {hl.desc}
+                        </p>
                     </div>
-                </div>
+                {/each}
+            </div>
+
+            <!-- 5. CTA INFERIOR -->
+            <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link
+                    href="/register"
+                    class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#06B6D4] to-[#3B82F6] hover:from-[#0891B2] hover:to-[#2563EB] shadow-lg shadow-[#06B6D4]/25 hover:shadow-[#06B6D4]/40 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                >
+                    <span>Probar estos Tableros en mi Taller Gratis</span>
+                    <span>→</span>
+                </Link>
             </div>
         </div>
     </section>
@@ -1879,6 +2097,11 @@
                     type="button"
                     onclick={() => scrollToSection("modulos")}
                     class="hover:text-[#4F46E5]">Módulos</button
+                >
+                <button
+                    type="button"
+                    onclick={() => scrollToSection("kanban")}
+                    class="hover:text-[#4F46E5]">Kanban</button
                 >
                 <Link href="/login" class="hover:text-[#4F46E5]"
                     >Iniciar Sesión</Link
