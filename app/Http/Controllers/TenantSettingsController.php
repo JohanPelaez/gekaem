@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\Team\AddTeamMemberAction;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -61,7 +62,7 @@ class TenantSettingsController extends Controller
     /**
      * Add a team member (Worker or Co-Owner) to the workshop.
      */
-    public function addMember(Request $request): RedirectResponse
+    public function addMember(Request $request, AddTeamMemberAction $action): RedirectResponse
     {
         abort_if(auth()->user()?->currentRole() === 'worker', 403);
 
@@ -73,27 +74,7 @@ class TenantSettingsController extends Controller
         ]);
 
         $tenant = $this->resolveTenant();
-
-        DB::transaction(function () use ($validated, $tenant): void {
-            /** @var User|null $user */
-            $user = User::where('email', $validated['email'])->first();
-
-            if ($user === null) {
-                $user = User::create([
-                    'name' => $validated['name'],
-                    'email' => $validated['email'],
-                    'password' => Hash::make($validated['password']),
-                    'is_super_admin' => false,
-                    'current_tenant_id' => $tenant->id,
-                ]);
-            }
-
-            if ($tenant->users()->where('users.id', $user->id)->exists()) {
-                $tenant->users()->updateExistingPivot($user->id, ['role' => $validated['role']]);
-            } else {
-                $tenant->users()->attach($user->id, ['role' => $validated['role']]);
-            }
-        });
+        $action->execute($validated, $tenant);
 
         return redirect()->back()->with('success', 'Miembro del equipo registrado con éxito en el taller.');
     }
@@ -158,7 +139,10 @@ class TenantSettingsController extends Controller
         $tenant = $this->resolveTenant();
         $tenant->users()->detach($user->id);
 
-        return redirect()->back()->with('success', "Usuario '{$user->name}' removido del taller.");
+        return redirect()->back()->with(
+            'success',
+            "Usuario '{$user->name}' removido del taller. El cupo pagado permanece cubierto durante este ciclo."
+        );
     }
 
     /**

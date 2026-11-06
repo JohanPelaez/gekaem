@@ -86,6 +86,8 @@ class HandleInertiaRequests extends Middleware
                     'has_payment_method' => $tenant->hasValidPaymentMethod(),
                     'card_brand' => $tenant->card_brand,
                     'card_last_four' => $tenant->card_last_four,
+                    'paid_seats' => max((int) ($tenant->paid_seats ?? 1), $tenant->includedBaseSeats()),
+                    'active_users_count' => $tenant->activeUsersCount(),
                 ] : null,
                 'all_tenants' => ($user !== null && $user->isSuperAdmin())
                     ? Tenant::orderBy('name')->get(['id', 'name', 'slug'])

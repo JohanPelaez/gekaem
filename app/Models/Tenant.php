@@ -27,6 +27,8 @@ class Tenant extends Model
         'trial_ends_at',
         'subscription_status',
         'plan_type',
+        'paid_seats',
+        'current_period_ends_at',
         'bold_customer_id',
         'payment_method_token',
         'card_last_four',
@@ -45,6 +47,8 @@ class Tenant extends Model
             'default_buffer_percent' => 'integer',
             'settings' => 'array',
             'trial_ends_at' => 'datetime',
+            'paid_seats' => 'integer',
+            'current_period_ends_at' => 'datetime',
         ];
     }
 
@@ -105,6 +109,65 @@ class Tenant extends Model
         }
 
         return $this->hasValidPaymentMethod() || $this->subscription_status === 'active';
+    }
+
+    /**
+     * Total number of active workshop members (Owner + Workers).
+     */
+    public function activeUsersCount(): int
+    {
+        return $this->users()->count();
+    }
+
+    /**
+     * Number of users included base in the active plan without extra seat fees.
+     */
+    public function includedBaseSeats(): int
+    {
+        return ($this->plan_type === 'pro') ? 5 : 1;
+    }
+
+    /**
+     * Available covered seats before requiring an extra seat fee.
+     */
+    public function availableSeats(): int
+    {
+        $covered = max((int) ($this->paid_seats ?? 1), $this->includedBaseSeats());
+
+        return max(0, $covered - $this->activeUsersCount());
+    }
+
+    /**
+     * Calculate monthly total in COP for a given user count and plan.
+     */
+    public function calculateMonthlyTotal(?int $forUserCount = null, ?string $forPlan = null): int
+    {
+        $users = $forUserCount ?? $this->activeUsersCount();
+        $plan = $forPlan ?? $this->plan_type;
+
+        if ($plan === 'pro') {
+            return 75000 + (max(0, $users - 5) * 15000);
+        }
+
+        return 30000 + (max(0, $users - 1) * 15000);
+    }
+
+    /**
+     * Determine whether adding the next team member requires an immediate extra seat charge of $15.000 COP.
+     */
+    public function requiresImmediateExtraSeatCharge(): bool
+    {
+        if ($this->subscription_status === 'trialing') {
+            return false;
+        }
+
+        if ($this->subscription_status === 'active') {
+            $coveredSeats = max((int) ($this->paid_seats ?? 1), $this->includedBaseSeats());
+
+            return ($this->activeUsersCount() + 1) > $coveredSeats;
+        }
+
+        return true;
     }
 
     /**
@@ -301,6 +364,12 @@ class Tenant extends Model
             }
             if (empty($tenant->plan_type)) {
                 $tenant->plan_type = 'standard';
+            }
+            if ($tenant->paid_seats === null) {
+                $tenant->paid_seats = ($tenant->plan_type === 'pro') ? 5 : 1;
+            }
+            if ($tenant->current_period_ends_at === null) {
+                $tenant->current_period_ends_at = $tenant->trial_ends_at ?? now()->addMonth();
             }
         });
 

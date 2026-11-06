@@ -12,6 +12,17 @@
     // Modal para registrar o actualizar tarjeta de crédito/débito
     let showCardModal = $state(false);
     let isSubmitting = $state(false);
+    let isUpgrading = $state(false);
+
+    function upgradeToPro() {
+        if (confirm('¿Deseas cambiar tu taller al Plan Taller Pro por $75.000 COP/mes con 5 usuarios incluidos?')) {
+            isUpgrading = true;
+            router.post('/settings/billing/upgrade', {}, {
+                preserveScroll: true,
+                onFinish: () => { isUpgrading = false; },
+            });
+        }
+    }
 
     let form = $state({
         card_number: '',
@@ -99,7 +110,7 @@
                     </span>
                 </h1>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Gestiona el plan de tu taller, métodos de pago recurrentes con Bold y comprobantes de suscripción.
+                    Gestiona el plan de tu taller, métodos de pago recurrentes con Bold y cuenta oficial de recaudo.
                 </p>
             </div>
 
@@ -187,131 +198,177 @@
             </div>
         {/if}
 
-        <!-- TARJETAS DE INFORMACIÓN PRINCIPAL (GRID 2 COLUMNAS) -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            
-            <!-- TARJETA 1: PLAN ACTUAL DEL TALLER -->
-            <div class="lg:col-span-7 p-6 rounded-2xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-sm space-y-5">
-                <div class="flex items-start justify-between gap-3">
-                    <div>
-                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                            Plan Activo
-                        </span>
-                        <h2 class="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                            {tenant.plan_name}
-                        </h2>
-                    </div>
-
-                    <!-- BADGE DE ESTADO -->
-                    <div>
-                        {#if tenant.subscription_status === 'active'}
-                            <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                                Suscripción Activa
-                            </span>
-                        {:else if isTrialExpired && !tenant.has_payment_method}
-                            <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
-                                🛑 Prueba Expirada
-                            </span>
-                        {:else}
-                            <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 border border-[#4F46E5]/30">
-                                ✨ Periodo de Prueba (15 Días)
-                            </span>
-                        {/if}
-                    </div>
+        <!-- ========================================================================= -->
+        <!-- SECCIÓN 1: PLAN ACTUAL DEL TALLER                                        -->
+        <!-- ========================================================================= -->
+        <div class="p-6 rounded-2xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div>
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                        Plan Activo para tu Taller
+                    </span>
+                    <h2 class="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        {tenant.plan_name}
+                    </h2>
                 </div>
 
-                <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200/80 dark:border-slate-800/80 flex items-baseline justify-between">
-                    <div>
-                        <span class="text-xs text-slate-500 dark:text-slate-400 block">Tarifa recurrente mensual</span>
-                        <span class="text-2xl font-black text-slate-900 dark:text-white">
-                            {formatCurrency(tenant.plan_price)}
+                <!-- BADGE DE ESTADO -->
+                <div>
+                    {#if tenant.subscription_status === 'active'}
+                        <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            Suscripción Activa
                         </span>
-                        <span class="text-xs text-slate-500 dark:text-slate-400 ml-1">/ mes</span>
-                    </div>
-
-                    <div class="text-right">
-                        <span class="text-xs text-slate-500 dark:text-slate-400 block">Fin de prueba gratuita</span>
-                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">
-                            {tenant.trial_ends_at ?? '15 días'}
+                    {:else if isTrialExpired && !tenant.has_payment_method}
+                        <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                            🛑 Prueba Expirada
                         </span>
-                    </div>
-                </div>
-
-                <div class="space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                    <div class="flex items-center gap-2">
-                        <span class="text-emerald-500 font-bold">✓</span>
-                        <span>Kanban ilimitado de tareas de producción (pedidos como US).</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-emerald-500 font-bold">✓</span>
-                        <span>Cálculo predictivo de entrega con colchón de holgura y cola WIP.</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-emerald-500 font-bold">✓</span>
-                        <span>Control de recetas BOM, materias primas, clientes y proveedores.</span>
-                    </div>
+                    {:else}
+                        <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 border border-[#4F46E5]/30">
+                            ✨ Periodo de Prueba (15 Días)
+                        </span>
+                    {/if}
                 </div>
             </div>
 
-            <!-- TARJETA 2: MÉTODO DE PAGO BOLD (TARJETA TOKENIZADA) -->
-            <div class="lg:col-span-5 p-6 rounded-2xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-sm flex flex-col justify-between space-y-5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200/80 dark:border-slate-800/80">
+                    <span class="text-[11px] text-slate-500 dark:text-slate-400 block">Tarifa Base Plan</span>
+                    <span class="text-xl font-black text-slate-900 dark:text-white">
+                        {formatCurrency(tenant.plan_price)}
+                    </span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400 ml-1">/ mes</span>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200/80 dark:border-slate-800/80">
+                    <span class="text-[11px] text-slate-500 dark:text-slate-400 block">Cupos y Usuarios</span>
+                    <span class="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        {tenant.active_users_count ?? 1} activos / {tenant.paid_seats ?? 1} pagados
+                    </span>
+                    <span class="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                        {tenant.available_seats ?? 0} {tenant.available_seats === 1 ? 'cupo libre' : 'cupos libres'} en este ciclo
+                    </span>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200/80 dark:border-slate-800/80">
+                    <span class="text-[11px] text-slate-500 dark:text-slate-400 block">Usuarios Extra ($15.000 c/u)</span>
+                    <span class="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        {tenant.extra_seats_count ?? 0} extras ({formatCurrency(tenant.extra_seats_amount ?? 0)})
+                    </span>
+                    <span class="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                        Base incluye {tenant.included_base_seats ?? 1}
+                    </span>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-gradient-to-br from-[#4F46E5]/10 to-transparent border border-[#4F46E5]/30">
+                    <span class="text-[11px] text-[#4F46E5] dark:text-indigo-400 font-bold block">Próximo Cobro Total</span>
+                    <span class="text-xl font-black text-[#4F46E5] dark:text-white">
+                        {formatCurrency(tenant.total_monthly_amount ?? tenant.plan_price)}
+                    </span>
+                    <span class="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                        Facturación mensual recurrente
+                    </span>
+                </div>
+            </div>
+
+            <!-- BANNER RECOMENDACIÓN DE UPGRADE A PRO SI ESTÁ EN ESTÁNDAR -->
+            {#if tenant.plan_type === 'standard'}
+                <div class="p-4 rounded-2xl bg-gradient-to-r from-[#4F46E5]/15 via-[#4F46E5]/10 to-[#06B6D4]/10 border border-[#4F46E5]/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
+                    <div class="flex items-start gap-3">
+                        <span class="text-2xl shrink-0">🚀</span>
+                        <div>
+                            <h4 class="text-sm font-black text-slate-900 dark:text-white">¿Tu equipo está creciendo? Pasa al Plan Taller Pro</h4>
+                            <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
+                                Obtén <strong>5 usuarios incluidos</strong> por <strong>$75.000 COP/mes</strong> en lugar de pagar $15.000 COP adicionales por cada uno.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onclick={upgradeToPro}
+                        disabled={isUpgrading}
+                        class="px-4 py-2.5 rounded-xl font-bold text-xs text-white bg-[#4F46E5] hover:bg-[#4338CA] shadow-md shadow-[#4F46E5]/25 transition-all whitespace-nowrap cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                        {#if isUpgrading}
+                            <span>Actualizando...</span>
+                        {:else}
+                            <span>Actualizar a Plan Taller Pro ($75.000/mes)</span>
+                        {/if}
+                    </button>
+                </div>
+            {/if}
+        </div>
+
+        <!-- ========================================================================= -->
+        <!-- SECCIÓN 2: SUSCRIPCIÓN Y MÉTODO DE PAGO (MÉTODO PRINCIPAL BOLD API)       -->
+        <!-- ========================================================================= -->
+        <div class="w-full max-w-2xl mx-auto">
+            <div class="p-6 sm:p-8 rounded-2xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-sm space-y-6">
                 <div>
                     <div class="flex items-center justify-between">
                         <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Tarjeta de Cobro Recurrente
+                            Método Principal Automático
                         </span>
                         <span class="text-xs font-extrabold text-[#06B6D4] flex items-center gap-1">
-                            <span>⚡</span> Bold Tokenized
+                            <span>⚡</span> Bold Tokenized API
                         </span>
                     </div>
 
+                    <h3 class="text-lg font-black text-slate-900 dark:text-white mt-1">
+                        Tarjeta de Crédito o Débito Recurrente
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Cobro automático cada 30 días para que tu taller y producción nunca se detengan.
+                    </p>
+
                     {#if tenant.has_payment_method}
-                        <div class="mt-4 p-4 rounded-xl bg-gradient-to-br from-slate-900 to-[#121927] border border-slate-700 text-white relative overflow-hidden shadow-md">
-                            <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-[#4F46E5]/20 rounded-full blur-xl pointer-events-none"></div>
+                        <div class="mt-5 p-5 rounded-xl bg-gradient-to-br from-slate-900 to-[#121927] border border-slate-700 text-white relative overflow-hidden shadow-lg">
+                            <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-[#4F46E5]/20 rounded-full blur-xl pointer-events-none"></div>
 
                             <div class="flex items-center justify-between mb-6">
                                 <span class="text-xs font-bold uppercase tracking-wider text-slate-300">
                                     {tenant.card_brand ?? 'Tarjeta'}
                                 </span>
-                                <span class="text-base font-bold text-emerald-400">
-                                    Habilitada
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                    ✓ Activa para Recurrencia
                                 </span>
                             </div>
 
-                            <div class="font-mono text-lg font-bold tracking-widest text-slate-100 mb-2">
+                            <div class="font-mono text-xl font-black tracking-widest text-slate-100 mb-3">
                                 •••• •••• •••• {tenant.card_last_four ?? '••••'}
                             </div>
 
-                            <div class="text-[11px] text-slate-400 flex items-center justify-between">
-                                <span>Pagos Recurrentes Automáticos</span>
-                                <span class="text-emerald-400 font-bold">✓ Segura</span>
+                            <div class="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-slate-800">
+                                <span>Cobros Recurrentes Mensuales</span>
+                                <span class="text-emerald-400 font-bold flex items-center gap-1">
+                                    <span>🔒</span> Protegido por Bold
+                                </span>
                             </div>
                         </div>
                     {:else}
-                        <div class="mt-4 p-5 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-2">
-                            <div class="text-2xl">💳</div>
-                            <h3 class="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                Ningún método de pago registrado
-                            </h3>
-                            <p class="text-[11px] text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
-                                Agrega una tarjeta de crédito o débito Visa, Mastercard, Amex o Diners para habilitar el cobro recurrente.
+                        <div class="mt-5 p-6 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-2.5">
+                            <div class="text-3xl">💳</div>
+                            <h4 class="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                Ninguna tarjeta registrada para cobro automático
+                            </h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                                Registra tu tarjeta Visa, Mastercard, Amex o Diners. No se te cobra nada hoy si estás en periodo de prueba.
                             </p>
                         </div>
                     {/if}
                 </div>
 
-                <div>
+                <div class="pt-2">
                     <button
                         type="button"
                         onclick={openModal}
-                        class="w-full py-3 px-4 rounded-xl font-bold text-xs text-white bg-[#4F46E5] hover:bg-[#4338CA] shadow-md shadow-[#4F46E5]/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        class="w-full py-3.5 px-5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#4F46E5] to-[#4338CA] hover:from-[#4338CA] hover:to-[#3730A3] shadow-md shadow-[#4F46E5]/20 hover:shadow-[#4F46E5]/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                         <span>💳</span>
                         <span>{tenant.has_payment_method ? 'Actualizar Tarjeta / Método de Pago' : 'Registrar Tarjeta de Crédito o Débito'}</span>
                     </button>
-                    <p class="text-[10px] text-center text-slate-500 dark:text-slate-400 mt-2">
-                        Tokenización directa con Bold. No almacenamos datos confidenciales en nuestros servidores.
+                    <p class="text-[11px] text-center text-slate-500 dark:text-slate-400 mt-2.5">
+                        Tokenización segura y encriptada mediante la pasarela en línea de Bold.
                     </p>
                 </div>
             </div>
@@ -594,4 +651,3 @@
     {/if}
 
 </AppLayout>
-

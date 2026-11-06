@@ -27,6 +27,7 @@ class ProfileController extends Controller
 
         $tenantData = null;
         $teamMembers = [];
+        $seatsInfo = null;
 
         if ($isOwnerOrAdmin) {
             $tenant = $user->currentTenant();
@@ -41,6 +42,25 @@ class ProfileController extends Controller
                     'settings' => $tenant->settings ?? [],
                 ];
                 $teamMembers = $tenant->users()->withPivot('role')->get();
+
+                $activeUsers = $tenant->activeUsersCount();
+                $baseSeats = $tenant->includedBaseSeats();
+                $paidSeats = max((int) ($tenant->paid_seats ?? 1), $baseSeats);
+
+                $seatsInfo = [
+                    'active_users_count' => $activeUsers,
+                    'paid_seats' => $paidSeats,
+                    'included_base_seats' => $baseSeats,
+                    'available_seats' => $tenant->availableSeats(),
+                    'plan_type' => $tenant->plan_type,
+                    'subscription_status' => $tenant->subscription_status,
+                    'is_trial' => $tenant->subscription_status === 'trialing',
+                    'card_last_four' => $tenant->card_last_four,
+                    'has_payment_method' => $tenant->hasValidPaymentMethod(),
+                    'estimated_monthly_total' => $tenant->calculateMonthlyTotal(),
+                    'estimated_monthly_total_with_new' => $tenant->calculateMonthlyTotal($activeUsers + 1),
+                    'requires_charge_for_new' => $tenant->requiresImmediateExtraSeatCharge(),
+                ];
             }
         }
 
@@ -54,6 +74,7 @@ class ProfileController extends Controller
             ],
             'tenant' => $tenantData,
             'teamMembers' => $teamMembers,
+            'seatsInfo' => $seatsInfo,
             'canManageTenant' => $isOwnerOrAdmin,
             'initialTab' => $request->query('tab', 'profile'),
         ]);

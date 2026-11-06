@@ -237,6 +237,88 @@ class BoldPaymentService
     }
 
     /**
+     * Charge a tokenized card via Bold API for extra seats or upgrades.
+     *
+     * @return array{
+     *     success: bool,
+     *     reference: string,
+     *     amount: int,
+     *     description: string,
+     *     date: string
+     * }
+     * @throws ValidationException
+     */
+    public function chargeToken(\App\Models\Tenant $tenant, int $amount, string $description): array
+    {
+        if (empty($tenant->payment_method_token)) {
+            throw ValidationException::withMessages([
+                'email' => 'Debes registrar un método de pago válido antes de agregar usuarios adicionales.',
+            ]);
+        }
+
+        $apiKey = config('services.bold.api_key');
+        $baseUrl = rtrim((string) config('services.bold.base_url', 'https://integrations.api.bold.co'), '/');
+        $reference = 'REC-EXT-' . strtoupper(Str::random(6));
+
+        if (!empty($apiKey)) {
+            try {
+                $response = Http::withHeaders([
+                    'x-api-key' => $apiKey,
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ])->timeout(12)->post("{$baseUrl}/online/v1/payments", [
+                    'token' => $tenant->payment_method_token,
+                    'amount' => $amount,
+                    'currency' => 'COP',
+                    'description' => $description,
+                    'reference' => $reference,
+                ]);
+
+                if (!$response->successful()) {
+                    $errorMessage = $response->json('message') ?? 'Error al procesar el cargo en Bold.';
+                    throw ValidationException::withMessages([
+                        'email' => 'Error al procesar el cargo en Bold: ' . $errorMessage,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                if ($e instanceof ValidationException) {
+                    throw $e;
+                }
+                throw ValidationException::withMessages([
+                    'email' => 'Error de conexión con la pasarela Bold: ' . $e->getMessage(),
+                ]);
+            }
+        } else {
+            Log::info("Bold payment charge simulated: {$amount} COP for {$tenant->name} - {$description}");
+        }
+
+        // Registrar recibo en historial de facturación
+        $receipt = [
+            'id' => $reference,
+            'date' => now()->format('d/m/Y'),
+            'description' => $description,
+            'amount' => $amount,
+            'status' => 'Pagado',
+            'card_brand' => $tenant->card_brand,
+            'card_last_four' => $tenant->card_last_four,
+        ];
+
+        $settings = $tenant->settings ?? [];
+        $history = $settings['billing_history'] ?? [];
+        array_unshift($history, $receipt);
+        $settings['billing_history'] = $history;
+        $tenant->update(['settings' => $settings]);
+
+        return [
+            'success' => true,
+            'reference' => $reference,
+            'amount' => $amount,
+            'description' => $description,
+            'date' => now()->format('d/m/Y'),
+        ];
+    }
+
+    /**
      * Validate card number using Luhn Algorithm (Mod 10).
      */
     public function validateLuhn(string $number): bool

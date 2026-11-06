@@ -152,6 +152,7 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
     Route::prefix('settings/billing')->name('settings.billing.')->group(function (): void {
         Route::get('/', [PaymentController::class, 'billing'])->name('index');
         Route::post('/payment-method', [PaymentController::class, 'updatePaymentMethod'])->name('payment-method.update');
+        Route::post('/upgrade', [PaymentController::class, 'upgradePlan'])->name('upgrade');
     });
     Route::get('/settings/billing', [PaymentController::class, 'billing'])->name('settings.billing');
 

@@ -7,6 +7,7 @@
         profileUser = null,
         tenant = null,
         teamMembers = [],
+        seatsInfo = null,
         canManageTenant = false,
         initialTab = 'profile',
         errors = {},
@@ -174,6 +175,30 @@
                 memberForm.role = 'worker';
             },
         });
+    }
+
+    function upgradeAndAddMember() {
+        memberProcessing = true;
+        router.post('/settings/billing/upgrade', memberForm, {
+            preserveScroll: true,
+            onStart: () => { memberProcessing = true; },
+            onFinish: () => { memberProcessing = false; },
+            onSuccess: () => {
+                showAddMemberModal = false;
+                memberForm.name = '';
+                memberForm.email = '';
+                memberForm.password = '';
+                memberForm.role = 'worker';
+            },
+        });
+    }
+
+    function formatCurrency(amount) {
+        return new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency: 'COP',
+            maximumFractionDigits: 0,
+        }).format(amount ?? 0);
     }
 
     function openEditMember(member) {
@@ -561,6 +586,60 @@
                     </button>
                 </div>
 
+                <!-- BARRA DE CONTROL DE CUPOS PAGADOS Y ESTIMACIÓN MENSUAL -->
+                {#if seatsInfo}
+                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                                    Control de Cupos y Facturación
+                                </span>
+                                <div class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">
+                                    Usuarios activos: <span class="text-[#4F46E5] dark:text-indigo-400">{seatsInfo.active_users_count}</span> de <span class="text-slate-700 dark:text-slate-300">{seatsInfo.paid_seats}</span> cupos cubiertos en tu ciclo actual
+                                </div>
+                            </div>
+
+                            <div class="text-left sm:text-right">
+                                <span class="text-[10px] uppercase font-bold text-slate-400 block">Próxima factura mensual estimada</span>
+                                <span class="text-sm font-black text-slate-900 dark:text-white">
+                                    {formatCurrency(seatsInfo.estimated_monthly_total)}
+                                </span>
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400">/ mes</span>
+                            </div>
+                        </div>
+
+                        <!-- Barra de Progreso Visual de Cupos -->
+                        <div class="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div
+                                class="h-full rounded-full transition-all duration-300 {seatsInfo.active_users_count > seatsInfo.paid_seats ? 'bg-amber-500' : 'bg-[#4F46E5]'}"
+                                style="width: {Math.min(100, Math.round((seatsInfo.active_users_count / Math.max(1, seatsInfo.paid_seats)) * 100))}%"
+                            ></div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5 gap-1">
+                            <div class="flex items-center gap-1.5">
+                                {#if seatsInfo.is_trial}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
+                                        ✨ Prueba Gratis (Hasta 5 cupos sin cobro inmediato)
+                                    </span>
+                                {:else if seatsInfo.available_seats > 0}
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-bold">
+                                        ✓ {seatsInfo.available_seats} {seatsInfo.available_seats === 1 ? 'cupo disponible' : 'cupos disponibles'} sin costo adicional
+                                    </span>
+                                {:else}
+                                    <span class="text-amber-600 dark:text-amber-400 font-bold">
+                                        Cupos base cubiertos. El siguiente usuario cuesta $15.000 COP/mes.
+                                    </span>
+                                {/if}
+                            </div>
+
+                            <span class="text-[10px] font-medium text-slate-400">
+                                Plan {seatsInfo.plan_type === 'pro' ? 'Taller Pro (5 base)' : 'Estándar (1 base)'}
+                            </span>
+                        </div>
+                    </div>
+                {/if}
+
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {#each teamMembers as member (member.id)}
                         {@const isOwner = member.pivot?.role === 'owner'}
@@ -612,11 +691,60 @@
 <!-- MODAL AGREGAR MIEMBRO AL EQUIPO -->
 {#if showAddMemberModal}
     <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-3xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-3">
                 <h3 class="text-base font-bold text-slate-900 dark:text-white">Agregar Miembro al Equipo</h3>
                 <button type="button" onclick={() => showAddMemberModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
             </div>
+
+            <!-- BADGES Y AVISOS DE COBRO SEGÚN REGLAS DE CUPOS -->
+            {#if seatsInfo}
+                {#if seatsInfo.is_trial}
+                    <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center gap-2">
+                        <span class="text-emerald-500">✓</span>
+                        <span>Cupo disponible sin cobro inmediato (Prueba gratis: {seatsInfo.active_users_count}/5 usuarios)</span>
+                    </div>
+                {:else if seatsInfo.available_seats > 0}
+                    <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center gap-2">
+                        <span class="text-emerald-500">✓</span>
+                        <span>Cupo disponible sin cobro inmediato ({seatsInfo.available_seats} {seatsInfo.available_seats === 1 ? 'cupo cubierto' : 'cupos cubiertos'} restantes)</span>
+                    </div>
+                {:else if seatsInfo.requires_charge_for_new}
+                    <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs leading-relaxed space-y-1">
+                        <p class="font-extrabold flex items-center gap-1.5">
+                            <span>💳</span>
+                            <span>Cobro Inmediato de Usuario Extra</span>
+                        </p>
+                        <p>
+                            Agregar este usuario adicional tiene un costo de <strong>$15.000 COP/mes</strong>. Se realizará el cargo de $15.000 COP a tu tarjeta terminada en <strong>{seatsInfo.card_last_four ?? '****'}</strong> y tu cupo quedará activo de inmediato.
+                        </p>
+                    </div>
+                {/if}
+
+                <!-- BANNER AZUL ELÉCTRICO PARA PLAN ESTÁNDAR QUE LLEGA A 4 O 5 MIEMBROS -->
+                {#if seatsInfo.plan_type === 'standard' && seatsInfo.active_users_count >= 3}
+                    <div class="p-4 rounded-2xl bg-gradient-to-br from-[#4F46E5]/20 via-[#4F46E5]/10 to-[#06B6D4]/10 border-2 border-[#4F46E5] text-white space-y-2.5">
+                        <div class="flex items-start gap-2.5">
+                            <span class="text-lg shrink-0">💡</span>
+                            <div>
+                                <h4 class="text-xs font-black text-white">¡Ahorra con el Plan Taller Pro!</h4>
+                                <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">
+                                    Con 4 o 5 usuarios te conviene pasar al Plan Taller Pro por <strong>$75.000 COP/mes</strong> (incluye 5 usuarios).
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onclick={upgradeAndAddMember}
+                            disabled={memberProcessing}
+                            class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#4338CA] hover:from-[#4338CA] hover:to-[#3730A3] text-white font-extrabold text-xs shadow-md shadow-[#4F46E5]/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                            <span>🚀</span>
+                            <span>Cambiar a Taller Pro y Agregar Usuario</span>
+                        </button>
+                    </div>
+                {/if}
+            {/if}
 
             <form onsubmit={submitMember} class="space-y-4 text-xs">
                 <div>
@@ -681,7 +809,13 @@
                         disabled={memberProcessing}
                         class="px-5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50"
                     >
-                        Guardar Miembro
+                        {#if memberProcessing}
+                            <span>Guardando...</span>
+                        {:else if seatsInfo?.requires_charge_for_new}
+                            <span>💳 Pagar $15.000 COP y Guardar</span>
+                        {:else}
+                            <span>Guardar Miembro</span>
+                        {/if}
                     </button>
                 </div>
             </form>

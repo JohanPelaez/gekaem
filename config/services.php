@@ -36,8 +36,17 @@ return [
     ],
 
     'bold' => [
-        'api_key' => env('BOLD_API_KEY'),
+        'api_key' => env('BOLD_API_KEY', ''),
+        'secret_key' => env('BOLD_SECRET_KEY', ''),
+        'environment' => env('BOLD_ENVIRONMENT', 'sandbox'),
         'base_url' => env('BOLD_API_URL', 'https://integrations.api.bold.co'),
+        'deposit_account' => [
+            'entity' => 'Bold CF - Depósito electrónico',
+            'account_number' => '1700-1061-7548',
+            'holder_name' => 'Ivan Dario Garzon Peña',
+            'document_type' => 'CC',
+            'document_number' => '79218992',
+        ],
     ],
 
 ];

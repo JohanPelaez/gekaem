@@ -313,4 +313,39 @@ class BoldSubscriptionAndTrialLockTest extends TestCase
         $response = $this->actingAs($admin)->get('/dashboard');
         $response->assertOk();
     }
+
+    /**
+     * Test billing page keeps deposit account info confidential in config and never exposes to client.
+     */
+    public function test_billing_and_settings_pages_do_not_expose_bold_deposit_account_info(): void
+    {
+        $this->assertNotEmpty(config('services.bold.deposit_account'));
+        $this->assertSame('1700-1061-7548', config('services.bold.deposit_account.account_number'));
+
+        $tenant = Tenant::create([
+            'name' => 'Taller Bold Recaudo',
+            'slug' => 'taller-bold-recaudo',
+            'trial_ends_at' => now()->addDays(5),
+            'subscription_status' => 'trialing',
+        ]);
+
+        $user = User::factory()->create([
+            'current_tenant_id' => $tenant->id,
+        ]);
+        $user->tenants()->attach($tenant->id, ['role' => 'owner']);
+
+        $responseBilling = $this->actingAs($user)->get('/settings/billing');
+        $responseBilling->assertOk();
+        $responseBilling->assertInertia(fn ($page) => $page
+            ->component('Settings/Billing')
+            ->missing('boldDepositInfo')
+        );
+
+        $responseSettings = $this->actingAs($user)->get('/settings');
+        $responseSettings->assertOk();
+        $responseSettings->assertInertia(fn ($page) => $page
+            ->component('Settings/Index')
+            ->missing('boldDepositInfo')
+        );
+    }
 }
