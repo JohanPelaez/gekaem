@@ -24,6 +24,13 @@ class Tenant extends Model
         'daily_productive_minutes',
         'default_buffer_percent',
         'settings',
+        'trial_ends_at',
+        'subscription_status',
+        'plan_type',
+        'bold_customer_id',
+        'payment_method_token',
+        'card_last_four',
+        'card_brand',
     ];
 
     /**
@@ -37,7 +44,67 @@ class Tenant extends Model
             'daily_productive_minutes' => 'integer',
             'default_buffer_percent' => 'integer',
             'settings' => 'array',
+            'trial_ends_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Determine whether the tenant has a valid payment method on file.
+     */
+    public function hasValidPaymentMethod(): bool
+    {
+        return !empty($this->payment_method_token);
+    }
+
+    /**
+     * Determine whether the 15-day free trial has expired.
+     */
+    public function isTrialExpired(): bool
+    {
+        $trialEnds = $this->trial_ends_at ?? $this->created_at?->copy()->addDays(15);
+        if ($trialEnds === null) {
+            return false;
+        }
+
+        return now()->greaterThan($trialEnds);
+    }
+
+    /**
+     * Determine whether the free trial is currently active.
+     */
+    public function isTrialActive(): bool
+    {
+        return !$this->isTrialExpired();
+    }
+
+    /**
+     * Number of remaining days of free trial.
+     */
+    public function trialDaysRemaining(): int
+    {
+        $trialEnds = $this->trial_ends_at ?? $this->created_at?->copy()->addDays(15);
+        if ($trialEnds === null) {
+            return 15;
+        }
+
+        if (now()->greaterThan($trialEnds)) {
+            return 0;
+        }
+
+        return (int) ceil(now()->floatDiffInDays($trialEnds, false));
+    }
+
+    /**
+     * Determine whether the tenant can access operational workshop routes.
+     * If trial expired, the workshop must have a valid payment method or active subscription.
+     */
+    public function canAccessApp(): bool
+    {
+        if (!$this->isTrialExpired()) {
+            return true;
+        }
+
+        return $this->hasValidPaymentMethod() || $this->subscription_status === 'active';
     }
 
     /**
@@ -225,6 +292,18 @@ class Tenant extends Model
      */
     protected static function booted(): void
     {
+        static::creating(function (Tenant $tenant): void {
+            if ($tenant->trial_ends_at === null) {
+                $tenant->trial_ends_at = now()->addDays(15);
+            }
+            if (empty($tenant->subscription_status)) {
+                $tenant->subscription_status = 'trialing';
+            }
+            if (empty($tenant->plan_type)) {
+                $tenant->plan_type = 'standard';
+            }
+        });
+
         static::created(function (Tenant $tenant): void {
             static::ensureDefaultData($tenant->id);
         });

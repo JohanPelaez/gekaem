@@ -19,6 +19,8 @@ use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\UnitOfMeasureController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Middleware\EnsureSubscriptionActive;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -37,7 +39,7 @@ Route::get('/', fn () => Inertia::render('Welcome', [
 ]))->name('home');
 
 // Rutas protegidas de la aplicación
-Route::middleware(['auth'])->group(function (): void {
+Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Módulo 5: Tablero Kanban (US = Pedidos, Tareas = Productos)
@@ -145,6 +147,13 @@ Route::middleware(['auth'])->group(function (): void {
     Route::get('/profile', fn () => redirect()->route('settings.index', ['tab' => 'profile']))->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'updateProfile'])->name('profile.update');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password.update');
+
+    // Módulo de Suscripción y Configuración de Pagos (Bold)
+    Route::prefix('settings/billing')->name('settings.billing.')->group(function (): void {
+        Route::get('/', [PaymentController::class, 'billing'])->name('index');
+        Route::post('/payment-method', [PaymentController::class, 'updatePaymentMethod'])->name('payment-method.update');
+    });
+    Route::get('/settings/billing', [PaymentController::class, 'billing'])->name('settings.billing');
 
     // Configuración del Taller y Equipo (Solo Dueño o Admin)
     Route::prefix('settings')->name('settings.')->group(function (): void {

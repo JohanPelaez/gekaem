@@ -1,6 +1,6 @@
 <script>
     import { untrack } from 'svelte';
-    import { router } from '@inertiajs/svelte';
+    import { router, Link } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
 
     let {
@@ -254,6 +254,14 @@
                             </span>
                         {/if}
                     </button>
+
+                    <Link
+                        href="/settings/billing"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5"
+                    >
+                        <span>💳</span>
+                        <span>Suscripción</span>
+                    </Link>
                 {/if}
             </div>
         </div>

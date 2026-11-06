@@ -78,6 +78,14 @@ class HandleInertiaRequests extends Middleware
                     'daily_hours' => round(((int) $tenant->daily_productive_minutes) / 60, 1),
                     'default_buffer_percent' => (int) $tenant->default_buffer_percent,
                     'settings' => $tenant->settings ?? [],
+                    'subscription_status' => $tenant->subscription_status,
+                    'plan_type' => $tenant->plan_type,
+                    'trial_ends_at' => $tenant->trial_ends_at?->format('d/m/Y'),
+                    'trial_days_remaining' => $tenant->trialDaysRemaining(),
+                    'is_trial_expired' => $tenant->isTrialExpired(),
+                    'has_payment_method' => $tenant->hasValidPaymentMethod(),
+                    'card_brand' => $tenant->card_brand,
+                    'card_last_four' => $tenant->card_last_four,
                 ] : null,
                 'all_tenants' => ($user !== null && $user->isSuperAdmin())
                     ? Tenant::orderBy('name')->get(['id', 'name', 'slug'])

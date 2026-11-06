@@ -23,12 +23,21 @@ class RegisterRequest extends FormRequest
      */
     public function rules(): array
     {
+        $hasCard = $this->boolean('with_card') || !empty($this->input('card_number'));
+
         return [
             'owner_name' => ['required', 'string', 'max:150'],
             'workshop_name' => ['required', 'string', 'max:150'],
             'email' => ['required', 'string', 'email', 'max:150', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'plan' => ['nullable', 'string', 'in:standard,pro'],
+            'with_card' => ['nullable', 'boolean'],
+            'card_number' => [$hasCard ? 'required' : 'nullable', 'string', 'min:13', 'max:25'],
+            'cardholder_name' => ['nullable', 'string', 'max:150'],
+            'expiration_month' => [$hasCard ? 'required' : 'nullable', 'string', 'max:2'],
+            'expiration_year' => [$hasCard ? 'required' : 'nullable', 'string', 'max:4'],
+            'cvv' => [$hasCard ? 'required' : 'nullable', 'string', 'min:3', 'max:4'],
+            'payment_method_type' => ['nullable', 'string', 'max:50'],
         ];
     }
 
@@ -48,6 +57,10 @@ class RegisterRequest extends FormRequest
             'password.required' => 'La contraseña es obligatoria.',
             'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
             'password.confirmed' => 'La confirmación de la contraseña no coincide.',
+            'card_number.required' => 'Ingresa el número de tu tarjeta para agregar el método de pago.',
+            'expiration_month.required' => 'El mes de expiración es obligatorio.',
+            'expiration_year.required' => 'El año de expiración es obligatorio.',
+            'cvv.required' => 'El código de seguridad CVV es obligatorio.',
         ];
     }
 }

@@ -6,6 +6,7 @@
 
     let selectedPlan = $state('standard');
     let processing = $state(false);
+    let showCardAccordion = $state(false);
 
     let form = $state({
         owner_name: '',
@@ -14,7 +15,36 @@
         password: '',
         password_confirmation: '',
         plan: 'standard',
+        with_card: false,
+        card_number: '',
+        cardholder_name: '',
+        expiration_month: '',
+        expiration_year: '',
+        cvv: '',
     });
+
+    // Detectar si hay errores en datos de la tarjeta para mantener abierto el acordeón
+    $effect(() => {
+        if (errors.card_number || errors.expiration_month || errors.expiration_year || errors.cvv) {
+            showCardAccordion = true;
+            form.with_card = true;
+        }
+    });
+
+    let detectedBrand = $derived.by(() => {
+        const num = form.card_number.replace(/\D/g, '');
+        if (/^4/.test(num)) return 'Visa';
+        if (/^(5[1-5]|2[2-7])/.test(num)) return 'Mastercard';
+        if (/^3[47]/.test(num)) return 'Amex';
+        if (/^3(?:0[0-5]|[68])/.test(num)) return 'Diners';
+        return null;
+    });
+
+    function formatCardNumber(e) {
+        let value = e.target.value.replace(/\D/g, '').substring(0, 19);
+        let formatted = value.match(/.{1,4}/g)?.join(' ') ?? value;
+        form.card_number = formatted;
+    }
 
     // Detectar prop initialPlan o parámetro ?plan en la URL
     $effect(() => {
@@ -361,6 +391,179 @@
                                     Para talleres en crecimiento con equipo operativo. Ahorro del 50%.
                                 </p>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- 6. Acordeón Opcional: Agregar Método de Pago Bold -->
+                    <div class="pt-2">
+                        <div class="rounded-2xl border {showCardAccordion ? 'border-[#4F46E5]/60 bg-[#121927]' : 'border-slate-800 bg-[#0B0F17]'} transition-all duration-200 overflow-hidden">
+                            <button
+                                type="button"
+                                onclick={() => {
+                                    showCardAccordion = !showCardAccordion;
+                                    form.with_card = showCardAccordion;
+                                }}
+                                class="w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-white/[0.02]"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <div class="w-9 h-9 rounded-xl {showCardAccordion ? 'bg-[#4F46E5] text-white' : 'bg-slate-800 text-slate-300'} flex items-center justify-center text-base shrink-0 shadow-sm transition-colors">
+                                        💳
+                                    </div>
+                                    <div>
+                                        <div class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                                            <span>Agregar método de pago ahora</span>
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                                Opcional
+                                            </span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 mt-0.5">
+                                            Configura tu tarjeta de forma segura con Bold y asegura continuidad para tu taller.
+                                        </p>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-slate-400 font-bold transition-transform duration-200 {showCardAccordion ? 'rotate-180 text-white' : ''}">
+                                    ▼
+                                </span>
+                            </button>
+
+                            {#if showCardAccordion}
+                                <div class="px-4 pb-5 pt-1 space-y-4 border-t border-slate-800/80">
+                                    <!-- Aviso de Cobro $0 Hoy -->
+                                    <div class="p-3.5 rounded-xl bg-gradient-to-r from-[#4F46E5]/15 to-[#06B6D4]/10 border border-[#4F46E5]/30 flex items-start gap-3">
+                                        <span class="text-base shrink-0">🛡️</span>
+                                        <div class="text-xs text-slate-300 space-y-1">
+                                            <p class="font-bold text-white">
+                                                No se te hará ningún cobro hoy. Tus primeros 15 días son 100% gratis.
+                                            </p>
+                                            <p class="text-slate-400 text-[11px]">
+                                                El cobro automático del plan comenzará únicamente al finalizar tu prueba. Tokenización segura protegida por Bold.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <!-- Marcas Aceptadas para pagos recurrentes -->
+                                    <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                                        <span>Tarjetas autorizadas para suscripción:</span>
+                                        <div class="flex items-center gap-1.5 font-bold">
+                                            <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">Visa</span>
+                                            <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">Mastercard</span>
+                                            <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">Amex</span>
+                                            <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">Diners</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Número de Tarjeta y Marca Detectada -->
+                                    <div>
+                                        <div class="flex items-center justify-between mb-1.5">
+                                            <label for="card_number" class="text-xs font-bold text-slate-200">
+                                                Número de Tarjeta (Crédito o Débito)
+                                            </label>
+                                            {#if detectedBrand}
+                                                <span class="text-[11px] font-extrabold text-[#06B6D4] flex items-center gap-1">
+                                                    <span>💳</span> {detectedBrand}
+                                                </span>
+                                            {/if}
+                                        </div>
+                                        <input
+                                            id="card_number"
+                                            type="text"
+                                            inputmode="numeric"
+                                            maxlength="23"
+                                            value={form.card_number}
+                                            oninput={formatCardNumber}
+                                            placeholder="4000 1234 5678 9010"
+                                            class="w-full bg-[#0B0F17] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/25 transition-all"
+                                        />
+                                        {#if errors.card_number}
+                                            <p class="text-[11px] text-rose-400 font-semibold mt-1.5 flex items-center gap-1">
+                                                <span>⚠️</span> {errors.card_number}
+                                            </p>
+                                        {/if}
+                                    </div>
+
+                                    <!-- Nombre del Titular -->
+                                    <div>
+                                        <label for="cardholder_name" class="block text-xs font-bold text-slate-200 mb-1.5">
+                                            Nombre del Titular (Como aparece en la tarjeta)
+                                        </label>
+                                        <input
+                                            id="cardholder_name"
+                                            type="text"
+                                            bind:value={form.cardholder_name}
+                                            placeholder="ej. CARLOS MENDOZA"
+                                            class="w-full bg-[#0B0F17] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/25 transition-all"
+                                        />
+                                        {#if errors.cardholder_name}
+                                            <p class="text-[11px] text-rose-400 font-semibold mt-1.5 flex items-center gap-1">
+                                                <span>⚠️</span> {errors.cardholder_name}
+                                            </p>
+                                        {/if}
+                                    </div>
+
+                                    <!-- Expiración y CVV -->
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <div>
+                                            <label for="exp_month" class="block text-xs font-bold text-slate-200 mb-1.5">
+                                                Mes (MM)
+                                            </label>
+                                            <input
+                                                id="exp_month"
+                                                type="text"
+                                                inputmode="numeric"
+                                                maxlength="2"
+                                                bind:value={form.expiration_month}
+                                                placeholder="12"
+                                                class="w-full bg-[#0B0F17] border border-slate-700 rounded-xl px-3 py-3 text-sm text-center text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/25 transition-all"
+                                            />
+                                            {#if errors.expiration_month}
+                                                <p class="text-[10px] text-rose-400 font-semibold mt-1">
+                                                    {errors.expiration_month}
+                                                </p>
+                                            {/if}
+                                        </div>
+
+                                        <div>
+                                            <label for="exp_year" class="block text-xs font-bold text-slate-200 mb-1.5">
+                                                Año (AA / AAAA)
+                                            </label>
+                                            <input
+                                                id="exp_year"
+                                                type="text"
+                                                inputmode="numeric"
+                                                maxlength="4"
+                                                bind:value={form.expiration_year}
+                                                placeholder="2028"
+                                                class="w-full bg-[#0B0F17] border border-slate-700 rounded-xl px-3 py-3 text-sm text-center text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/25 transition-all"
+                                            />
+                                            {#if errors.expiration_year}
+                                                <p class="text-[10px] text-rose-400 font-semibold mt-1">
+                                                    {errors.expiration_year}
+                                                </p>
+                                            {/if}
+                                        </div>
+
+                                        <div>
+                                            <label for="cvv" class="block text-xs font-bold text-slate-200 mb-1.5">
+                                                CVV
+                                            </label>
+                                            <input
+                                                id="cvv"
+                                                type="password"
+                                                inputmode="numeric"
+                                                maxlength="4"
+                                                bind:value={form.cvv}
+                                                placeholder="•••"
+                                                class="w-full bg-[#0B0F17] border border-slate-700 rounded-xl px-3 py-3 text-sm text-center text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/25 transition-all"
+                                            />
+                                            {#if errors.cvv}
+                                                <p class="text-[10px] text-rose-400 font-semibold mt-1">
+                                                    {errors.cvv}
+                                                </p>
+                                            {/if}
+                                        </div>
+                                    </div>
+                                </div>
+                            {/if}
                         </div>
                     </div>
 
