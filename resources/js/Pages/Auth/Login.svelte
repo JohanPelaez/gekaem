@@ -1,5 +1,5 @@
 <script>
-    import { router } from '@inertiajs/svelte';
+    import { router, Link } from '@inertiajs/svelte';
     import BrandLogo from '../../Components/BrandLogo.svelte';
 
     let { canDemoLogin = false, errors = {} } = $props();
@@ -113,6 +113,15 @@
                     {/if}
                 </button>
             </form>
+
+            <div class="pt-2 text-center">
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                    ¿Aún no tienes un taller registrado?
+                    <Link href="/register" class="font-bold text-[#4F46E5] dark:text-[#06B6D4] hover:underline ml-1">
+                        Crear taller gratis
+                    </Link>
+                </p>
+            </div>
 
             <!-- ACCESO RÁPIDO DE DEMOSTRACIÓN (SOLO LOCAL) -->
             {#if canDemoLogin}

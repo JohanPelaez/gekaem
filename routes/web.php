@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Admin\AdminManagementController;
+use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\KanbanController;
@@ -26,7 +27,8 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/demo-login', [AuthController::class, 'demoLogin'])->name('demo-login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-Route::get('/register', fn () => redirect()->route('login'))->name('register');
+Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
+Route::post('/register', [RegisteredUserController::class, 'store']);
 
 // Ruta Principal Pública (Landing Comercial gipPyme)
 Route::get('/', fn () => Inertia::render('Welcome', [

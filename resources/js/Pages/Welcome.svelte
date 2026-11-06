@@ -504,7 +504,7 @@
         >
             <!-- Izquierda: Componente BrandLogo en versión compacta horizontal -->
             <div class="flex items-center">
-                <a
+                <Link
                     href="/"
                     class="focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] rounded-xl transition-transform active:scale-95"
                     aria-label="gipPyme Inicio"
@@ -514,7 +514,7 @@
                         size="md"
                         showSubtitle={true}
                     />
-                </a>
+                </Link>
             </div>
 
             <!-- Centro (Desktop): Enlaces de navegación suaves -->
@@ -2315,7 +2315,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8">
                 <!-- Columna 1 y 2: Identidad gipPyme + Mensaje Comercial Principal -->
                 <div class="lg:col-span-2 space-y-4 text-left">
-                    <a
+                    <Link
                         href="/"
                         class="inline-block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] rounded-xl"
                         aria-label="gipPyme Inicio"
@@ -2325,7 +2325,7 @@
                             size="md"
                             showSubtitle={true}
                         />
-                    </a>
+                    </Link>
                     
                     <p class="text-sm font-medium text-slate-700 dark:text-slate-300 max-w-sm leading-relaxed">
                         Gestor Inteligente de Pedidos — Hecho con pasión para las pymes de Latinoamérica.
