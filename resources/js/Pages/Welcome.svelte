@@ -348,6 +348,38 @@
         activeKanbanTab = index;
     }
 
+    // =========================================================================
+    // Estado reactivo de Preguntas Frecuentes (FAQ) (#faq)
+    // =========================================================================
+    let openFaqIndex = $state(0);
+
+    const faqs = [
+        {
+            question: "¿Qué pasa cuando terminan los 15 días de prueba gratis?",
+            answer:
+                "Tu taller se pausa de forma segura hasta que elijas un plan, no perdemos tus datos. Toda tu información de pedidos, clientes, recetas BOM e inventario queda protegida y disponible para reactivarse en cualquier momento cuando decidas continuar.",
+        },
+        {
+            question: "¿Puedo agregar más usuarios después?",
+            answer:
+                "Sí, en el Plan Estándar puedes sumar usuarios extra por solo $15.000 COP/mes cada uno según crezca tu equipo de trabajo. En el Plan Taller Pro ya cuentas con hasta 5 usuarios incluidos en la tarifa base.",
+        },
+        {
+            question: "¿Cómo se realizan los pagos en Colombia?",
+            answer:
+                "Es 100% compatible con transferencias bancarias locales (Bancolombia, Davivienda, etc.), billeteras móviles como Nequi y Daviplata, y pasarelas de pago seguras con tarjetas débito/crédito y PSE en línea.",
+        },
+        {
+            question: "¿Necesito instalar algo en mis computadores?",
+            answer:
+                "No, gipPyme funciona 100% en la nube desde cualquier navegador web (Chrome, Edge, Safari, Firefox) en computadores, tablets o teléfonos móviles, sin necesidad de instalaciones técnicas ni servidores locales.",
+        },
+    ];
+
+    function toggleFaq(index) {
+        openFaqIndex = openFaqIndex === index ? null : index;
+    }
+
     // Estado del menú móvil y scroll
     let mobileMenuOpen = $state(false);
     let isScrolled = $state(false);
@@ -1928,133 +1960,345 @@
     </section>
 
     <!-- ========================================================================= -->
-    <!-- 6. SECCIÓN DE PRECIOS SIMPLE Y TRANSPARENTE                               -->
+    <!-- 6. SECCIÓN 4: PLANES Y PRECIOS TRANSPARENTES (#precios)                   -->
     <!-- ========================================================================= -->
     <section
         id="precios"
-        class="py-20 sm:py-28 border-t border-slate-200/70 dark:border-[#26334D]/70 bg-white/40 dark:bg-[#0B0F17]/40"
+        class="py-20 sm:py-28 border-t border-slate-200/70 dark:border-[#26334D]/70 bg-gradient-to-b from-slate-50/60 via-white to-slate-50/80 dark:from-[#0B0F17]/80 dark:via-[#0E1522] dark:to-[#0B0F17] relative overflow-hidden"
     >
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <span
-                class="text-xs font-bold uppercase tracking-wider text-[#4F46E5] dark:text-[#06B6D4]"
-            >
-                Planes Transparentes
-            </span>
-            <h2
-                class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mt-2"
-            >
-                Empieza gratis y escala con tu taller
-            </h2>
-            <p
-                class="mt-4 text-base text-[#64748B] dark:text-slate-300 max-w-2xl mx-auto"
-            >
-                Sin tarjetas de crédito obligatorias para probar. Configura tu
-                taller en 2 minutos.
-            </p>
-
+        <!-- Destellos sutiles de fondo en Azul Eléctrico y Cian -->
+        <div class="absolute inset-0 pointer-events-none -z-10">
             <div
-                class="mt-14 max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 text-left"
-            >
-                <!-- Plan Emprendedor / Gratuito -->
+                class="absolute top-1/3 left-1/2 -translate-x-3/4 w-[500px] h-[500px] bg-[#4F46E5]/10 dark:bg-[#4F46E5]/15 rounded-full blur-3xl opacity-60"
+            ></div>
+            <div
+                class="absolute bottom-20 left-1/2 -translate-x-1/4 w-[450px] h-[450px] bg-[#06B6D4]/10 dark:bg-[#06B6D4]/15 rounded-full blur-3xl opacity-60"
+            ></div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
+            <!-- 1. Cabecera de la Sección -->
+            <div class="max-w-3xl mx-auto">
                 <div
-                    class="p-8 rounded-3xl bg-white dark:bg-[#151D2C] border border-slate-200/90 dark:border-[#26334D] shadow-sm flex flex-col justify-between"
+                    class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#4F46E5]/10 dark:bg-[#4F46E5]/20 border border-[#4F46E5]/30 text-xs font-bold text-[#4F46E5] dark:text-[#818CF8] uppercase tracking-wider mb-4 shadow-sm"
+                >
+                    <span>💎 PLANES Y PRECIOS TRANSPARENTES</span>
+                </div>
+
+                <h2
+                    class="font-bold tracking-tight text-3xl sm:text-4xl text-slate-900 dark:text-white leading-tight"
+                >
+                    Invierte en el control de tu taller, no en comisiones ocultas
+                </h2>
+
+                <p
+                    class="mt-4 text-base sm:text-lg text-[#64748B] dark:text-slate-300 leading-relaxed font-normal"
+                >
+                    Empieza con 15 días de prueba gratis total. Sin tarjetas de crédito, sin ataduras y con acceso a todos los módulos desde el primer minuto.
+                </p>
+            </div>
+
+            <!-- 2. Grid de Tarjetas de Precios Destacadas -->
+            <div
+                class="mt-14 sm:mt-16 max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch text-left"
+            >
+                <!-- Opción A — Plan Flexible (Por Usuario) -->
+                <div
+                    class="p-8 sm:p-9 rounded-3xl bg-white dark:bg-[#151D2C] border border-slate-200/90 dark:border-[#26334D] shadow-xl shadow-slate-900/5 dark:shadow-black/40 flex flex-col justify-between relative hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover:-translate-y-1"
                 >
                     <div>
+                        <!-- Etiqueta del Plan -->
                         <span
-                            class="text-xs font-bold uppercase tracking-wider text-slate-400"
-                            >Prueba & Arranque</span
+                            class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                         >
+                            Para talleres independientes y pequeños negocios
+                        </span>
+
+                        <!-- Título del Plan -->
                         <h3
-                            class="text-2xl font-bold text-slate-900 dark:text-white mt-1"
+                            class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1.5"
                         >
-                            Plan Taller Semilla
+                            Plan Estándar
                         </h3>
-                        <div class="mt-4 flex items-baseline gap-1">
-                            <span
-                                class="text-4xl font-extrabold text-slate-900 dark:text-white"
-                                >$0</span
-                            >
-                            <span class="text-xs text-slate-500"
-                                >/ para siempre</span
-                            >
+
+                        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2">
+                            La solución flexible para arrancar con orden absoluto en tus pedidos, catálogo y producción.
+                        </p>
+
+                        <!-- Precios del Plan -->
+                        <div class="mt-6 pt-6 border-t border-slate-100 dark:border-[#26334D]/70">
+                            <div class="flex items-baseline gap-2">
+                                <span
+                                    class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white"
+                                >
+                                    $30.000 COP
+                                </span>
+                                <span class="text-sm font-bold text-slate-500 dark:text-slate-400">
+                                    / mes
+                                </span>
+                            </div>
+
+                            <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                                <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#1E293B] font-semibold text-slate-700 dark:text-slate-300">
+                                    (Dueño)
+                                </span>
+                                <span class="text-slate-400 dark:text-slate-500">+</span>
+                                <span class="text-slate-900 dark:text-white font-bold">
+                                    $15.000 COP
+                                </span>
+                                <span>/ mes (Usuarios extra)</span>
+                            </div>
                         </div>
-                        <ul
-                            class="mt-6 space-y-3 text-sm text-slate-600 dark:text-slate-300"
-                        >
-                            <li class="flex items-center gap-2">
-                                ✓ Hasta 50 pedidos activos
+
+                        <!-- Características Incluidas -->
+                        <ul class="mt-7 space-y-3.5 text-sm text-slate-700 dark:text-slate-200">
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span class="font-medium"><strong>15 días</strong> de prueba gratis</span>
                             </li>
-                            <li class="flex items-center gap-2">
-                                ✓ Tablero Kanban completo
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span>Módulos de <strong>Pedidos, Clientes y Catálogo</strong></span>
                             </li>
-                            <li class="flex items-center gap-2">
-                                ✓ Catálogo y Variantes
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span>Tablero <strong>Kanban por flujos</strong></span>
                             </li>
-                            <li class="flex items-center gap-2">
-                                ✓ Control de abonos y saldos
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span><strong>Recetas BOM</strong> y control de inventario</span>
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span>Generador de <strong>Códigos de Barras</strong></span>
                             </li>
                         </ul>
                     </div>
-                    <Link
-                        href="/register"
-                        class="mt-8 w-full py-3 rounded-xl font-bold text-sm text-center border border-slate-300 dark:border-[#26334D] text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-[#1f293d] transition-colors block"
-                    >
-                        Comenzar Gratis
-                    </Link>
+
+                    <!-- Botón CTA Plan Estándar -->
+                    <div class="mt-8 pt-4">
+                        <Link
+                            href="/register"
+                            class="w-full py-3.5 rounded-xl font-bold text-sm text-center border-2 border-slate-300 dark:border-[#26334D] text-slate-800 dark:text-white bg-slate-50/80 dark:bg-[#1E293B]/60 hover:bg-slate-100 dark:hover:bg-[#1E293B] hover:border-slate-400 dark:hover:border-slate-500 shadow-sm transition-all duration-200 block cursor-pointer"
+                        >
+                            Empezar Prueba Gratis
+                        </Link>
+                    </div>
                 </div>
 
-                <!-- Plan Taller Pro -->
+                <!-- Opción B — Plan Taller Pro (El más recomendado / Destacado) -->
                 <div
-                    class="p-8 rounded-3xl bg-gradient-to-b from-indigo-50/50 to-white dark:from-[#1E293B] dark:to-[#151D2C] border-2 border-[#4F46E5] shadow-xl shadow-[#4F46E5]/10 flex flex-col justify-between relative"
+                    class="p-8 sm:p-9 rounded-3xl bg-gradient-to-b from-indigo-50/60 via-white to-white dark:from-[#172033] dark:via-[#151D2C] dark:to-[#151D2C] border-2 border-[#4F46E5] shadow-2xl shadow-[#4F46E5]/20 dark:shadow-[#4F46E5]/15 ring-4 ring-[#4F46E5]/10 flex flex-col justify-between relative hover:-translate-y-1 transition-all duration-300"
                 >
+                    <!-- Etiqueta Flotante Destacada -->
                     <span
-                        class="absolute -top-3.5 right-6 px-3 py-1 rounded-full text-[11px] font-bold text-white bg-gradient-to-r from-[#4F46E5] to-[#06B6D4]"
+                        class="absolute -top-4 right-6 sm:right-8 px-4 py-1.5 rounded-full text-xs font-extrabold text-white bg-gradient-to-r from-[#4F46E5] via-[#3B82F6] to-[#06B6D4] shadow-lg shadow-[#4F46E5]/30 flex items-center gap-1.5"
                     >
-                        Recomendado para Talleres
+                        <span>🔥</span>
+                        <span>¡Más Popular / Mayor Ahorro!</span>
                     </span>
+
                     <div>
+                        <!-- Etiqueta del Plan -->
                         <span
-                            class="text-xs font-bold uppercase tracking-wider text-[#4F46E5] dark:text-[#06B6D4]"
-                            >Producción Continua</span
+                            class="text-xs font-bold uppercase tracking-wider text-[#4F46E5] dark:text-[#818CF8]"
                         >
+                            Ideal para talleres en crecimiento con equipo operativo
+                        </span>
+
+                        <!-- Título del Plan -->
                         <h3
-                            class="text-2xl font-bold text-slate-900 dark:text-white mt-1"
+                            class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1.5"
                         >
                             Plan Taller Pro
                         </h3>
-                        <div class="mt-4 flex items-baseline gap-1">
-                            <span
-                                class="text-4xl font-extrabold text-slate-900 dark:text-white"
-                                >$19</span
-                            >
-                            <span class="text-xs text-slate-500">USD / mes</span
-                            >
+
+                        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2">
+                            La potencia completa para talleres con múltiples trabajadores y alto volumen de despachos.
+                        </p>
+
+                        <!-- Precios del Plan -->
+                        <div class="mt-6 pt-6 border-t border-indigo-100 dark:border-[#26334D]">
+                            <div class="flex items-baseline gap-2">
+                                <span
+                                    class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white"
+                                >
+                                    $75.000 COP
+                                </span>
+                                <span class="text-sm font-bold text-slate-500 dark:text-slate-400">
+                                    / mes
+                                </span>
+                            </div>
+
+                            <!-- Subtítulo del Precio -->
+                            <div class="mt-2 flex items-center gap-2 text-xs font-semibold text-[#4F46E5] dark:text-[#06B6D4]">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#4F46E5]/10 dark:bg-[#4F46E5]/20 font-bold border border-[#4F46E5]/20">
+                                    👥 Incluye hasta 5 Usuarios en total
+                                </span>
+                            </div>
                         </div>
-                        <ul
-                            class="mt-6 space-y-3 text-sm text-slate-600 dark:text-slate-300"
-                        >
-                            <li class="flex items-center gap-2">
-                                ✓ <strong>Pedidos Ilimitados</strong>
+
+                        <!-- Características Incluidas -->
+                        <ul class="mt-7 space-y-3.5 text-sm text-slate-700 dark:text-slate-200">
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span class="font-medium"><strong>15 días</strong> de prueba gratis</span>
                             </li>
-                            <li class="flex items-center gap-2">
-                                ✓ <strong>Múltiples Flujos Kanban</strong>
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#4F46E5]/15 border border-[#4F46E5]/40 text-[#4F46E5] dark:text-[#818CF8] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span><strong>Hasta 5 usuarios simultáneos</strong> (Dueño + 4 operarios)</span>
                             </li>
-                            <li class="flex items-center gap-2">
-                                ✓ <strong>Recetas BOM y Kardex</strong>
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span><strong>Ahorro del 50%</strong> en usuarios adicionales</span>
                             </li>
-                            <li class="flex items-center gap-2">
-                                ✓ Códigos de barras y escaneo
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span><strong>Tableros Kanban ilimitados</strong> y múltiples flujos</span>
                             </li>
-                            <li class="flex items-center gap-2">
-                                ✓ Múltiples trabajadores en taller
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span><strong>Kardex de Materia Prima</strong> y Proveedores (Lead Time)</span>
+                            </li>
+                            <li class="flex items-center gap-3">
+                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
+                                    ✓
+                                </span>
+                                <span><strong>Soporte prioritario</strong> por WhatsApp</span>
                             </li>
                         </ul>
                     </div>
+
+                    <!-- Botón CTA Plan Taller Pro (Gradiente Sólido) -->
+                    <div class="mt-8 pt-4">
+                        <Link
+                            href="/register?plan=pro"
+                            class="w-full py-3.5 rounded-xl font-bold text-sm text-center text-white bg-gradient-to-r from-[#4F46E5] via-[#4338CA] to-[#06B6D4] hover:from-[#4338CA] hover:to-[#0891B2] shadow-xl shadow-[#4F46E5]/30 hover:shadow-[#4F46E5]/45 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 block cursor-pointer"
+                        >
+                            Elegir Taller Pro →
+                        </Link>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Micro-garantías de Tranquilidad Comercial -->
+            <div
+                class="mt-12 flex flex-wrap items-center justify-center gap-y-2 gap-x-8 text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400"
+            >
+                <span class="flex items-center gap-2">
+                    <span class="text-emerald-500 font-bold">🔒</span> Sin tarjeta de crédito requerida
+                </span>
+                <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">•</span>
+                <span class="flex items-center gap-2">
+                    <span class="text-[#06B6D4] font-bold">⚡</span> Activación inmediata en 2 minutos
+                </span>
+                <span class="text-slate-300 dark:text-slate-700 hidden sm:inline">•</span>
+                <span class="flex items-center gap-2">
+                    <span class="text-[#4F46E5] font-bold">🛡️</span> Cancela o cambia de plan cuando quieras
+                </span>
+            </div>
+
+            <!-- ================================================================= -->
+            <!-- 3. SECCIÓN DE PREGUNTAS FRECUENTES (FAQ) RÁPIDA                   -->
+            <!-- ================================================================= -->
+            <div class="mt-20 sm:mt-28 max-w-3xl mx-auto text-left">
+                <div class="text-center mb-10">
+                    <div
+                        class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3"
+                    >
+                        <span>❓ RESOLVEMOS TUS DUDAS</span>
+                    </div>
+                    <h3
+                        class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white"
+                    >
+                        Preguntas Frecuentes de Talleres y Pymes
+                    </h3>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                        Respuestas claras para que arranques tu prueba con total confianza.
+                    </p>
+                </div>
+
+                <div class="space-y-3.5">
+                    {#each faqs as faq, idx}
+                        <div
+                            class="rounded-2xl border transition-all duration-200 overflow-hidden {openFaqIndex === idx
+                                ? 'border-[#4F46E5] bg-white dark:bg-[#151D2C] shadow-md shadow-[#4F46E5]/10'
+                                : 'border-slate-200/90 dark:border-[#26334D] bg-white/70 dark:bg-[#151D2C]/60 hover:border-slate-300 dark:hover:border-slate-600'}"
+                        >
+                            <button
+                                type="button"
+                                onclick={() => toggleFaq(idx)}
+                                class="w-full px-5 sm:px-6 py-4.5 text-left font-bold text-sm sm:text-base text-slate-900 dark:text-white flex items-center justify-between gap-4 cursor-pointer focus:outline-none"
+                                aria-expanded={openFaqIndex === idx}
+                            >
+                                <span class="flex items-center gap-3">
+                                    <span
+                                        class="text-[#4F46E5] dark:text-[#06B6D4] text-xs font-mono font-bold"
+                                    >
+                                        0{idx + 1}.
+                                    </span>
+                                    <span>{faq.question}</span>
+                                </span>
+                                <span
+                                    class="w-6 h-6 rounded-full bg-slate-100 dark:bg-[#0B0F17] flex items-center justify-center text-xs text-slate-500 dark:text-slate-400 shrink-0 transition-transform duration-200 {openFaqIndex === idx
+                                        ? 'rotate-180 bg-[#4F46E5]/10 text-[#4F46E5] dark:text-[#06B6D4]'
+                                        : ''}"
+                                >
+                                    ▼
+                                </span>
+                            </button>
+
+                            {#if openFaqIndex === idx}
+                                <div
+                                    class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed border-t border-slate-100 dark:border-[#26334D]/70"
+                                >
+                                    {faq.answer}
+                                </div>
+                            {/if}
+                        </div>
+                    {/each}
+                </div>
+
+                <!-- Tarjeta de Asesoría Directa -->
+                <div
+                    class="mt-10 p-5 rounded-2xl bg-gradient-to-r from-slate-100 via-white to-slate-100 dark:from-[#151D2C] dark:via-[#192335] dark:to-[#151D2C] border border-slate-200 dark:border-[#26334D] flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left"
+                >
+                    <div class="flex items-center gap-3.5">
+                        <span class="text-2xl sm:text-3xl shrink-0">💬</span>
+                        <div>
+                            <div class="text-sm font-bold text-slate-900 dark:text-white">
+                                ¿Tienes dudas sobre la capacidad de tu taller?
+                            </div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                Te ayudamos a configurar tus primeros flujos y estimar la carga de trabajo.
+                            </div>
+                        </div>
+                    </div>
                     <Link
                         href="/register"
-                        class="mt-8 w-full py-3 rounded-xl font-bold text-sm text-center text-white bg-[#4F46E5] hover:bg-[#4338CA] shadow-lg shadow-[#4F46E5]/25 transition-all block"
+                        class="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#4F46E5] hover:bg-[#4338CA] transition-all shrink-0 shadow-md shadow-[#4F46E5]/20 cursor-pointer"
                     >
-                        Probar Pro Gratis por 14 Días
+                        Comenzar Ahora →
                     </Link>
                 </div>
             </div>
@@ -2062,55 +2306,179 @@
     </section>
 
     <!-- ========================================================================= -->
-    <!-- 7. FOOTER LIMPIO Y ELEGANTE                                               -->
+    <!-- 4. PIE DE PÁGINA COMERCIAL (FOOTER DE LA LANDING)                         -->
     <!-- ========================================================================= -->
     <footer
-        class="py-12 border-t border-slate-200 dark:border-[#26334D] bg-white dark:bg-[#0B0F17] text-slate-500 text-xs"
+        class="border-t border-slate-200/80 dark:border-[#26334D] bg-white dark:bg-[#0B0F17] text-slate-600 dark:text-slate-400 text-xs transition-colors duration-300"
     >
-        <div
-            class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6"
-        >
-            <div class="flex items-center gap-3">
-                <BrandLogo
-                    variant="horizontal"
-                    size="sm"
-                    showSubtitle={false}
-                />
-                <span class="text-slate-400">|</span>
-                <span
-                    >© {new Date().getFullYear()} gipPyme. Todos los derechos reservados.</span
-                >
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-16">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-8">
+                <!-- Columna 1 y 2: Identidad gipPyme + Mensaje Comercial Principal -->
+                <div class="lg:col-span-2 space-y-4 text-left">
+                    <a
+                        href="/"
+                        class="inline-block focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] rounded-xl"
+                        aria-label="gipPyme Inicio"
+                    >
+                        <BrandLogo
+                            variant="horizontal"
+                            size="md"
+                            showSubtitle={true}
+                        />
+                    </a>
+                    
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 max-w-sm leading-relaxed">
+                        Gestor Inteligente de Pedidos — Hecho con pasión para las pymes de Latinoamérica.
+                    </p>
+
+                    <p class="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed">
+                        Predicción de fechas de entrega, tableros Kanban dinámicos, recetas BOM y kardex de materia prima en una sola plataforma en la nube.
+                    </p>
+                </div>
+
+                <!-- Columna 3: Navegación de Producto -->
+                <div class="space-y-3 text-left">
+                    <h5 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                        Producto
+                    </h5>
+                    <ul class="space-y-2 text-xs">
+                        <li>
+                            <button
+                                type="button"
+                                onclick={() => scrollToSection("producto")}
+                                class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors cursor-pointer"
+                            >
+                                Visión General
+                            </button>
+                        </li>
+                        <li>
+                            <button
+                                type="button"
+                                onclick={() => scrollToSection("escaparate-demo")}
+                                class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors cursor-pointer"
+                            >
+                                Capturas del Sistema
+                            </button>
+                        </li>
+                        <li>
+                            <button
+                                type="button"
+                                onclick={() => scrollToSection("modulos")}
+                                class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors cursor-pointer"
+                            >
+                                Los 5 Módulos
+                            </button>
+                        </li>
+                        <li>
+                            <button
+                                type="button"
+                                onclick={() => scrollToSection("kanban")}
+                                class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors cursor-pointer"
+                            >
+                                Tableros Kanban
+                            </button>
+                        </li>
+                        <li>
+                            <button
+                                type="button"
+                                onclick={() => scrollToSection("precios")}
+                                class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors cursor-pointer font-semibold text-[#4F46E5] dark:text-[#818CF8]"
+                            >
+                                Planes y Precios
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Columna 4: Accesos Rápidos de Cuenta -->
+                <div class="space-y-3 text-left">
+                    <h5 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                        Tu Cuenta
+                    </h5>
+                    <ul class="space-y-2 text-xs">
+                        {#if authUser}
+                            <li>
+                                <Link
+                                    href="/dashboard"
+                                    class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors font-bold text-[#4F46E5] dark:text-[#06B6D4]"
+                                >
+                                    Ir a mi Taller →
+                                </Link>
+                            </li>
+                        {:else}
+                            <li>
+                                <Link
+                                    href="/login"
+                                    class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors"
+                                >
+                                    Iniciar Sesión
+                                </Link>
+                            </li>
+                            <li>
+                                <Link
+                                    href="/register"
+                                    class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors font-semibold text-[#4F46E5] dark:text-[#818CF8]"
+                                >
+                                    Crear Taller Gratis
+                                </Link>
+                            </li>
+                            <li>
+                                <Link
+                                    href="/register?plan=pro"
+                                    class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors"
+                                >
+                                    Elegir Plan Taller Pro
+                                </Link>
+                            </li>
+                        {/if}
+                    </ul>
+                </div>
+
+                <!-- Columna 5: Enlaces Legales y Garantías -->
+                <div class="space-y-3 text-left">
+                    <h5 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                        Legal y Seguridad
+                    </h5>
+                    <ul class="space-y-2 text-xs">
+                        <li>
+                            <span class="hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer">
+                                Términos de Servicio
+                            </span>
+                        </li>
+                        <li>
+                            <span class="hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer">
+                                Política de Privacidad
+                            </span>
+                        </li>
+                        <li>
+                            <span class="hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer">
+                                Aislamiento Multi-Tenant
+                            </span>
+                        </li>
+                        <li>
+                            <span class="hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer">
+                                Pagos Seguros en Colombia
+                            </span>
+                        </li>
+                    </ul>
+                </div>
             </div>
 
-            <div class="flex items-center gap-6">
-                <button
-                    type="button"
-                    onclick={() => scrollToSection("producto")}
-                    class="hover:text-[#4F46E5]">Inicio</button
-                >
-                <button
-                    type="button"
-                    onclick={() => scrollToSection("escaparate-demo")}
-                    class="hover:text-[#4F46E5]">Capturas</button
-                >
-                <button
-                    type="button"
-                    onclick={() => scrollToSection("modulos")}
-                    class="hover:text-[#4F46E5]">Módulos</button
-                >
-                <button
-                    type="button"
-                    onclick={() => scrollToSection("kanban")}
-                    class="hover:text-[#4F46E5]">Kanban</button
-                >
-                <Link href="/login" class="hover:text-[#4F46E5]"
-                    >Iniciar Sesión</Link
-                >
-                <Link
-                    href="/register"
-                    class="hover:text-[#4F46E5] font-semibold text-slate-800 dark:text-slate-200"
-                    >Registrarse</Link
-                >
+            <!-- Línea inferior de copyright y país -->
+            <div
+                class="mt-12 pt-8 border-t border-slate-200/70 dark:border-[#26334D] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400"
+            >
+                <div class="flex items-center gap-2">
+                    <span>© {new Date().getFullYear()} gipPyme. Todos los derechos reservados.</span>
+                </div>
+                <div class="flex items-center gap-3 text-[11px]">
+                    <span class="flex items-center gap-1.5 font-medium">
+                        <span>🇨🇴</span>
+                        <span>Colombia</span>
+                    </span>
+                    <span>•</span>
+                    <span class="text-slate-400 dark:text-slate-500">Hecho para talleres y pymes</span>
+                </div>
             </div>
         </div>
     </footer>
