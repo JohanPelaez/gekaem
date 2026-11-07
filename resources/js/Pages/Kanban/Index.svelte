@@ -24,6 +24,7 @@
         attributes = [],
         unitsOfMeasure = [],
         selectedOrderId = null,
+        currentView = null,
         errors = {},
     } = $props();
 
@@ -51,8 +52,14 @@
 
     // ID del pedido actualmente abierto en vista aislada
     let activeOrderId = $state(null);
+    // Vista general: 'kanban' (Macro Pedidos) | 'workflows' (Kanban de Flujos) | 'table' (Tabla de Tareas)
+    let generalViewMode = $state('kanban');
+    let selectedGlobalWorkflowId = $state(null);
+    let selectedGlobalOrderId = $state('');
+
     $effect(() => {
         const incomingId = selectedOrderId;
+        const incomingView = currentView;
         untrack(() => {
             if (incomingId) {
                 activeOrderId = Number(incomingId);
@@ -63,11 +70,16 @@
                     activeOrderId = Number(ordId);
                 }
             }
+            if (incomingView === 'workflows') {
+                generalViewMode = 'workflows';
+            } else if (typeof window !== 'undefined') {
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('view') === 'workflows') {
+                    generalViewMode = 'workflows';
+                }
+            }
         });
     });
-
-    // Vista general: 'kanban' (Macro Pedidos) | 'table' (Tabla de Tareas)
-    let generalViewMode = $state('kanban');
 
     // Filtros progresivos reactivos
     let filters = $state({
@@ -217,6 +229,71 @@
         if (!activeOrderWorkflow) return [];
         const stages = activeOrderWorkflow.stages ?? [];
         return [...stages].sort((a, b) => (a.position || 0) - (b.position || 0));
+    });
+
+    // Flujo activo para la vista Kanban de Flujos (Todos los Productos)
+    let currentSelectedWorkflow = $derived.by(() => {
+        if (!workflows || workflows.length === 0) return null;
+        if (selectedGlobalWorkflowId) {
+            const found = workflows.find((w) => Number(w.id) === Number(selectedGlobalWorkflowId));
+            if (found) return found;
+        }
+        return workflows.find((w) => w.is_default) || workflows[0];
+    });
+
+    // Etapas ordenadas del flujo seleccionado en modo Kanban de Flujos
+    let currentWorkflowStages = $derived.by(() => {
+        if (!currentSelectedWorkflow) return [];
+        const stages = currentSelectedWorkflow.stages ?? currentSelectedWorkflow.workflow_stages ?? [];
+        return [...stages].sort((a, b) => (a.position || 0) - (b.position || 0));
+    });
+
+    // Todas las tareas de todos los pedidos activos para la vista global de flujos
+    let globalWorkflowTasks = $derived.by(() => {
+        if (!currentSelectedWorkflow) return [];
+        const wfId = Number(currentSelectedWorkflow.id);
+        const tasks = [];
+
+        for (const order of localOrders) {
+            if (order.derived_status === 'delivered') continue;
+            if (selectedGlobalOrderId && Number(order.id) !== Number(selectedGlobalOrderId)) {
+                continue;
+            }
+
+            const ordTasks = getOrderTasks(order);
+            for (const task of ordTasks) {
+                const taskWfId = getTaskWorkflowId(task);
+                if (taskWfId === wfId) {
+                    tasks.push({
+                        ...task,
+                        order_id: order.id,
+                        order_number: order.order_number,
+                        customer_name: order.customer?.name ?? 'Cliente',
+                        order_status_name: order.order_status?.name ?? order.derived_status,
+                        committed_delivery_at: order.committed_delivery_at,
+                    });
+                }
+            }
+        }
+
+        return tasks;
+    });
+
+    // Tareas agrupadas por stage_id en el flujo actual
+    let tasksByStageId = $derived.by(() => {
+        const map = new Map();
+        for (const stage of currentWorkflowStages) {
+            map.set(Number(stage.id), []);
+        }
+        for (const task of globalWorkflowTasks) {
+            const sId = Number(task.current_stage_id);
+            if (map.has(sId)) {
+                map.get(sId).push(task);
+            } else if (currentWorkflowStages.length > 0) {
+                map.get(Number(currentWorkflowStages[0].id))?.push(task);
+            }
+        }
+        return map;
     });
 
     // Tareas del pedido que corresponden al flujo seleccionado
@@ -556,11 +633,17 @@
     }
 
     function moveTask(taskId, targetStageId) {
-        const targetStage = activeOrderStages.find((s) => Number(s.id) === Number(targetStageId));
+        const allStages = [
+            ...(activeOrderStages || []),
+            ...(currentWorkflowStages || []),
+            ...workflows.flatMap((w) => w.stages || w.workflow_stages || []),
+        ];
+        const targetStage = allStages.find((s) => Number(s.id) === Number(targetStageId));
         if (!targetStage) return;
 
-        if (activeOrder) {
-            const tasks = getOrderTasks(activeOrder);
+        // Actualizar en todas las instancias de localOrders
+        for (const ord of localOrders) {
+            const tasks = getOrderTasks(ord);
             for (const task of tasks) {
                 if (task.id === taskId) {
                     task.current_stage_id = targetStageId;
@@ -752,26 +835,33 @@
                         </button>
                     {/if}
 
-                    <!-- SELECTOR DE VISTA: TABLERO / TABLA -->
+                    <!-- SELECTOR DE VISTA: TABLERO MACRO / KANBAN DE FLUJOS / TABLA DE PRODUCCIÓN -->
                     <div class="bg-slate-100 dark:bg-[#0B0F17] p-1 rounded-xl border border-slate-200 dark:border-[#26334D] flex items-center shadow-sm">
                         <button
                             type="button"
                             onclick={() => setGeneralViewMode('kanban')}
                             class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all {generalViewMode === 'kanban' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 font-bold shadow-sm border border-slate-200 dark:border-[#4F46E5]/30' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}"
+                            title="Tablero Macro de Pedidos por estados"
                         >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                            </svg>
+                            <span>🗂️</span>
                             <span>Tablero Macro</span>
+                        </button>
+                        <button
+                            type="button"
+                            onclick={() => setGeneralViewMode('workflows')}
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all {generalViewMode === 'workflows' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 font-bold shadow-sm border border-slate-200 dark:border-[#4F46E5]/30' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}"
+                            title="Kanban de Flujos de Trabajo con todos los productos de los pedidos"
+                        >
+                            <span>🔧</span>
+                            <span>Kanban de Flujos</span>
                         </button>
                         <button
                             type="button"
                             onclick={() => setGeneralViewMode('table')}
                             class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all {generalViewMode === 'table' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 font-bold shadow-sm border border-slate-200 dark:border-[#4F46E5]/30' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}"
+                            title="Listado detallado de todas las tareas de producción"
                         >
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                            </svg>
+                            <span>📋</span>
                             <span>Tabla de Producción</span>
                         </button>
                     </div>
@@ -898,6 +988,8 @@
                     <span class="text-[#64748B] dark:text-slate-400 text-[11px]">
                         {#if generalViewMode === 'table'}
                             {filteredTableTasks.length} producto(s) en {filteredOrders.length} pedido(s)
+                        {:else if generalViewMode === 'workflows'}
+                            {globalWorkflowTasks.length} producto(s) en {currentWorkflowStages.length} etapas del flujo
                         {:else}
                             {filteredOrders.length} pedido(s) encontrado(s) en {localStatuses.length} columnas
                         {/if}
@@ -1020,7 +1112,7 @@
                                                     {@const stage = getTaskStage(task)}
                                                     <div class="flex items-center justify-between text-[11px] gap-2">
                                                         <span class="text-slate-700 dark:text-slate-300 truncate font-medium flex-1" title={task.item_name_snapshot}>
-                                                            {task.quantity > 1 ? `${task.quantity}x ` : ''}{task.item_name_snapshot}
+                                                            {Math.round(Number(task.quantity)) > 1 ? `${Math.round(Number(task.quantity))}x ` : ''}{task.item_name_snapshot}
                                                         </span>
                                                         {#if stage}
                                                             <span
@@ -1063,7 +1155,147 @@
                     {/each}
                 </div>
 
-            <!-- VISTA B: TABLA DE PRODUCCIÓN -->
+            <!-- VISTA B: KANBAN DE FLUJOS (TODOS LOS PRODUCTOS DE TODOS LOS PEDIDOS ACTIVOS) -->
+            {:else if generalViewMode === 'workflows'}
+                <div class="space-y-4">
+                    <!-- BARRA SUPERIOR DE FILTROS EN TIEMPO REAL DEL KANBAN DE FLUJOS -->
+                    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-300 border border-[#4F46E5]/30 flex items-center gap-1.5 shadow-xs">
+                                <span>🔧</span>
+                                <span>Flujo de Trabajo: {currentSelectedWorkflow?.name || 'Flujo de Taller'}</span>
+                            </span>
+                            <span class="text-xs text-[#64748B] dark:text-slate-400">
+                                {globalWorkflowTasks.length} producto(s) en {currentWorkflowStages.length} etapas
+                            </span>
+                        </div>
+
+                        <!-- 2 Selectores en tiempo real -->
+                        <div class="flex flex-wrap items-center gap-3 text-xs">
+                            <!-- 1. Filtrar por Tipo de Flujo de Trabajo -->
+                            <div class="flex items-center gap-2">
+                                <label for="flow-filter-wf" class="font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                                    Flujo de Trabajo:
+                                </label>
+                                <select
+                                    id="flow-filter-wf"
+                                    bind:value={selectedGlobalWorkflowId}
+                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-[#4F46E5]"
+                                >
+                                    {#each workflows as wf}
+                                        <option value={wf.id}>{wf.name} {wf.is_default ? '(Predeterminado)' : ''}</option>
+                                    {/each}
+                                </select>
+                            </div>
+
+                            <!-- 2. Filtrar por Pedido -->
+                            <div class="flex items-center gap-2">
+                                <label for="flow-filter-order" class="font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                                    Filtrar por Pedido:
+                                </label>
+                                <select
+                                    id="flow-filter-order"
+                                    bind:value={selectedGlobalOrderId}
+                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-medium focus:outline-none focus:border-[#4F46E5] max-w-[240px] truncate"
+                                >
+                                    <option value="">Todos los Pedidos</option>
+                                    {#each localOrders.filter(o => o.derived_status !== 'delivered') as ord}
+                                        <option value={ord.id}>Pedido #{ord.order_number} — {ord.customer?.name || 'Cliente'}</option>
+                                    {/each}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COLUMNAS DEL FLUJO DE TRABAJO -->
+                    <div class="flex flex-nowrap items-start gap-4 overflow-x-auto pb-4 w-full min-w-0">
+                        {#each currentWorkflowStages as stage (stage.id)}
+                            {@const stageTasks = tasksByStageId.get(Number(stage.id)) || []}
+                            {@const isOverThisStage = Number(dragOverStageId) === Number(stage.id)}
+                            <div
+                                class="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {isOverThisStage ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
+                                style="border-top: 4px solid {stage.color || '#64748b'};"
+                                ondragover={(e) => handleTaskDragOver(e, stage.id)}
+                                ondrop={(e) => handleTaskDrop(e, stage.id)}
+                                role="region"
+                                aria-label={`Etapa ${stage.name}`}
+                            >
+                                <!-- Cabecera de la Etapa -->
+                                <div class="p-3.5 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <div class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background-color: {stage.color || '#64748b'};"></div>
+                                        <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide truncate" title={stage.name}>
+                                            {stage.name}
+                                        </h3>
+                                    </div>
+                                    <span
+                                        class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold shrink-0 shadow-sm"
+                                        style="background-color: {stage.color || '#64748b'}18; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}35;"
+                                    >
+                                        {stageTasks.length}
+                                    </span>
+                                </div>
+
+                                <!-- Lista de Tarjetas de Producto / Tarea -->
+                                <div class="p-2.5 space-y-2 overflow-y-auto flex-1 min-h-[140px]">
+                                    {#if stageTasks.length === 0}
+                                        <div class="h-28 border border-dashed border-slate-300 dark:border-slate-700/60 rounded-xl flex items-center justify-center text-[11px] text-slate-400 dark:text-slate-500 italic">
+                                            Sin productos en esta etapa
+                                        </div>
+                                    {:else}
+                                        {#each stageTasks as task (task.id)}
+                                            {@const isBeingDragged = Number(draggedTaskId) === Number(task.id)}
+                                            <div
+                                                draggable="true"
+                                                ondragstart={(e) => handleTaskDragStart(e, task.id)}
+                                                onclick={() => openTaskDetailModal(task)}
+                                                onkeydown={(e) => { if (e.key === 'Enter') openTaskDetailModal(task); }}
+                                                tabindex="0"
+                                                role="button"
+                                                class="bg-white dark:bg-[#0B0F17] p-3 rounded-xl border border-slate-200 dark:border-[#26334D] shadow-xs hover:border-[#4F46E5] hover:shadow-md transition-all cursor-grab active:cursor-grabbing space-y-2 group {isBeingDragged ? 'opacity-40 scale-95' : ''}"
+                                            >
+                                                <!-- Fila 1: # Pedido y Cliente -->
+                                                <div class="flex items-center justify-between gap-2 text-xs">
+                                                    <span class="font-mono font-bold text-[#4F46E5] dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/40 text-[11px]">
+                                                        #{task.order_number}
+                                                    </span>
+                                                    <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title={task.customer_name}>
+                                                        👤 {task.customer_name}
+                                                    </span>
+                                                </div>
+
+                                                <!-- Fila 2: Nombre del Producto + Variante y Cantidad Entera -->
+                                                <div class="flex items-start justify-between gap-2">
+                                                    <h4 class="font-bold text-xs text-slate-900 dark:text-white leading-snug line-clamp-2 group-hover:text-[#4F46E5] dark:group-hover:text-sky-300 transition-colors">
+                                                        {task.item_name_snapshot}
+                                                    </h4>
+                                                    <span class="font-mono text-xs font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded shrink-0">
+                                                        {Math.round(Number(task.quantity))}x
+                                                    </span>
+                                                </div>
+
+                                                <!-- Fila 3: Tiempo estimado y Consumo de Insumos -->
+                                                <div class="flex items-center justify-between text-[11px] text-[#64748B] dark:text-slate-400 pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+                                                    <span class="font-mono text-amber-600 dark:text-amber-300 font-medium flex items-center gap-1">
+                                                        <span>⏱</span>
+                                                        <span>{task.estimated_minutes} min</span>
+                                                    </span>
+                                                    {#if task.materials_consumed}
+                                                        <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5" title="Materia prima consumida">
+                                                            ✓ Insumos
+                                                        </span>
+                                                    {/if}
+                                                </div>
+                                            </div>
+                                        {/each}
+                                    {/if}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+
+            <!-- VISTA C: TABLA DE PRODUCCIÓN -->
             {:else}
                 <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
                     <div class="overflow-x-auto">
@@ -1105,7 +1337,7 @@
                                             </td>
                                             <td class="p-3.5 text-slate-800 dark:text-slate-200">
                                                 <div class="flex items-center gap-1.5">
-                                                    <span class="font-bold text-slate-900 dark:text-white">{task.quantity}x</span>
+                                                    <span class="font-bold text-slate-900 dark:text-white">{Math.round(Number(task.quantity))}x</span>
                                                     <span>{task.item_name_snapshot}</span>
                                                 </div>
                                             </td>
@@ -1197,6 +1429,10 @@
                             <h2 class="text-xl font-bold text-slate-900 dark:text-white">
                                 Pedido #{activeOrder.order_number} — {activeOrder.customer?.name ?? 'Cliente'}
                             </h2>
+                            <span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-300 border border-[#4F46E5]/30 flex items-center gap-1.5 shadow-xs">
+                                <span>🔧</span>
+                                <span>Flujo de Trabajo: {activeOrderWorkflow?.name || 'Flujo de Taller'}</span>
+                            </span>
                             {#if hasFinancialAccess}
                                 <span class="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
                                     {formatCurrency(activeOrder.total_amount)}
@@ -1305,7 +1541,7 @@
                                                     {task.item_name_snapshot}
                                                 </h4>
                                                 <span class="font-mono text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded shrink-0">
-                                                    {task.quantity}x
+                                                    {Math.round(Number(task.quantity))}x
                                                 </span>
                                             </div>
 

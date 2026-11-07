@@ -254,35 +254,83 @@
         if (!newOptionValue.trim()) return;
         optionInlineLoading = true;
         try {
-            const res = await csrfFetch(`/quick/attributes/${attr.id}/options`, {
-                method: 'POST',
-                body: JSON.stringify({ value: newOptionValue.trim() }),
-            });
-            const created = await res.json().catch(() => ({}));
-            if (res.ok && created.id) {
-                localAttributes = localAttributes.map((a) => {
-                    if (a.id === attr.id) {
-                        return {
-                            ...a,
-                            options: [...(a.options || []), created],
-                        };
-                    }
-                    return a;
+            const rawOptions = newOptionValue.split(',').map((opt) => opt.trim()).filter(Boolean);
+            if (rawOptions.length === 0) return;
+
+            for (const val of rawOptions) {
+                const res = await csrfFetch(`/quick/attributes/${attr.id}/options`, {
+                    method: 'POST',
+                    body: JSON.stringify({ value: val }),
                 });
-                if (!productForm.grouped_options[attr.id]) {
-                    productForm.grouped_options[attr.id] = [];
+                const created = await res.json().catch(() => ({}));
+                if (res.ok && created.id) {
+                    localAttributes = localAttributes.map((a) => {
+                        if (a.id === attr.id) {
+                            return {
+                                ...a,
+                                options: [...(a.options || []), created],
+                            };
+                        }
+                        return a;
+                    });
+                    if (!productForm.grouped_options[attr.id]) {
+                        productForm.grouped_options[attr.id] = [];
+                    }
+                    if (!productForm.grouped_options[attr.id].includes(created.id)) {
+                        productForm.grouped_options[attr.id] = [...productForm.grouped_options[attr.id], created.id];
+                    }
                 }
-                if (!productForm.grouped_options[attr.id].includes(created.id)) {
-                    productForm.grouped_options[attr.id] = [...productForm.grouped_options[attr.id], created.id];
-                }
-                newOptionValue = '';
-                activeAddOptionAttrId = null;
             }
+            newOptionValue = '';
+            activeAddOptionAttrId = null;
         } catch (e) {
             console.error('Error creating inline option:', e);
         } finally {
             optionInlineLoading = false;
         }
+    }
+
+    async function handleEditSelectedProductType() {
+        const currentType = localProductTypes.find((pt) => Number(pt.id) === Number(productForm.product_type_id));
+        if (!currentType) return;
+        const newName = prompt('Editar nombre del Tipo de Producto:', currentType.name);
+        if (!newName || !newName.trim() || newName.trim() === currentType.name) return;
+
+        try {
+            const res = await csrfFetch(`/quick/product-types/${currentType.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ name: newName.trim() }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.id) {
+                localProductTypes = localProductTypes.map((pt) =>
+                    Number(pt.id) === Number(data.id) ? { ...pt, name: data.name } : pt
+                );
+            } else {
+                alert(data.message || 'Error al actualizar el tipo de producto.');
+            }
+        } catch (e) {
+            console.error('Error updating product type:', e);
+            alert('Error al actualizar el tipo de producto.');
+        }
+    }
+
+    function addNewVariantRow() {
+        productForm.variants = [
+            ...(productForm.variants || []),
+            {
+                id: null,
+                name_label: `Variante ${(productForm.variants?.length || 0) + 1}`,
+                sku: '',
+                barcode: '',
+                production_minutes_delta: 0,
+                price_override: '',
+            },
+        ];
+    }
+
+    function removeVariantRow(index) {
+        productForm.variants = productForm.variants.filter((_, i) => i !== index);
     }
 
     function addMaterialRow() {
@@ -338,6 +386,17 @@
             buffer_percentage: Number(productForm.buffer_percentage || 0),
             barcode: productForm.barcode?.trim() || null,
         };
+
+        if (product?.id && Array.isArray(productForm.variants)) {
+            payload.variants = productForm.variants.map((v) => ({
+                id: v.id || null,
+                name_label: v.name_label?.trim() || 'Variante',
+                sku: v.sku?.trim() || null,
+                barcode: v.barcode?.trim() || null,
+                production_minutes_delta: Number(v.production_minutes_delta || 0),
+                price_override: v.price_override !== '' && v.price_override !== null ? Number(v.price_override) : null,
+            }));
+        }
 
         if (asyncMode) {
             try {
@@ -428,13 +487,25 @@
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <label for="pf-type" class="font-semibold text-slate-700 dark:text-slate-300">Tipo de Producto</label>
-                            <button
-                                type="button"
-                                onclick={() => openQuickCreate('product-type')}
-                                class="text-[10px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold"
-                            >
-                                + Nuevo
-                            </button>
+                            <div class="flex items-center gap-1.5">
+                                {#if productForm.product_type_id}
+                                    <button
+                                        type="button"
+                                        onclick={handleEditSelectedProductType}
+                                        class="text-[10px] text-amber-600 dark:text-amber-400 hover:underline font-bold"
+                                        title="Renombrar Tipo de Producto"
+                                    >
+                                        ✏️ Editar
+                                    </button>
+                                {/if}
+                                <button
+                                    type="button"
+                                    onclick={() => openQuickCreate('product-type')}
+                                    class="text-[10px] text-[#4F46E5] dark:text-[#06B6D4] hover:underline font-bold"
+                                >
+                                    + Nuevo
+                                </button>
+                            </div>
                         </div>
                         <select
                             id="pf-type"
@@ -760,13 +831,13 @@
 
                                     {#if activeAddOptionAttrId === attr.id}
                                         <div class="space-y-1.5 pt-2 border-t border-slate-200 dark:border-slate-800/80">
-                                            <label for="pf-inline-opt-{attr.id}" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">Nombre de la nueva opción *</label>
+                                            <label for="pf-inline-opt-{attr.id}" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">Nombre de la nueva opción (puedes separar varias por coma) *</label>
                                             <div class="flex items-center gap-2">
                                                 <input
                                                     id="pf-inline-opt-{attr.id}"
                                                     type="text"
                                                     bind:value={newOptionValue}
-                                                    placeholder="Nueva opción (ej. XL o Verde)"
+                                                    placeholder="Ej. S, M, L, XL ó Rojo, Azul"
                                                     class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5]"
                                                     onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveOptionInline(attr); } }}
                                                 />
@@ -785,12 +856,49 @@
                             {/each}
                         </div>
                     {:else}
-                        <div class="space-y-2">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Variantes Registradas del Producto</span>
+                                <button
+                                    type="button"
+                                    onclick={addNewVariantRow}
+                                    class="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-[#4F46E5] dark:text-[#06B6D4] rounded-lg text-xs font-bold border border-indigo-200 dark:border-indigo-800/40 transition-colors"
+                                >
+                                    + Agregar Variante
+                                </button>
+                            </div>
+
+                            {#if !productForm.variants || productForm.variants.length === 0}
+                                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center text-xs text-slate-400">
+                                    No hay variantes registradas. Haz clic en "+ Agregar Variante" para añadir una.
+                                </div>
+                            {/if}
+
                             {#each productForm.variants as vRow, vIdx}
-                                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-2">
-                                    <div class="flex items-center justify-between">
-                                        <span class="font-bold text-slate-900 dark:text-white text-xs">{vRow.name_label}</span>
-                                        <span class="text-[10px] text-slate-500 font-mono">Variante #{vIdx + 1}</span>
+                                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-2.5">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <div class="flex-1">
+                                            <label for="pf-v-name-{vIdx}" class="block font-semibold text-slate-600 dark:text-slate-400 text-[10px] uppercase mb-0.5">Nombre / Atributos de la Variante *</label>
+                                            <input
+                                                id="pf-v-name-{vIdx}"
+                                                type="text"
+                                                bind:value={vRow.name_label}
+                                                placeholder="Ej. Talla M / Azul"
+                                                required
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-900 dark:text-white font-bold text-xs"
+                                            />
+                                        </div>
+                                        <div class="flex items-center gap-2 pt-3 shrink-0">
+                                            <span class="text-[10px] text-slate-500 font-mono">#{vIdx + 1}</span>
+                                            <button
+                                                type="button"
+                                                onclick={() => removeVariantRow(vIdx)}
+                                                class="px-2 py-1 text-[11px] text-rose-600 hover:text-rose-800 dark:hover:text-rose-400 bg-rose-50 dark:bg-rose-950/30 rounded border border-rose-200 dark:border-rose-900/40 transition-colors font-medium"
+                                                title="Eliminar variante"
+                                            >
+                                                🗑️ Eliminar
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
                                         <div>

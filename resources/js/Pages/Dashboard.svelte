@@ -59,6 +59,71 @@
     let currentPage = $state(1);
     const pageSize = 8;
 
+    // Configuración y personalización de columnas en Pedidos Recientes
+    let showColumnsDropdown = $state(false);
+
+    const AVAILABLE_COLUMNS = [
+        { id: 'order_id', label: 'ID Pedido', default: true },
+        { id: 'shipping_type', label: 'Modalidad de Envío', default: true },
+        { id: 'customer_name', label: 'Cliente', default: true },
+        { id: 'customer_phone', label: 'Teléfono Cliente', default: true },
+        { id: 'items', label: 'Artículos / Productos', default: true },
+        { id: 'total', label: 'Total', default: true, financial: true },
+        { id: 'paid', label: 'Abonado', default: true, financial: true },
+        { id: 'pending_balance', label: 'Saldo Pendiente', default: true, financial: true },
+        { id: 'delivery_date', label: 'Fecha de Entrega', default: true },
+        { id: 'status', label: 'Estado', default: true },
+        { id: 'actions', label: 'Acciones', default: true },
+    ];
+
+    const DEFAULT_COLUMNS = {
+        order_id: true,
+        shipping_type: true,
+        customer_name: true,
+        customer_phone: true,
+        items: true,
+        total: true,
+        paid: true,
+        pending_balance: true,
+        delivery_date: true,
+        status: true,
+        actions: true,
+    };
+
+    let visibleColumns = $state({ ...DEFAULT_COLUMNS });
+
+    $effect(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('gip_dashboard_columns');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    visibleColumns = { ...DEFAULT_COLUMNS, ...parsed };
+                }
+            } catch (e) {
+                console.error('Error loading dashboard columns:', e);
+            }
+        }
+    });
+
+    function toggleColumn(colId) {
+        visibleColumns[colId] = !visibleColumns[colId];
+        if (typeof window !== 'undefined') {
+            try {
+                localStorage.setItem('gip_dashboard_columns', JSON.stringify(visibleColumns));
+            } catch (e) {
+                console.error('Error saving dashboard columns:', e);
+            }
+        }
+    }
+
+    let activeColumnCount = $derived(
+        AVAILABLE_COLUMNS.filter((c) => {
+            if (c.financial && !hasFinancialAccess) return false;
+            return visibleColumns[c.id];
+        }).length
+    );
+
     function formatCurrency(val) {
         if (val === null || val === undefined) return '$0';
         return new Intl.NumberFormat('es-CO', {
@@ -443,6 +508,60 @@
                         <option value="delivery_date">Entrega próxima</option>
                         <option value="highest_total">Mayor total</option>
                     </select>
+
+                    <!-- Selector desplegable de Columnas Personalizadas -->
+                    <div class="relative">
+                        <button
+                            type="button"
+                            onclick={() => showColumnsDropdown = !showColumnsDropdown}
+                            class="text-xs px-3 py-1.5 bg-slate-50 dark:bg-[#0B0F17] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-200 rounded-xl focus:outline-none flex items-center gap-1.5 font-medium transition-colors"
+                            title="Personalizar columnas visibles"
+                        >
+                            <span>⚙️ Columnas</span>
+                            <svg class="w-3.5 h-3.5 text-slate-400 transition-transform {showColumnsDropdown ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        {#if showColumnsDropdown}
+                            <div
+                                class="fixed inset-0 z-20"
+                                onclick={() => showColumnsDropdown = false}
+                                aria-hidden="true"
+                            ></div>
+
+                            <div class="absolute right-0 mt-1.5 w-60 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl p-3 z-30 space-y-1.5 animate-in fade-in zoom-in-95 duration-100 text-xs">
+                                <div class="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-[#26334D]/60 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <span>Columnas Visibles</span>
+                                    <button
+                                        type="button"
+                                        onclick={() => {
+                                            visibleColumns = { ...DEFAULT_COLUMNS };
+                                            localStorage.setItem('gip_dashboard_columns', JSON.stringify(visibleColumns));
+                                        }}
+                                        class="text-[10px] text-indigo-600 dark:text-cyan-400 hover:underline normal-case font-semibold"
+                                    >
+                                        Restablecer
+                                    </button>
+                                </div>
+                                <div class="max-h-64 overflow-y-auto space-y-1 pt-1">
+                                    {#each AVAILABLE_COLUMNS as col}
+                                        {#if !col.financial || hasFinancialAccess}
+                                            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-slate-700 dark:text-slate-200 text-xs select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={visibleColumns[col.id]}
+                                                    onchange={() => toggleColumn(col.id)}
+                                                    class="rounded border-slate-300 dark:border-slate-700 text-[#4F46E5] focus:ring-[#4F46E5]"
+                                                />
+                                                <span>{col.label}</span>
+                                            </label>
+                                        {/if}
+                                    {/each}
+                                </div>
+                            </div>
+                        {/if}
+                    </div>
                 </div>
             </div>
 
@@ -451,21 +570,45 @@
                 <table class="w-full text-left text-xs">
                     <thead>
                         <tr class="bg-slate-50/70 dark:bg-[#0B0F17]/50 border-b border-slate-200 dark:border-[#26334D] text-[#64748B] dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                            <th class="px-4 py-3">ID Pedido</th>
-                            <th class="px-4 py-3">Cliente</th>
-                            <th class="px-4 py-3">Artículos</th>
-                            {#if hasFinancialAccess}
+                            {#if visibleColumns.order_id}
+                                <th class="px-4 py-3">ID Pedido</th>
+                            {/if}
+                            {#if visibleColumns.shipping_type}
+                                <th class="px-4 py-3">Modalidad</th>
+                            {/if}
+                            {#if visibleColumns.customer_name}
+                                <th class="px-4 py-3">Cliente</th>
+                            {/if}
+                            {#if visibleColumns.customer_phone}
+                                <th class="px-4 py-3">Teléfono</th>
+                            {/if}
+                            {#if visibleColumns.items}
+                                <th class="px-4 py-3">Artículos</th>
+                            {/if}
+                            {#if hasFinancialAccess && visibleColumns.total}
                                 <th class="px-4 py-3">Total</th>
                             {/if}
-                            <th class="px-4 py-3">Entrega</th>
-                            <th class="px-4 py-3">Estado</th>
-                            <th class="px-4 py-3 text-right">Acciones</th>
+                            {#if hasFinancialAccess && visibleColumns.paid}
+                                <th class="px-4 py-3">Abonado</th>
+                            {/if}
+                            {#if hasFinancialAccess && visibleColumns.pending_balance}
+                                <th class="px-4 py-3">Saldo</th>
+                            {/if}
+                            {#if visibleColumns.delivery_date}
+                                <th class="px-4 py-3">Entrega</th>
+                            {/if}
+                            {#if visibleColumns.status}
+                                <th class="px-4 py-3">Estado</th>
+                            {/if}
+                            {#if visibleColumns.actions}
+                                <th class="px-4 py-3 text-right">Acciones</th>
+                            {/if}
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-200">
                         {#if paginatedOrders.length === 0}
                             <tr>
-                                <td colspan={hasFinancialAccess ? 7 : 6} class="px-4 py-12 text-center text-slate-400">
+                                <td colspan={activeColumnCount || 1} class="px-4 py-12 text-center text-slate-400">
                                     <div class="flex flex-col items-center justify-center gap-2">
                                         <svg class="w-8 h-8 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -480,91 +623,123 @@
                                 {@const tasks = order.productionTasks || order.tasks || []}
                                 <tr class="border-b border-slate-100 dark:border-[#26334D]/60 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                     <!-- ID Pedido -->
-                                    <td class="px-4 py-3.5 whitespace-nowrap">
-                                        <div class="flex items-center gap-2">
+                                    {#if visibleColumns.order_id}
+                                        <td class="px-4 py-3.5 whitespace-nowrap">
                                             <span class="font-mono font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-[#0B0F17] px-2 py-0.5 rounded-lg border border-slate-200 dark:border-[#26334D]">
                                                 #{order.order_number}
                                             </span>
+                                        </td>
+                                    {/if}
+
+                                    <!-- Modalidad de Envío -->
+                                    {#if visibleColumns.shipping_type}
+                                        <td class="px-4 py-3.5 whitespace-nowrap">
                                             {#if order.shipping_type === 'contraentrega'}
-                                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" title="Pago Contraentrega">
+                                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium" title="Pago Contraentrega">
                                                     Contraentrega
                                                 </span>
+                                            {:else if order.shipping_type}
+                                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 capitalize">
+                                                    {order.shipping_type}
+                                                </span>
+                                            {:else}
+                                                <span class="text-[11px] text-slate-400">Estándar</span>
                                             {/if}
-                                        </div>
-                                    </td>
+                                        </td>
+                                    {/if}
 
                                     <!-- Cliente -->
-                                    <td class="px-4 py-3.5 whitespace-nowrap">
-                                        <div class="font-semibold text-slate-900 dark:text-white">
-                                            {order.customer?.name || 'Cliente no asignado'}
-                                        </div>
-                                        {#if order.customer?.phone}
-                                            <div class="text-[11px] text-[#64748B] dark:text-slate-400">
-                                                {order.customer.phone}
+                                    {#if visibleColumns.customer_name}
+                                        <td class="px-4 py-3.5 whitespace-nowrap">
+                                            <div class="font-semibold text-slate-900 dark:text-white">
+                                                {order.customer?.name || 'Cliente no asignado'}
                                             </div>
-                                        {/if}
-                                    </td>
+                                        </td>
+                                    {/if}
+
+                                    <!-- Teléfono Cliente -->
+                                    {#if visibleColumns.customer_phone}
+                                        <td class="px-4 py-3.5 whitespace-nowrap text-slate-600 dark:text-slate-400 font-mono text-xs">
+                                            {order.customer?.phone || '—'}
+                                        </td>
+                                    {/if}
 
                                     <!-- Artículos -->
-                                    <td class="px-4 py-3.5 max-w-xs">
-                                        {#if tasks.length > 0}
-                                            <div class="space-y-0.5">
-                                                {#each tasks.slice(0, 2) as task}
-                                                    <div class="text-xs truncate text-slate-800 dark:text-slate-300">
-                                                        <span class="font-bold text-[#4F46E5] dark:text-indigo-400">{task.quantity}x</span> {task.item_name_snapshot}
-                                                    </div>
-                                                {/each}
-                                                {#if tasks.length > 2}
-                                                    <span class="text-[10px] text-[#64748B] dark:text-slate-400 font-medium">
-                                                        +{tasks.length - 2} ítem(s) más
-                                                    </span>
-                                                {/if}
-                                            </div>
-                                        {:else}
-                                            <span class="text-slate-400 italic">Sin artículos</span>
-                                        {/if}
-                                    </td>
+                                    {#if visibleColumns.items}
+                                        <td class="px-4 py-3.5 max-w-xs">
+                                            {#if tasks.length > 0}
+                                                <div class="space-y-0.5">
+                                                    {#each tasks.slice(0, 2) as task}
+                                                        <div class="text-xs truncate text-slate-800 dark:text-slate-300">
+                                                            <span class="font-bold text-[#4F46E5] dark:text-indigo-400">{Math.round(Number(task.quantity))}x</span> {task.item_name_snapshot}
+                                                        </div>
+                                                    {/each}
+                                                    {#if tasks.length > 2}
+                                                        <span class="text-[10px] text-[#64748B] dark:text-slate-400 font-medium">
+                                                            +{tasks.length - 2} ítem(s) más
+                                                        </span>
+                                                    {/if}
+                                                </div>
+                                            {:else}
+                                                <span class="text-slate-400 italic">Sin artículos</span>
+                                            {/if}
+                                        </td>
+                                    {/if}
 
                                     <!-- Total -->
-                                    {#if hasFinancialAccess}
+                                    {#if hasFinancialAccess && visibleColumns.total}
+                                        <td class="px-4 py-3.5 whitespace-nowrap font-mono font-bold text-slate-900 dark:text-white">
+                                            {formatCurrency(order.total_amount)}
+                                        </td>
+                                    {/if}
+
+                                    <!-- Abonado -->
+                                    {#if hasFinancialAccess && visibleColumns.paid}
+                                        <td class="px-4 py-3.5 whitespace-nowrap font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                                            {formatCurrency(Number(order.total_amount || 0) - Number(order.pending_balance || 0))}
+                                        </td>
+                                    {/if}
+
+                                    <!-- Saldo Pendiente -->
+                                    {#if hasFinancialAccess && visibleColumns.pending_balance}
                                         <td class="px-4 py-3.5 whitespace-nowrap font-mono">
-                                            <div class="font-bold text-slate-900 dark:text-white">
-                                                {formatCurrency(order.total_amount)}
-                                            </div>
                                             {#if order.pending_balance > 0}
-                                                <div class="text-[10px] text-amber-500 font-medium">
-                                                    Saldo: {formatCurrency(order.pending_balance)}
-                                                </div>
+                                                <span class="text-amber-500 font-bold">{formatCurrency(order.pending_balance)}</span>
                                             {:else if Number(order.total_amount) > 0}
-                                                <div class="text-[10px] text-emerald-500 font-medium">
-                                                    ✓ Pagado
-                                                </div>
+                                                <span class="text-emerald-500 text-[10px] font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">✓ Pagado</span>
+                                            {:else}
+                                                <span class="text-slate-400">$0</span>
                                             {/if}
                                         </td>
                                     {/if}
 
                                     <!-- Entrega -->
-                                    <td class="px-4 py-3.5 whitespace-nowrap text-slate-600 dark:text-slate-400">
-                                        <div class="text-xs">
-                                            {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
-                                        </div>
-                                    </td>
+                                    {#if visibleColumns.delivery_date}
+                                        <td class="px-4 py-3.5 whitespace-nowrap text-slate-600 dark:text-slate-400">
+                                            <div class="text-xs">
+                                                {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
+                                            </div>
+                                        </td>
+                                    {/if}
 
                                     <!-- Estado (Píldora estilizada) -->
-                                    <td class="px-4 py-3.5 whitespace-nowrap">
-                                        {#if badge.style}
-                                            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border" style={badge.style}>
-                                                {badge.label}
-                                            </span>
-                                        {:else}
-                                            <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border {badge.classes}">
-                                                {badge.label}
-                                            </span>
-                                        {/if}
-                                    </td>
+                                    {#if visibleColumns.status}
+                                        <td class="px-4 py-3.5 whitespace-nowrap">
+                                            {#if badge.style}
+                                                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border" style={badge.style}>
+                                                    {badge.label}
+                                                </span>
+                                            {:else}
+                                                <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border {badge.classes}">
+                                                    {badge.label}
+                                                </span>
+                                            {/if}
+                                        </td>
+                                    {/if}
 
                                     <!-- Acciones -->
-                                    <td class="px-4 py-3.5 whitespace-nowrap text-right">
+                                    {#if visibleColumns.actions}
+                                        <td class="px-4 py-3.5 whitespace-nowrap text-right">
                                         <div class="inline-flex items-center justify-end">
                                             <button
                                                 type="button"
@@ -617,6 +792,7 @@
                                             </div>
                                         {/if}
                                     </td>
+                                    {/if}
                                 </tr>
                             {/each}
                         {/if}

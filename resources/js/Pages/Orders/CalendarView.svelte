@@ -493,7 +493,7 @@
                     {#each tasks as task}
                         <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] flex items-center justify-between text-xs">
                             <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                <span class="font-mono text-[#4F46E5] dark:text-indigo-400">{task.quantity}x</span>
+                                <span class="font-mono text-[#4F46E5] dark:text-indigo-400">{Math.round(Number(task.quantity))}x</span>
                                 <span>{task.item_name_snapshot}</span>
                             </div>
                             {#if task.current_stage || task.currentStage}

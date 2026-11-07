@@ -384,15 +384,11 @@
     let mobileMenuOpen = $state(false);
     let isScrolled = $state(false);
 
-    // Inicialización del tema y oyentes de ventana
+    // Inicialización del tema (Modo Claro por defecto) y oyentes de ventana
     $effect(() => {
         if (typeof window !== "undefined") {
-            const savedTheme = localStorage.getItem("theme");
-            if (
-                savedTheme === "dark" ||
-                (!savedTheme &&
-                    window.matchMedia("(prefers-color-scheme: dark)").matches)
-            ) {
+            const savedTheme = localStorage.getItem("gip_theme") || localStorage.getItem("theme");
+            if (savedTheme === "dark") {
                 isDark = true;
                 document.documentElement.classList.add("dark");
             } else {
@@ -418,9 +414,11 @@
         if (typeof window !== "undefined") {
             if (isDark) {
                 document.documentElement.classList.add("dark");
+                localStorage.setItem("gip_theme", "dark");
                 localStorage.setItem("theme", "dark");
             } else {
                 document.documentElement.classList.remove("dark");
+                localStorage.setItem("gip_theme", "light");
                 localStorage.setItem("theme", "light");
             }
         }

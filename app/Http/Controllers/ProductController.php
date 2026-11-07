@@ -182,7 +182,8 @@ class ProductController extends Controller
             'materials.*.quantity_required' => ['required', 'numeric', 'min:0.001'],
             'materials.*.waste_percent' => ['nullable', 'numeric', 'min:0'],
             'variants' => ['nullable', 'array'],
-            'variants.*.id' => ['required', 'integer', 'exists:product_variants,id'],
+            'variants.*.id' => ['nullable', 'integer'],
+            'variants.*.name_label' => ['nullable', 'string', 'max:150'],
             'variants.*.sku' => ['nullable', 'string', 'max:80'],
             'variants.*.barcode' => ['nullable', 'string', 'max:100'],
             'variants.*.production_minutes_delta' => ['nullable', 'integer'],
@@ -222,16 +223,48 @@ class ProductController extends Controller
                 ]);
             }
 
-            // Actualizar deltas y precios de variantes existentes
+            // Gestionar variantes: actualizar existentes, crear nuevas y remover no vinculadas
+            $keptVariantIds = [];
             foreach ($validated['variants'] ?? [] as $varData) {
-                ProductVariant::where('id', $varData['id'])
-                    ->where('product_id', $product->id)
-                    ->update([
-                        'sku' => $varData['sku'] ?? null,
+                if (!empty($varData['id'])) {
+                    $variant = ProductVariant::where('id', $varData['id'])
+                        ->where('product_id', $product->id)
+                        ->first();
+                    if ($variant) {
+                        $variant->update([
+                            'name_label' => !empty($varData['name_label']) ? trim($varData['name_label']) : $variant->name_label,
+                            'sku' => !empty($varData['sku']) ? trim($varData['sku']) : null,
+                            'barcode' => $varData['barcode'] ?? null,
+                            'production_minutes_delta' => $varData['production_minutes_delta'] ?? 0,
+                            'price_override' => isset($varData['price_override']) && $varData['price_override'] !== '' ? $varData['price_override'] : null,
+                        ]);
+                        $keptVariantIds[] = $variant->id;
+                    }
+                } else {
+                    $newVariant = ProductVariant::create([
+                        'product_id' => $product->id,
+                        'name_label' => !empty($varData['name_label']) ? trim($varData['name_label']) : 'Variante',
+                        'sku' => !empty($varData['sku']) ? trim($varData['sku']) : null,
                         'barcode' => $varData['barcode'] ?? null,
                         'production_minutes_delta' => $varData['production_minutes_delta'] ?? 0,
-                        'price_override' => $varData['price_override'] ?? null,
+                        'price_override' => isset($varData['price_override']) && $varData['price_override'] !== '' ? $varData['price_override'] : null,
+                        'is_active' => true,
                     ]);
+                    $keptVariantIds[] = $newVariant->id;
+                }
+            }
+
+            // Eliminar únicamente las variantes removidas que no estén vinculadas a production_tasks
+            if (!empty($keptVariantIds)) {
+                $removableVariants = ProductVariant::where('product_id', $product->id)
+                    ->whereNotIn('id', $keptVariantIds)
+                    ->get();
+
+                foreach ($removableVariants as $remVariant) {
+                    if (!ProductionTask::where('product_variant_id', $remVariant->id)->exists()) {
+                        $remVariant->delete();
+                    }
+                }
             }
         });
 
@@ -291,12 +324,34 @@ class ProductController extends Controller
      */
     public function storeOption(Request $request, OrthogonalAttribute $orthogonalAttribute): RedirectResponse
     {
+        $rawValues = explode(',', (string) $request->input('value', ''));
+        $values = array_values(array_filter(array_map('trim', $rawValues)));
+
+        if (count($values) > 1) {
+            foreach ($values as $val) {
+                $cleaned = preg_replace('/[^a-zA-Z0-9]/', '', $val);
+                $suffix = strtoupper(substr($cleaned !== '' ? $cleaned : 'OPT', 0, 4));
+                $orthogonalAttribute->options()->create([
+                    'value' => $val,
+                    'sku_suffix' => $suffix,
+                ]);
+            }
+            return redirect()->back()->with('success', 'Opciones agregadas al atributo.');
+        }
+
         $validated = $request->validate([
             'value' => ['required', 'string', 'max:100'],
             'sku_suffix' => ['nullable', 'string', 'max:20'],
         ]);
 
-        $orthogonalAttribute->options()->create($validated);
+        $val = trim($validated['value']);
+        $cleaned = preg_replace('/[^a-zA-Z0-9]/', '', $val);
+        $defaultSuffix = strtoupper(substr($cleaned !== '' ? $cleaned : 'OPT', 0, 4));
+
+        $orthogonalAttribute->options()->create([
+            'value' => $val,
+            'sku_suffix' => !empty($validated['sku_suffix']) ? trim($validated['sku_suffix']) : $defaultSuffix,
+        ]);
 
         return redirect()->back()->with('success', 'Opción agregada al atributo.');
     }

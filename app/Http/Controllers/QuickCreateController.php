@@ -40,6 +40,25 @@ class QuickCreateController extends Controller
     }
 
     /**
+     * Update an existing Product Type.
+     */
+    public function updateProductType(Request $request, ProductType $productType): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+        ]);
+
+        $productType->update([
+            'name' => Str::title(trim($validated['name'])),
+        ]);
+
+        return response()->json([
+            'id' => $productType->id,
+            'name' => $productType->name,
+        ]);
+    }
+
+    /**
      * Quick create a Workflow with basic default or custom stages.
      */
     public function workflow(Request $request): JsonResponse

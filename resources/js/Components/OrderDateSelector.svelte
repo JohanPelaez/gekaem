@@ -117,6 +117,15 @@
         untrack(() => {
             if (internalUpdating) return;
             if (d) {
+                const parts = d.split('-');
+                if (parts.length === 3) {
+                    const y = Number(parts[0]);
+                    const m = Number(parts[1]) - 1;
+                    if (!isNaN(y) && !isNaN(m) && (y !== viewYear || m !== viewMonth)) {
+                        viewYear = y;
+                        viewMonth = m;
+                    }
+                }
                 const fullVal = `${d}T${t || '17:00'}`;
                 if (value !== fullVal) {
                     internalUpdating = true;
@@ -443,18 +452,31 @@
             </div>
         </div>
 
-        <!-- Ajuste de Hora y Resumen de Selección -->
+        <!-- Ajuste de Fecha / Hora y Resumen de Selección -->
         <div class="pt-2 border-t border-slate-200 dark:border-[#26334D] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div class="flex items-center gap-2">
-                <label for="{id}-time" class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 whitespace-nowrap">
-                    Hora programada:
-                </label>
-                <input
-                    id="{id}-time"
-                    type="time"
-                    bind:value={selectedTime}
-                    class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-[#4F46E5]"
-                />
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="flex items-center gap-1.5">
+                    <label for="{id}-date" class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 whitespace-nowrap">
+                        Fecha:
+                    </label>
+                    <input
+                        id="{id}-date"
+                        type="date"
+                        bind:value={selectedDate}
+                        class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-[#4F46E5]"
+                    />
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <label for="{id}-time" class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 whitespace-nowrap">
+                        Hora:
+                    </label>
+                    <input
+                        id="{id}-time"
+                        type="time"
+                        bind:value={selectedTime}
+                        class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:border-[#4F46E5]"
+                    />
+                </div>
             </div>
 
             <!-- Resumen Informativo Dinámico o Aviso si no hay fecha -->

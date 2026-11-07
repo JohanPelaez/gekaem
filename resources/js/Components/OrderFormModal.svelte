@@ -1,6 +1,7 @@
 <script>
     import { untrack } from 'svelte';
     import { router } from '@inertiajs/svelte';
+    import { csrfFetch } from '../Utils/csrfFetch.js';
     import CurrencyInput from './CurrencyInput.svelte';
     import QuickCreateModal from './QuickCreateModal.svelte';
     import OrderDateSelector from './OrderDateSelector.svelte';
@@ -58,7 +59,9 @@
 
     // Estado del formulario
     let orderForm = $state({
+        id: null,
         customer_id: '',
+        promised_date: '',
         committed_delivery_at: '',
         shipping_type: 'contraentrega',
         notes: '',
@@ -68,6 +71,14 @@
         payment_method: 'transfer',
         voucher: null,
     });
+
+    // Gestión de abonos adentro del modal en modo edición
+    let localPayments = $state([]);
+    let newPaymentAmount = $state('');
+    let newPaymentMethod = $state('transfer');
+    let newPaymentNotes = $state('');
+    let paymentActionLoading = $state(false);
+    let paymentErrorMessage = $state('');
 
     let prevIsOpen = false;
     let prevEditingOrder = null;
@@ -83,17 +94,27 @@
 
             untrack(() => {
                 if (isEditing && currentOrder) {
+                    orderForm.id = currentOrder.id;
                     orderForm.customer_id = currentOrder.customer_id || currentOrder.customer?.id || '';
                     orderForm.shipping_type = currentOrder.shipping_type || 'contraentrega';
                     orderForm.notes = currentOrder.notes || '';
 
-                    let dt = '';
-                    if (currentOrder.committed_delivery_at) {
-                        dt = String(currentOrder.committed_delivery_at).replace(' ', 'T').slice(0, 16);
-                    } else if (currentOrder.predicted_delivery_at) {
-                        dt = String(currentOrder.predicted_delivery_at).replace(' ', 'T').slice(0, 16);
+                    // Normalizar fecha al formato YYYY-MM-DD para input date y selector de calendario
+                    const rawDate = currentOrder.promised_date || currentOrder.committed_delivery_at || currentOrder.predicted_delivery_at || currentOrder.delivery_date_key || '';
+                    const dateStr = rawDate ? String(rawDate).trim().substring(0, 10) : '';
+                    let timeStr = '17:00';
+                    if (String(rawDate).includes('T')) {
+                        timeStr = String(rawDate).split('T')[1].slice(0, 5) || '17:00';
+                    } else if (String(rawDate).includes(' ')) {
+                        timeStr = String(rawDate).split(' ')[1].slice(0, 5) || '17:00';
                     }
-                    orderForm.committed_delivery_at = dt;
+                    orderForm.promised_date = dateStr;
+                    orderForm.committed_delivery_at = dateStr ? `${dateStr}T${timeStr}` : '';
+
+                    localPayments = [...(currentOrder.payments || [])];
+                    newPaymentAmount = '';
+                    newPaymentNotes = '';
+                    paymentErrorMessage = '';
 
                     const tasks = currentOrder.production_tasks || currentOrder.productionTasks || currentOrder.tasks || [];
                     if (tasks.length > 0) {
@@ -109,7 +130,7 @@
                                 id: task.id,
                                 product_id: variant.product_id || foundProduct?.id || '',
                                 product_variant_id: task.product_variant_id,
-                                quantity: Number(task.quantity) || 1,
+                                quantity: Math.max(1, Math.round(Number(task.quantity)) || 1),
                                 unit_price: baseUnitPrice,
                                 discount_percentage: Number(task.discount_percentage) || 0,
                             };
@@ -124,11 +145,18 @@
                     orderForm.payment_method = 'transfer';
                     orderForm.voucher = null;
                 } else {
+                    orderForm.id = null;
                     orderForm.customer_id = localCustomers[0]?.id ?? '';
-                    orderForm.committed_delivery_at = initialDate ? `${initialDate}T17:00` : '';
+                    const dateStr = initialDate ? String(initialDate).trim().substring(0, 10) : '';
+                    orderForm.promised_date = dateStr;
+                    orderForm.committed_delivery_at = dateStr ? `${dateStr}T17:00` : '';
                     orderForm.shipping_type = 'contraentrega';
                     orderForm.notes = '';
                     orderForm.items = [];
+                    localPayments = [];
+                    newPaymentAmount = '';
+                    newPaymentNotes = '';
+                    paymentErrorMessage = '';
                     orderForm.has_initial_deposit = false;
                     orderForm.initial_deposit = '';
                     orderForm.payment_method = 'transfer';
@@ -256,12 +284,103 @@
         return Math.max(0, totalAmount - deposit);
     });
 
+    let totalPaidInModal = $derived.by(() => {
+        return localPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+    });
+
+    let pendingBalanceInModal = $derived.by(() => {
+        return Math.max(0, totalAmount - totalPaidInModal);
+    });
+
+    async function handleAddPaymentInModal() {
+        const orderId = editingOrder?.id || orderForm.id;
+        if (!orderId) return;
+        const amountNum = Number(newPaymentAmount);
+        if (!amountNum || amountNum <= 0) {
+            paymentErrorMessage = 'Ingresa un monto válido mayor a 0.';
+            return;
+        }
+        if (amountNum > pendingBalanceInModal) {
+            paymentErrorMessage = `El monto no puede superar el saldo pendiente (${formatCurrency(pendingBalanceInModal)}).`;
+            return;
+        }
+        paymentActionLoading = true;
+        paymentErrorMessage = '';
+        try {
+            const res = await csrfFetch(`/orders/${orderId}/payments`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    amount: amountNum,
+                    payment_method: newPaymentMethod,
+                    notes: newPaymentNotes.trim() || null,
+                    payment_date: new Date().toISOString().slice(0, 10),
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                paymentErrorMessage = data.message || 'Error al registrar el abono.';
+                return;
+            }
+            if (data.payments) {
+                localPayments = data.payments;
+            } else if (data.payment) {
+                localPayments = [data.payment, ...localPayments];
+            }
+            newPaymentAmount = '';
+            newPaymentNotes = '';
+            if (editingOrder) {
+                editingOrder.payments = localPayments;
+            }
+            onSuccess();
+        } catch (err) {
+            paymentErrorMessage = err?.message || 'Error de conexión.';
+        } finally {
+            paymentActionLoading = false;
+        }
+    }
+
+    async function handleDeletePaymentInModal(paymentId) {
+        if (!confirm('¿Estás seguro de anular este abono?')) return;
+        paymentActionLoading = true;
+        paymentErrorMessage = '';
+        try {
+            const res = await csrfFetch(`/payments/${paymentId}`, {
+                method: 'DELETE',
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                paymentErrorMessage = data.message || 'Error al anular el abono.';
+                return;
+            }
+            localPayments = localPayments.filter((p) => p.id !== paymentId);
+            if (editingOrder) {
+                editingOrder.payments = localPayments;
+            }
+            onSuccess();
+        } catch (err) {
+            paymentErrorMessage = err?.message || 'Error de conexión.';
+        } finally {
+            paymentActionLoading = false;
+        }
+    }
+
     function formatCurrency(val) {
         return new Intl.NumberFormat('es-CO', {
             style: 'currency',
             currency: 'COP',
             maximumFractionDigits: 0,
         }).format(val || 0);
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '—';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateStr).slice(0, 10);
+        return d.toLocaleDateString('es-CO', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        });
     }
 
     function getDerivedStatusBadge(status) {
@@ -299,8 +418,10 @@
             return;
         }
 
-        if (isEditing && editingOrder) {
-            router.put(`/orders/${editingOrder.id}`, {
+        const orderId = editingOrder?.id || orderForm.id;
+
+        if (orderId) {
+            router.put(`/orders/${orderId}`, {
                 customer_id: Number(orderForm.customer_id),
                 committed_delivery_at: orderForm.committed_delivery_at,
                 shipping_type: orderForm.shipping_type,
@@ -308,7 +429,7 @@
                 items: orderForm.items.map((item) => ({
                     id: item.id ? Number(item.id) : null,
                     product_variant_id: Number(item.product_variant_id),
-                    quantity: Number(item.quantity),
+                    quantity: Math.max(1, Math.round(Number(item.quantity)) || 1),
                     unit_price: Number(item.unit_price || 0),
                     discount_percentage: Number(item.discount_percentage || 0),
                 })),
@@ -522,9 +643,10 @@
                                             <input
                                                 id="modal-qty-sel-{idx}"
                                                 type="number"
-                                                step="0.01"
-                                                min="0.01"
+                                                step="1"
+                                                min="1"
                                                 bind:value={item.quantity}
+                                                oninput={(e) => item.quantity = Math.max(1, Math.round(Number(e.target.value)) || 1)}
                                                 required
                                                 class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-xs font-mono font-bold text-center focus:outline-none focus:border-[#4F46E5]"
                                             />
@@ -611,9 +733,10 @@
                                             <input
                                                 id="modal-qty-sel-{idx}"
                                                 type="number"
-                                                step="0.01"
-                                                min="0.01"
+                                                step="1"
+                                                min="1"
                                                 bind:value={item.quantity}
+                                                oninput={(e) => item.quantity = Math.max(1, Math.round(Number(e.target.value)) || 1)}
                                                 required
                                                 class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-900 dark:text-white text-xs font-mono font-bold text-center focus:outline-none focus:border-[#4F46E5]"
                                             />
@@ -697,6 +820,130 @@
                                 </div>
                             </div>
                         {/if}
+                    </div>
+                {/if}
+
+                <!-- SECCIÓN DE GESTIÓN DE ABONOS (MODO EDICIÓN CON ACCESO FINANCIERO) -->
+                {#if hasFinancialAccess && (editingOrder?.id || orderForm.id)}
+                    <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <h4 class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                                    <span>💳</span>
+                                    <span>Abonos y Pagos Registrados</span>
+                                </h4>
+                                <p class="text-[11px] text-[#64748B] dark:text-slate-400">
+                                    Visualiza los pagos recibidos y registra nuevos abonos directamente sin salir.
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-2 text-xs">
+                                <span class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px]">
+                                    Abonado: <strong class="text-emerald-600 dark:text-emerald-400">{formatCurrency(totalPaidInModal)}</strong>
+                                </span>
+                                <span class="px-2.5 py-1 rounded-xl font-mono text-[11px] {pendingBalanceInModal > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'}">
+                                    Saldo: <strong>{formatCurrency(pendingBalanceInModal)}</strong>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Lista de abonos actuales -->
+                        <div class="p-3.5 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-2.5">
+                            {#if localPayments.length === 0}
+                                <div class="py-2 text-center text-slate-400 text-xs italic">
+                                    No hay abonos registrados para este pedido aún.
+                                </div>
+                            {:else}
+                                <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                                    {#each localPayments as payment (payment.id)}
+                                        <div class="p-2.5 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
+                                            <div class="flex items-center gap-2.5">
+                                                <span class="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
+                                                    $
+                                                </span>
+                                                <div>
+                                                    <div class="font-bold text-slate-900 dark:text-white font-mono">
+                                                        {formatCurrency(payment.amount)}
+                                                    </div>
+                                                    <div class="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                                        <span>{formatDate(payment.payment_date)}</span>
+                                                        <span>•</span>
+                                                        <span class="capitalize">{payment.payment_method === 'transfer' ? 'Transferencia' : payment.payment_method}</span>
+                                                        {#if payment.notes}
+                                                            <span>•</span>
+                                                            <span class="truncate max-w-[150px]" title={payment.notes}>{payment.notes}</span>
+                                                        {/if}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onclick={() => handleDeletePaymentInModal(payment.id)}
+                                                disabled={paymentActionLoading}
+                                                class="px-2 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[11px] font-semibold border border-rose-200 dark:border-rose-900/40 transition-colors"
+                                                title="Eliminar este abono si hubo error"
+                                            >
+                                                🗑️ Eliminar
+                                            </button>
+                                        </div>
+                                    {/each}
+                                </div>
+                            {/if}
+
+                            <!-- Mini-formulario para agregar abono -->
+                            {#if pendingBalanceInModal > 0}
+                                <div class="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                                    <span class="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                        + Registrar Nuevo Abono
+                                    </span>
+                                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                                        <div class="sm:col-span-4">
+                                            <label for="new-pay-amount" class="text-[10px] text-slate-500 block mb-0.5">Monto ($)</label>
+                                            <CurrencyInput
+                                                id="new-pay-amount"
+                                                bind:value={newPaymentAmount}
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                        <div class="sm:col-span-3">
+                                            <label for="new-pay-method" class="text-[10px] text-slate-500 block mb-0.5">Método</label>
+                                            <select
+                                                id="new-pay-method"
+                                                bind:value={newPaymentMethod}
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5]"
+                                            >
+                                                <option value="transfer">Transferencia</option>
+                                                <option value="cash">Efectivo</option>
+                                                <option value="card">Tarjeta</option>
+                                                <option value="other">Otro</option>
+                                            </select>
+                                        </div>
+                                        <div class="sm:col-span-3">
+                                            <label for="new-pay-notes" class="text-[10px] text-slate-500 block mb-0.5">Nota / Ref.</label>
+                                            <input
+                                                id="new-pay-notes"
+                                                type="text"
+                                                bind:value={newPaymentNotes}
+                                                placeholder="Opcional..."
+                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5]"
+                                            />
+                                        </div>
+                                        <div class="sm:col-span-2">
+                                            <button
+                                                type="button"
+                                                onclick={handleAddPaymentInModal}
+                                                disabled={paymentActionLoading || !newPaymentAmount || Number(newPaymentAmount) <= 0}
+                                                class="w-full px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                                            >
+                                                {paymentActionLoading ? '...' : '+ Abono'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {#if paymentErrorMessage}
+                                        <p class="text-[11px] text-rose-500 font-semibold">{paymentErrorMessage}</p>
+                                    {/if}
+                                </div>
+                            {/if}
+                        </div>
                     </div>
                 {/if}
 

@@ -331,7 +331,7 @@
                                 </div>
 
                                 <div class="flex items-center gap-3 text-[11px] text-[#64748B] dark:text-slate-400 font-mono flex-wrap">
-                                    <span>Cant: <strong class="text-slate-800 dark:text-slate-200">{Number(task.quantity)}</strong></span>
+                                    <span>Cant: <strong class="text-slate-800 dark:text-slate-200">{Math.round(Number(task.quantity))} unidades</strong></span>
                                     <span>•</span>
                                     <span>Flujo: <strong class="text-slate-700 dark:text-slate-300">{wf?.name || 'Estándar'}</strong></span>
                                     <span>•</span>

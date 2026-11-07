@@ -891,7 +891,7 @@
                                                             <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
                                                                 <div>
                                                                     <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                        <span class="font-mono text-[#4F46E5] dark:text-indigo-400">{task.quantity}x</span>
+                                                                        <span class="font-mono text-[#4F46E5] dark:text-indigo-400">{Math.round(Number(task.quantity))}x</span>
                                                                         <span>{task.item_name_snapshot}</span>
                                                                     </div>
                                                                     <span class="text-[10px] text-[#64748B] dark:text-slate-400 font-mono">
@@ -1133,7 +1133,7 @@
                                 <span class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider">Productos:</span>
                                 {#each order.production_tasks as task}
                                     <span class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300 font-mono">
-                                        <span class="font-bold text-slate-900 dark:text-white">{task.quantity}x</span>
+                                        <span class="font-bold text-slate-900 dark:text-white">{Math.round(Number(task.quantity))}x</span>
                                         <span>{task.item_name_snapshot}</span>
                                         {#if task.current_stage}
                                             <span class="px-1.5 py-0.2 rounded text-[9px] font-bold" style="color: {task.current_stage.color}">
@@ -1567,7 +1567,7 @@
                                 <div class="flex flex-wrap gap-1.5 items-center">
                                     {#each tasks as task}
                                         <span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300 font-mono">
-                                            <span class="font-bold text-slate-900 dark:text-white">{task.quantity}x</span>
+                                            <span class="font-bold text-slate-900 dark:text-white">{Math.round(Number(task.quantity))}x</span>
                                             <span>{task.item_name_snapshot}</span>
                                         </span>
                                     {/each}

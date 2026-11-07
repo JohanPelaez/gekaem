@@ -155,7 +155,7 @@ class OrderController extends Controller
 
         $updateOrderAction->execute($this->resolveTenant(), $order, $validated);
 
-        return redirect()->route('orders.index')->with('success', "Pedido #{$order->order_number} actualizado con éxito.");
+        return redirect()->back()->with('success', "Pedido #{$order->order_number} actualizado con éxito.");
     }
 
     /**

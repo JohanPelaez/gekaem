@@ -133,6 +133,7 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
     Route::prefix('quick')->name('quick.')->group(function (): void {
         Route::post('/products', [ProductController::class, 'quickStore'])->name('products');
         Route::post('/product-types', [QuickCreateController::class, 'productType'])->name('product-types');
+        Route::put('/product-types/{productType}', [QuickCreateController::class, 'updateProductType'])->name('product-types.update');
         Route::post('/workflows', [QuickCreateController::class, 'workflow'])->name('workflows');
         Route::post('/suppliers', [QuickCreateController::class, 'supplier'])->name('suppliers');
         Route::post('/customers', [QuickCreateController::class, 'customer'])->name('customers');

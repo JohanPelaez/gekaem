@@ -47,6 +47,7 @@ class Order extends Model
         'pending_balance',
         'payment_status',
         'delivery_date_key',
+        'promised_date',
     ];
 
     /**
@@ -141,6 +142,14 @@ class Order extends Model
             return null;
         }
         return substr(trim((string) $raw), 0, 10);
+    }
+
+    /**
+     * Get promised date normalized to YYYY-MM-DD.
+     */
+    public function getPromisedDateAttribute(): ?string
+    {
+        return $this->getDeliveryDateKeyAttribute();
     }
 
     /**

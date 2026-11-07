@@ -98,6 +98,7 @@ class KanbanController extends Controller
             'attributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
             'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
             'selectedOrderId' => $selectedOrderId,
+            'currentView' => $request->string('view')->value() ?: null,
         ]);
     }
 

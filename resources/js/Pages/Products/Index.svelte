@@ -121,24 +121,29 @@
         if (!newOptionValue.trim()) return;
         optionInlineLoading = true;
         try {
-            const res = await csrfFetch(`/quick/attributes/${attr.id}/options`, {
-                method: 'POST',
-                body: JSON.stringify({ value: newOptionValue.trim() }),
-            });
-            const created = await res.json().catch(() => ({}));
-            if (res.ok && created.id) {
-                localAttributes = localAttributes.map((a) => {
-                    if (a.id === attr.id) {
-                        return {
-                            ...a,
-                            options: [...(a.options || []), created],
-                        };
-                    }
-                    return a;
+            const rawOptions = newOptionValue.split(',').map((opt) => opt.trim()).filter(Boolean);
+            if (rawOptions.length === 0) return;
+
+            for (const val of rawOptions) {
+                const res = await csrfFetch(`/quick/attributes/${attr.id}/options`, {
+                    method: 'POST',
+                    body: JSON.stringify({ value: val }),
                 });
-                newOptionValue = '';
-                activeAddOptionAttrId = null;
+                const created = await res.json().catch(() => ({}));
+                if (res.ok && created.id) {
+                    localAttributes = localAttributes.map((a) => {
+                        if (a.id === attr.id) {
+                            return {
+                                ...a,
+                                options: [...(a.options || []), created],
+                            };
+                        }
+                        return a;
+                    });
+                }
             }
+            newOptionValue = '';
+            activeAddOptionAttrId = null;
         } catch (e) {
             console.error('Error creating inline option:', e);
         } finally {
@@ -168,6 +173,31 @@
         }
         quickModalOpen = false;
         router.reload({ only: ['products', 'productTypes', 'workflows', 'rawMaterials', 'orthogonalAttributes'] });
+    }
+
+    async function handleEditProductType(pt) {
+        if (!pt) return;
+        const newName = prompt('Editar nombre del Tipo de Producto:', pt.name);
+        if (!newName || !newName.trim() || newName.trim() === pt.name) return;
+
+        try {
+            const res = await csrfFetch(`/quick/product-types/${pt.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ name: newName.trim() }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.id) {
+                localProductTypes = localProductTypes.map((t) =>
+                    Number(t.id) === Number(data.id) ? { ...t, name: data.name } : t
+                );
+                router.reload({ only: ['productTypes', 'products'] });
+            } else {
+                alert(data.message || 'Error al actualizar el Tipo de Producto.');
+            }
+        } catch (e) {
+            console.error('Error updating product type:', e);
+            alert('Error de conexión.');
+        }
     }
 
     let showProductModal = $state(false);
@@ -406,18 +436,34 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 text-xs">
-                    <label for="filter-product-type" class="sr-only">Filtrar por tipo de producto</label>
-                    <select
-                        id="filter-product-type"
-                        bind:value={productTypeFilter}
-                        onchange={applyFilters}
-                        class="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
-                    >
-                        <option value="">Todos los Tipos</option>
-                        {#each localProductTypes as pt}
-                            <option value={String(pt.id)}>{pt.name}</option>
-                        {/each}
-                    </select>
+                    <div class="flex items-center gap-1.5">
+                        <label for="filter-product-type" class="sr-only">Filtrar por tipo de producto</label>
+                        <select
+                            id="filter-product-type"
+                            bind:value={productTypeFilter}
+                            onchange={applyFilters}
+                            class="bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-800 dark:text-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                        >
+                            <option value="">Todos los Tipos</option>
+                            {#each localProductTypes as pt}
+                                <option value={String(pt.id)}>{pt.name}</option>
+                            {/each}
+                        </select>
+                        {#if productTypeFilter}
+                            {@const selectedPt = localProductTypes.find(pt => String(pt.id) === String(productTypeFilter))}
+                            {#if selectedPt}
+                                <button
+                                    type="button"
+                                    onclick={() => handleEditProductType(selectedPt)}
+                                    class="px-2.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-semibold border border-amber-500/30 transition-colors flex items-center gap-1"
+                                    title="Renombrar este tipo de producto"
+                                >
+                                    <span>✏️</span>
+                                    <span>Editar</span>
+                                </button>
+                            {/if}
+                        {/if}
+                    </div>
 
                     <label for="filter-workflow" class="sr-only">Filtrar por flujo</label>
                     <select

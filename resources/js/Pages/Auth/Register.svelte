@@ -23,6 +23,17 @@
         cvv: '',
     });
 
+    $effect(() => {
+        if (typeof window !== 'undefined') {
+            const savedTheme = localStorage.getItem('gip_theme') || localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+    });
+
     // Detectar si hay errores en datos de la tarjeta para mantener abierto el acordeón
     $effect(() => {
         if (errors.card_number || errors.expiration_month || errors.expiration_year || errors.cvv) {

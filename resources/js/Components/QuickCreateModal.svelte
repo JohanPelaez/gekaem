@@ -170,10 +170,19 @@
         loading = true;
         errorMessage = '';
 
+        const payload = { ...form };
+        if (type === 'attribute' && typeof payload.options === 'string') {
+            payload.options = payload.options
+                .split(',')
+                .map((opt) => opt.trim())
+                .filter(Boolean)
+                .join(',');
+        }
+
         try {
             const res = await csrfFetch(modalConfig.endpoint, {
                 method: 'POST',
-                body: JSON.stringify(form),
+                body: JSON.stringify(payload),
             });
 
             const data = await res.json().catch(() => ({}));

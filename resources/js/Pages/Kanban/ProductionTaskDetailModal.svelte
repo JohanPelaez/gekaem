@@ -321,7 +321,7 @@
                             Cantidad a Fabricar
                         </span>
                         <span class="text-lg font-bold text-slate-900 dark:text-white font-mono">
-                            {task.quantity} <span class="text-xs font-normal text-slate-500 dark:text-slate-400">unidades</span>
+                            {Math.round(Number(task.quantity))} <span class="text-xs font-normal text-slate-500 dark:text-slate-400">unidades</span>
                         </span>
                     </div>
 
@@ -394,7 +394,7 @@
                                 <span>¿Qué lleva este producto? (Materia Prima / Receta BOM)</span>
                             </h3>
                             <p class="text-xs text-slate-500 dark:text-slate-400">
-                                Desglose de insumos y consumos calculados para fabricar {task.quantity} unidad(es).
+                                Desglose de insumos y consumos calculados para fabricar {Math.round(Number(task.quantity))} unidad(es).
                             </p>
                         </div>
 

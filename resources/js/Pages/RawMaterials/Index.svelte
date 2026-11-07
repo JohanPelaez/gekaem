@@ -231,6 +231,15 @@
         notes: '',
     });
 
+    let currentStockAdjust = $derived(Number(adjustingMaterial?.current_stock ?? 0));
+    let adjustQty = $derived(Number(movementForm.quantity || 0));
+    let isAddingStock = $derived(movementForm.direction === 'add');
+    let resultingStock = $derived(
+        isAddingStock
+            ? currentStockAdjust + adjustQty
+            : Math.max(0, currentStockAdjust - adjustQty)
+    );
+
     function resetMovementForm() {
         movementForm.type = 'purchase';
         movementForm.quantity = 1;
@@ -1084,9 +1093,34 @@
             <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div>
                     <h3 class="text-base font-bold text-slate-900 dark:text-white">Ajuste de Stock: {adjustingMaterial.name}</h3>
-                    <span class="text-[11px] text-slate-500 dark:text-slate-400">Stock actual: {Number(adjustingMaterial.current_stock)} {adjustingMaterial.unit_of_measure}</span>
+                    <span class="text-[11px] text-slate-500 dark:text-slate-400">Registra entradas o salidas de inventario</span>
                 </div>
                 <button type="button" onclick={() => showMovementModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
+            </div>
+
+            <!-- TARJETA CON 3 INDICADORES EN TIEMPO REAL -->
+            <div class="grid grid-cols-3 gap-2 p-2.5 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] text-center">
+                <div class="p-2 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D]/60 shadow-xs">
+                    <span class="block text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Stock Actual</span>
+                    <span class="text-xs sm:text-sm font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {currentStockAdjust}
+                    </span>
+                    <span class="block text-[9px] text-slate-400 truncate">{adjustingMaterial.unit_of_measure}</span>
+                </div>
+                <div class="p-2 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D]/60 shadow-xs">
+                    <span class="block text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Ajuste</span>
+                    <span class="text-xs sm:text-sm font-mono font-bold {isAddingStock ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
+                        {isAddingStock ? '+' : '-'}{adjustQty}
+                    </span>
+                    <span class="block text-[9px] text-slate-400 truncate">{adjustingMaterial.unit_of_measure}</span>
+                </div>
+                <div class="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700/60 shadow-xs">
+                    <span class="block text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">Nuevo Stock</span>
+                    <span class="text-xs sm:text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                        {resultingStock}
+                    </span>
+                    <span class="block text-[9px] text-emerald-600/80 dark:text-emerald-400/80 truncate">{adjustingMaterial.unit_of_measure}</span>
+                </div>
             </div>
 
             <form onsubmit={submitMovement} class="space-y-4 text-xs">
