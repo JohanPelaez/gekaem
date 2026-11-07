@@ -12,12 +12,76 @@
         rawMaterials,
         allSuppliers = [],
         unitsOfMeasure = [],
+        pendingRequests = [],
+        allMaterialsList = [],
         filters = { search: '', unit_of_measure: '', supplier_id: '', low_stock: false },
         errors = {},
     } = $props();
 
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
+    let isOwnerOrAdmin = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner' || authUser?.role === 'admin'));
+    let isWorker = $derived(authUser?.role === 'worker');
+
+    // Estado del modal de Solicitud de Materia Prima al CEO (Sprint 9)
+    let showRequestModal = $state(false);
+    let requestSubmitting = $state(false);
+    let requestForm = $state({
+        type: 'existing', // 'existing' | 'new'
+        raw_material_id: '',
+        new_material_name: '',
+        requested_quantity: '',
+        unit: '',
+        notes: '',
+    });
+
+    function openRequestModal() {
+        const firstMat = allMaterialsList[0] || null;
+        requestForm = {
+            type: 'existing',
+            raw_material_id: firstMat?.id ? String(firstMat.id) : '',
+            new_material_name: '',
+            requested_quantity: '',
+            unit: firstMat?.unit_of_measure || '',
+            notes: '',
+        };
+        showRequestModal = true;
+    }
+
+    function onSelectExistingMaterial(e) {
+        const matId = e.target.value;
+        requestForm.raw_material_id = matId;
+        const found = allMaterialsList.find(m => String(m.id) === String(matId));
+        if (found) {
+            requestForm.unit = found.unit_of_measure || '';
+        }
+    }
+
+    function submitMaterialRequest(e) {
+        e.preventDefault();
+        requestSubmitting = true;
+        router.post('/material-requests', requestForm, {
+            preserveScroll: true,
+            onFinish: () => { requestSubmitting = false; },
+            onSuccess: () => {
+                showRequestModal = false;
+            },
+        });
+    }
+
+    function handleApproveRequest(id) {
+        router.patch(`/material-requests/${id}`, { status: 'approved' }, {
+            preserveScroll: true,
+        });
+    }
+
+    function handleRejectRequest(id) {
+        if (confirm('¿Deseas descartar esta solicitud de materia prima?')) {
+            router.patch(`/material-requests/${id}`, { status: 'rejected' }, {
+                preserveScroll: true,
+            });
+        }
+    }
 
     let search = $state('');
     let unitFilter = $state('');
@@ -416,28 +480,115 @@
                     Control de stock, insumos primordiales para recetas BOM y vinculación con proveedores.
                 </p>
             </div>
-            <div class="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+            <div class="flex items-center gap-2 shrink-0 self-start sm:self-auto flex-wrap">
                 <ViewToggle bind:mode={viewMode} storageKey="gekaem_raw_materials_view" />
+
+                <!-- Botón Solicitar Materia Prima al CEO -->
                 <button
                     type="button"
-                    onclick={() => (showUomModal = true)}
-                    class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
+                    onclick={openRequestModal}
+                    class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold text-xs transition shadow-sm flex items-center gap-1.5 shrink-0"
+                    title="Enviar solicitud de materia prima o insumo al CEO del taller"
                 >
-                    <svg class="w-4 h-4 text-[#4F46E5] dark:text-[#06B6D4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
-                    </svg>
-                    <span>Unidades de Medida</span>
+                    <span>📦</span>
+                    <span>Solicitar Materia Prima al CEO</span>
                 </button>
-                <button
-                    type="button"
-                    onclick={openCreate}
-                    class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
-                >
-                    <span>+</span>
-                    <span>Nueva Materia Prima</span>
-                </button>
+
+                {#if isOwnerOrAdmin}
+                    <button
+                        type="button"
+                        onclick={() => (showUomModal = true)}
+                        class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
+                    >
+                        <svg class="w-4 h-4 text-[#4F46E5] dark:text-[#06B6D4]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                        </svg>
+                        <span>Unidades de Medida</span>
+                    </button>
+                    <button
+                        type="button"
+                        onclick={openCreate}
+                        class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0"
+                    >
+                        <span>+</span>
+                        <span>Nueva Materia Prima</span>
+                    </button>
+                {/if}
             </div>
         </div>
+
+        <!-- BANDEJA DE SOLICITUDES DE MATERIA PRIMA (VISIBLE PARA DUEÑO Y ADMIN) -->
+        {#if isOwnerOrAdmin && pendingRequests && pendingRequests.length > 0}
+            <div class="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-xl">🔔</span>
+                        <div>
+                            <h2 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <span>Solicitudes de Materia Prima del Equipo</span>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
+                                    {pendingRequests.length} {pendingRequests.length === 1 ? 'pendiente' : 'pendientes'}
+                                </span>
+                            </h2>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                Insumos solicitados por el equipo de operarios para la producción en el taller.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                    {#each pendingRequests as req (req.id)}
+                        <div class="p-3.5 bg-white dark:bg-[#151D2C] border border-amber-300/60 dark:border-amber-500/25 rounded-xl shadow-xs space-y-2.5">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">
+                                        Solicitado por: <strong class="text-slate-700 dark:text-slate-300">{req.user?.name ?? 'Trabajador'}</strong>
+                                    </span>
+                                    <h3 class="font-bold text-xs text-slate-900 dark:text-white truncate mt-0.5">
+                                        {req.raw_material?.name ?? req.new_material_name ?? 'Insumo'}
+                                    </h3>
+                                </div>
+                                <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 {req.raw_material_id ? 'bg-indigo-50 dark:bg-indigo-500/15 text-[#4F46E5] dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30' : 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'}">
+                                    {req.raw_material_id ? 'Existente' : 'Nuevo Insumo'}
+                                </span>
+                            </div>
+
+                            <div class="flex items-baseline gap-2 bg-slate-50 dark:bg-[#0B0F17] px-2.5 py-1.5 rounded-lg border border-slate-200/60 dark:border-[#26334D]">
+                                <span class="text-[11px] text-slate-500">Cantidad requerida:</span>
+                                <span class="text-xs font-mono font-extrabold text-amber-600 dark:text-amber-400">
+                                    {req.requested_quantity} {req.unit || req.raw_material?.unit_of_measure || ''}
+                                </span>
+                            </div>
+
+                            {#if req.notes}
+                                <p class="text-[11px] text-slate-600 dark:text-slate-300 italic bg-amber-50/50 dark:bg-amber-950/20 p-2 rounded-lg border border-amber-200/40 dark:border-amber-900/30">
+                                    "{req.notes}"
+                                </p>
+                            {/if}
+
+                            <div class="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-[#26334D]">
+                                <button
+                                    type="button"
+                                    onclick={() => handleRejectRequest(req.id)}
+                                    class="px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-semibold border border-rose-200 dark:border-rose-900/40 transition-colors"
+                                >
+                                    Descartar
+                                </button>
+                                <button
+                                    type="button"
+                                    onclick={() => handleApproveRequest(req.id)}
+                                    class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors flex items-center gap-1"
+                                >
+                                    <span>✓</span>
+                                    <span>Aprobar / Atender</span>
+                                </button>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        {/if}
 
         <!-- BUSCADOR Y FILTROS COMBINADOS -->
         <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
@@ -526,7 +677,9 @@
                                     <th class="py-2.5 px-3 text-right">Costo Unitario</th>
                                 {/if}
                                 <th class="py-2.5 px-3">Proveedores</th>
-                                <th class="py-2.5 px-3 text-right">Acciones</th>
+                                {#if isOwnerOrAdmin}
+                                    <th class="py-2.5 px-3 text-right">Acciones</th>
+                                {/if}
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
@@ -604,59 +757,61 @@
                                             {/if}
                                         </div>
                                     </td>
-                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
-                                        <div class="inline-flex items-center justify-end">
-                                            <button
-                                                type="button"
-                                                onclick={(e) => toggleActionMenu(e, mat.id)}
-                                                class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
-                                                title="Más opciones"
-                                            >
-                                                •••
-                                            </button>
-                                        </div>
-
-                                        <!-- Menú Contextual Desplegable (Fixed) -->
-                                        {#if openActionMenuMatId === mat.id}
-                                            <div
-                                                role="menu"
-                                                tabindex="-1"
-                                                class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]"
-                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
-                                                onclick={(e) => e.stopPropagation()}
-                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuMatId = null; }}
-                                            >
-                                                <div class="py-0.5">
-                                                    <button
-                                                        type="button"
-                                                        onclick={() => { openActionMenuMatId = null; openEdit(mat); }}
-                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-                                                    >
-                                                        <span>✏️</span>
-                                                        <span>Editar Insumo</span>
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onclick={() => { openActionMenuMatId = null; openAdjust(mat); }}
-                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
-                                                    >
-                                                        <span>📦</span>
-                                                        <span>Ajustar Stock / Compra</span>
-                                                    </button>
-                                                </div>
-                                                <div class="py-0.5">
-                                                    <button
-                                                        type="button"
-                                                        onclick={() => { openActionMenuMatId = null; destroy(mat); }}
-                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                                                    >
-                                                        <span>🗑️</span>
-                                                        <span>Eliminar Insumo</span>
-                                                    </button>
-                                                </div>
+                                    {#if isOwnerOrAdmin}
+                                        <td class="py-2.5 px-3 text-right whitespace-nowrap">
+                                            <div class="inline-flex items-center justify-end">
+                                                <button
+                                                    type="button"
+                                                    onclick={(e) => toggleActionMenu(e, mat.id)}
+                                                    class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
+                                                    title="Más opciones"
+                                                >
+                                                    •••
+                                                </button>
                                             </div>
-                                        {/if}
-                                    </td>
+
+                                            <!-- Menú Contextual Desplegable (Fixed) -->
+                                            {#if openActionMenuMatId === mat.id}
+                                                <div
+                                                    role="menu"
+                                                    tabindex="-1"
+                                                    class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]"
+                                                    style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
+                                                    onclick={(e) => e.stopPropagation()}
+                                                    onkeydown={(e) => { if (e.key === 'Escape') openActionMenuMatId = null; }}
+                                                >
+                                                    <div class="py-0.5">
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => { openActionMenuMatId = null; openEdit(mat); }}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                                                        >
+                                                            <span>✏️</span>
+                                                            <span>Editar Insumo</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => { openActionMenuMatId = null; openAdjust(mat); }}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                                                        >
+                                                            <span>📦</span>
+                                                            <span>Ajustar Stock / Compra</span>
+                                                        </button>
+                                                    </div>
+                                                    <div class="py-0.5">
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => { openActionMenuMatId = null; destroy(mat); }}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                                        >
+                                                            <span>🗑️</span>
+                                                            <span>Eliminar Insumo</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            {/if}
+                                        </td>
+                                    {/if}
                                 </tr>
 
 
@@ -816,30 +971,32 @@
                             </div>
                         </div>
 
-                        <!-- Acciones -->
-                        <div class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex items-center justify-end gap-2">
-                            <button
-                                type="button"
-                                onclick={() => openAdjust(mat)}
-                                class="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-semibold transition-colors"
-                            >
-                                ± Stock
-                            </button>
-                            <button
-                                type="button"
-                                onclick={() => openEdit(mat)}
-                                class="px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition-colors"
-                            >
-                                Editar
-                            </button>
-                            <button
-                                type="button"
-                                onclick={() => destroy(mat)}
-                                class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-950 dark:text-slate-400 dark:hover:text-rose-300 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition-colors"
-                            >
-                                Eliminar
-                            </button>
-                        </div>
+                        <!-- Acciones (Solo Dueño o Admin) -->
+                        {#if isOwnerOrAdmin}
+                            <div class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex items-center justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onclick={() => openAdjust(mat)}
+                                    class="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-300 dark:border-emerald-500/30 text-xs font-semibold transition-colors"
+                                >
+                                    ± Stock
+                                </button>
+                                <button
+                                    type="button"
+                                    onclick={() => openEdit(mat)}
+                                    class="px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition-colors"
+                                >
+                                    Editar
+                                </button>
+                                <button
+                                    type="button"
+                                    onclick={() => destroy(mat)}
+                                    class="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-950 dark:text-slate-400 dark:hover:text-rose-300 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition-colors"
+                                >
+                                    Eliminar
+                                </button>
+                            </div>
+                        {/if}
                     </div>
                 {:else}
                     <div class="col-span-full p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl text-slate-400 dark:text-slate-500 text-xs shadow-sm">
@@ -1380,6 +1537,167 @@
                     Cerrar
                 </button>
             </div>
+        </div>
+    </div>
+{/if}
+
+<!-- MODAL SOLICITAR MATERIA PRIMA AL CEO (SPRINT 9) -->
+{#if showRequestModal}
+    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" role="dialog" aria-modal="true">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <!-- Encabezado -->
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-600 dark:text-amber-400 font-bold text-base shadow-xs">
+                        📦
+                    </div>
+                    <div>
+                        <span class="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400 block">Abastecimiento Operativo</span>
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">Solicitar Materia Prima al CEO</h3>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onclick={() => (showRequestModal = false)}
+                    class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                    ✕
+                </button>
+            </div>
+
+            <form onsubmit={submitMaterialRequest} class="space-y-4 text-xs">
+                <!-- Selector de tipo de insumo -->
+                <div>
+                    <span class="block font-semibold text-slate-700 dark:text-slate-300 mb-2">Tipo de Solicitud:</span>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            onclick={() => (requestForm.type = 'existing')}
+                            class="p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all {requestForm.type === 'existing' ? 'bg-[#4F46E5] text-white border-[#4F46E5] shadow-xs' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'}"
+                        >
+                            <span>📦</span>
+                            <span>Insumo Existente en Bodega</span>
+                        </button>
+                        <button
+                            type="button"
+                            onclick={() => (requestForm.type = 'new')}
+                            class="p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all {requestForm.type === 'new' ? 'bg-[#4F46E5] text-white border-[#4F46E5] shadow-xs' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'}"
+                        >
+                            <span>✨</span>
+                            <span>Nueva Materia Prima</span>
+                        </button>
+                    </div>
+                </div>
+
+                {#if requestForm.type === 'existing'}
+                    <!-- Selector de Insumo Existente -->
+                    <div>
+                        <label for="req-mat-select" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Materia Prima en Catálogo *</label>
+                        <select
+                            id="req-mat-select"
+                            value={requestForm.raw_material_id}
+                            onchange={onSelectExistingMaterial}
+                            required
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:ring-1 focus:ring-[#4F46E5]"
+                        >
+                            {#if allMaterialsList.length === 0}
+                                <option value="">No hay materias primas registradas en catálogo</option>
+                            {:else}
+                                {#each allMaterialsList as mat}
+                                    <option value={String(mat.id)}>
+                                        {mat.name} (Stock: {Number(mat.current_stock).toFixed(2)} {mat.unit_of_measure})
+                                    </option>
+                                {/each}
+                            {/if}
+                        </select>
+                        {#if errors.raw_material_id}
+                            <p class="text-[10px] text-rose-500 mt-1">{errors.raw_material_id}</p>
+                        {/if}
+                    </div>
+                {:else}
+                    <!-- Insumo Nuevo -->
+                    <div>
+                        <label for="req-new-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre de la Nueva Materia Prima *</label>
+                        <input
+                            id="req-new-name"
+                            type="text"
+                            bind:value={requestForm.new_material_name}
+                            placeholder="Ej. Tela Lino Beige 250gr"
+                            required
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:ring-1 focus:ring-[#4F46E5]"
+                        />
+                        {#if errors.new_material_name}
+                            <p class="text-[10px] text-rose-500 mt-1">{errors.new_material_name}</p>
+                        {/if}
+                    </div>
+
+                    <div>
+                        <label for="req-new-unit" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Unidad de Medida (opcional)</label>
+                        <input
+                            id="req-new-unit"
+                            type="text"
+                            bind:value={requestForm.unit}
+                            placeholder="Ej. metros, rollos, kg, unidades"
+                            class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:ring-1 focus:ring-[#4F46E5]"
+                        />
+                    </div>
+                {/if}
+
+                <!-- Cantidad Requerida -->
+                <div>
+                    <label for="req-qty" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Cantidad Requerida * {requestForm.unit ? `(${requestForm.unit})` : ''}
+                    </label>
+                    <input
+                        id="req-qty"
+                        type="number"
+                        step="any"
+                        min="0.01"
+                        bind:value={requestForm.requested_quantity}
+                        placeholder="Ej. 15.5"
+                        required
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono text-sm focus:ring-1 focus:ring-[#4F46E5]"
+                    />
+                    {#if errors.requested_quantity}
+                        <p class="text-[10px] text-rose-500 mt-1">{errors.requested_quantity}</p>
+                    {/if}
+                </div>
+
+                <!-- Notas / Urgencia para el CEO -->
+                <div>
+                    <label for="req-notes" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Notas / Motivo / Urgencia para el CEO</label>
+                    <textarea
+                        id="req-notes"
+                        rows="3"
+                        bind:value={requestForm.notes}
+                        placeholder="Ej. Se necesita para completar los 3 pedidos del viernes. Nos quedamos sin stock para el lote."
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:ring-1 focus:ring-[#4F46E5]"
+                    ></textarea>
+                </div>
+
+                <!-- Botones de Acción -->
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]">
+                    <button
+                        type="button"
+                        onclick={() => (showRequestModal = false)}
+                        class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={requestSubmitting}
+                        class="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold text-xs shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                        {#if requestSubmitting}
+                            <span>Enviando...</span>
+                        {:else}
+                            <span>📤</span>
+                            <span>Enviar Solicitud al CEO</span>
+                        {/if}
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 {/if}

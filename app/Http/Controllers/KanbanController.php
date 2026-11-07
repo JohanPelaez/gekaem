@@ -198,6 +198,8 @@ class KanbanController extends Controller
         Order $order,
         MoveProductionTaskAction $moveAction
     ): JsonResponse|RedirectResponse {
+        abort_if($request->user()?->currentRole() === 'worker', 403, 'Los trabajadores no pueden modificar el estado del pedido.');
+
         $validated = $request->validate([
             'order_status_id' => ['nullable', 'integer', 'exists:order_statuses,id'],
             'status_id' => ['nullable', 'integer', 'exists:order_statuses,id'],

@@ -19,7 +19,9 @@ use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\UnitOfMeasureController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Middleware\EnsureNotWorker;
 use App\Http\Middleware\EnsureSubscriptionActive;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -51,57 +53,7 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
         Route::patch('/orders/{order}/status', [KanbanController::class, 'updateOrderStatus'])->name('orders.status');
     });
 
-    // Estados Personalizables de Pedidos
-    Route::prefix('order-statuses')->name('order-statuses.')->group(function (): void {
-        Route::post('/', [OrderStatusController::class, 'store'])->name('store');
-        Route::put('/{orderStatus}', [OrderStatusController::class, 'update'])->name('update');
-        Route::post('/reorder', [OrderStatusController::class, 'reorder'])->name('reorder');
-        Route::delete('/{orderStatus}', [OrderStatusController::class, 'destroy'])->name('destroy');
-    });
-
-    // Módulo 1: Pedidos, Calculadora Predictiva de Entrega y Cierre Kanban
-    Route::prefix('orders')->name('orders.')->group(function (): void {
-        Route::get('/', [OrderController::class, 'index'])->name('index');
-        Route::post('/', [OrderController::class, 'store'])->name('store');
-        Route::put('/{order}', [OrderController::class, 'update'])->name('update');
-        Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
-        Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
-        Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');
-        Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
-    });
-
-    Route::delete('/payments/{payment}', [OrderPaymentController::class, 'destroy'])->name('payments.destroy');
-
-    // Módulo 2: Productos, Recetas BOM y Variantes Ortogonales (Notas 7, 8, 9)
-    Route::prefix('products')->name('products.')->group(function (): void {
-        Route::get('/', [ProductController::class, 'index'])->name('index');
-        Route::post('/', [ProductController::class, 'store'])->name('store');
-        Route::patch('/{product}', [ProductController::class, 'update'])->name('update');
-        Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
-    });
-
-    // Rutas auxiliares para Tipos de Producto y Ejes Ortogonales
-    Route::post('/product-types', [ProductController::class, 'storeType'])->name('product-types.store');
-    Route::post('/orthogonal-attributes', [ProductController::class, 'storeAttribute'])->name('orthogonal-attributes.store');
-    Route::post('/orthogonal-attributes/{orthogonalAttribute}/options', [ProductController::class, 'storeOption'])->name('orthogonal-attributes.options.store');
-
-    // Módulo 3: Clientes (Nota 5: Todo pedido requiere cliente)
-    Route::prefix('customers')->name('customers.')->group(function (): void {
-        Route::get('/', [CustomerController::class, 'index'])->name('index');
-        Route::post('/', [CustomerController::class, 'store'])->name('store');
-        Route::patch('/{customer}', [CustomerController::class, 'update'])->name('update');
-        Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
-    });
-
-    // Módulo 4: Proveedores y Lead Time
-    Route::prefix('suppliers')->name('suppliers.')->group(function (): void {
-        Route::get('/', [SupplierController::class, 'index'])->name('index');
-        Route::post('/', [SupplierController::class, 'store'])->name('store');
-        Route::patch('/{supplier}', [SupplierController::class, 'update'])->name('update');
-        Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->name('destroy');
-    });
-
-    // Módulo 6: Materia Prima e Inventario (Nota 4: 0, 1 o múltiples proveedores)
+    // Módulo 6: Materia Prima e Inventario (Consulta disponible para todos los roles)
     Route::prefix('raw-materials')->name('raw-materials.')->group(function (): void {
         Route::get('/', [RawMaterialController::class, 'index'])->name('index');
         Route::post('/', [RawMaterialController::class, 'store'])->name('store');
@@ -110,61 +62,121 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
         Route::post('/{rawMaterial}/movements', [RawMaterialController::class, 'adjustStock'])->name('movements.store');
     });
 
-    // Módulo 7: Tipos de Flujos y Estados Dinámicos
-    Route::prefix('workflows')->name('workflows.')->group(function (): void {
-        Route::get('/', [WorkflowController::class, 'index'])->name('index');
-        Route::post('/', [WorkflowController::class, 'store'])->name('store');
-        Route::patch('/{workflow}', [WorkflowController::class, 'update'])->name('update');
-        Route::post('/{workflow}/stages', [WorkflowController::class, 'storeStage'])->name('stages.store');
-        Route::post('/{workflow}/stages/reorder', [WorkflowController::class, 'reorderStages'])->name('stages.reorder');
-        Route::patch('/stages/{stage}', [WorkflowController::class, 'updateStage'])->name('stages.update');
-        Route::delete('/stages/{stage}', [WorkflowController::class, 'destroyStage'])->name('stages.destroy');
+    // Solicitudes de Materia Prima al CEO
+    Route::prefix('material-requests')->name('material-requests.')->group(function (): void {
+        Route::post('/', [MaterialRequestController::class, 'store'])->name('store');
+        Route::patch('/{materialRequest}', [MaterialRequestController::class, 'update'])->name('update');
     });
 
-    // Unidades de Medida
-    Route::prefix('units-of-measure')->name('units-of-measure.')->group(function (): void {
-        Route::get('/', [UnitOfMeasureController::class, 'index'])->name('index');
-        Route::post('/', [UnitOfMeasureController::class, 'store'])->name('store');
-        Route::patch('/{unitOfMeasure}', [UnitOfMeasureController::class, 'update'])->name('update');
-        Route::delete('/{unitOfMeasure}', [UnitOfMeasureController::class, 'destroy'])->name('destroy');
-    });
-
-    // Rutas de Creación Rápida en Contexto (Quick Create)
-    Route::prefix('quick')->name('quick.')->group(function (): void {
-        Route::post('/products', [ProductController::class, 'quickStore'])->name('products');
-        Route::post('/product-types', [QuickCreateController::class, 'productType'])->name('product-types');
-        Route::put('/product-types/{productType}', [QuickCreateController::class, 'updateProductType'])->name('product-types.update');
-        Route::post('/workflows', [QuickCreateController::class, 'workflow'])->name('workflows');
-        Route::post('/suppliers', [QuickCreateController::class, 'supplier'])->name('suppliers');
-        Route::post('/customers', [QuickCreateController::class, 'customer'])->name('customers');
-        Route::post('/raw-materials', [QuickCreateController::class, 'rawMaterial'])->name('raw-materials');
-        Route::post('/units-of-measure', [QuickCreateController::class, 'unitOfMeasure'])->name('units-of-measure');
-        Route::post('/attributes', [QuickCreateController::class, 'attribute'])->name('attributes');
-        Route::post('/attributes/{orthogonalAttribute}/options', [QuickCreateController::class, 'attributeOption'])->name('attributes.options');
-    });
-
-    // Perfil de Usuario y Ajustes
+    // Perfil de Usuario (Accesible por cualquier usuario autenticado para credenciales personales)
     Route::get('/settings', [ProfileController::class, 'edit'])->name('settings.index');
     Route::get('/profile', fn () => redirect()->route('settings.index', ['tab' => 'profile']))->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'updateProfile'])->name('profile.update');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password.update');
 
-    // Módulo de Suscripción y Configuración de Pagos (Bold)
-    Route::prefix('settings/billing')->name('settings.billing.')->group(function (): void {
-        Route::get('/', [PaymentController::class, 'billing'])->name('index');
-        Route::post('/payment-method', [PaymentController::class, 'updatePaymentMethod'])->name('payment-method.update');
-        Route::post('/upgrade', [PaymentController::class, 'upgradePlan'])->name('upgrade');
-    });
-    Route::get('/settings/billing', [PaymentController::class, 'billing'])->name('settings.billing');
+    // Rutas restringidas para el Rol Trabajador (Solo Dueño o Admin)
+    Route::middleware([EnsureNotWorker::class])->group(function (): void {
+        // Estados Personalizables de Pedidos
+        Route::prefix('order-statuses')->name('order-statuses.')->group(function (): void {
+            Route::post('/', [OrderStatusController::class, 'store'])->name('store');
+            Route::put('/{orderStatus}', [OrderStatusController::class, 'update'])->name('update');
+            Route::post('/reorder', [OrderStatusController::class, 'reorder'])->name('reorder');
+            Route::delete('/{orderStatus}', [OrderStatusController::class, 'destroy'])->name('destroy');
+        });
 
-    // Configuración del Taller y Equipo (Solo Dueño o Admin)
-    Route::prefix('settings')->name('settings.')->group(function (): void {
-        Route::patch('/tenant', [TenantSettingsController::class, 'update'])->name('tenant.update');
-        Route::patch('/', [TenantSettingsController::class, 'update'])->name('update');
-        Route::post('/members', [TenantSettingsController::class, 'addMember'])->name('members.store');
-        Route::put('/members/{user}', [TenantSettingsController::class, 'updateMember'])->name('members.update');
-        Route::put('/team/{user}', [TenantSettingsController::class, 'updateMember'])->name('team.update');
-        Route::delete('/members/{user}', [TenantSettingsController::class, 'removeMember'])->name('members.destroy');
+        // Módulo 1: Pedidos, Calculadora Predictiva de Entrega y Cierre Kanban
+        Route::prefix('orders')->name('orders.')->group(function (): void {
+            Route::get('/', [OrderController::class, 'index'])->name('index');
+            Route::post('/', [OrderController::class, 'store'])->name('store');
+            Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+            Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
+            Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
+            Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');
+            Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::delete('/payments/{payment}', [OrderPaymentController::class, 'destroy'])->name('payments.destroy');
+
+        // Módulo 2: Productos, Recetas BOM y Variantes Ortogonales (Notas 7, 8, 9)
+        Route::prefix('products')->name('products.')->group(function (): void {
+            Route::get('/', [ProductController::class, 'index'])->name('index');
+            Route::post('/', [ProductController::class, 'store'])->name('store');
+            Route::patch('/{product}', [ProductController::class, 'update'])->name('update');
+            Route::delete('/{product}', [ProductController::class, 'destroy'])->name('destroy');
+        });
+
+        // Rutas auxiliares para Tipos de Producto y Ejes Ortogonales
+        Route::post('/product-types', [ProductController::class, 'storeType'])->name('product-types.store');
+        Route::post('/orthogonal-attributes', [ProductController::class, 'storeAttribute'])->name('orthogonal-attributes.store');
+        Route::post('/orthogonal-attributes/{orthogonalAttribute}/options', [ProductController::class, 'storeOption'])->name('orthogonal-attributes.options.store');
+
+        // Módulo 3: Clientes (Nota 5: Todo pedido requiere cliente)
+        Route::prefix('customers')->name('customers.')->group(function (): void {
+            Route::get('/', [CustomerController::class, 'index'])->name('index');
+            Route::post('/', [CustomerController::class, 'store'])->name('store');
+            Route::patch('/{customer}', [CustomerController::class, 'update'])->name('update');
+            Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
+        });
+
+        // Módulo 4: Proveedores y Lead Time
+        Route::prefix('suppliers')->name('suppliers.')->group(function (): void {
+            Route::get('/', [SupplierController::class, 'index'])->name('index');
+            Route::post('/', [SupplierController::class, 'store'])->name('store');
+            Route::patch('/{supplier}', [SupplierController::class, 'update'])->name('update');
+            Route::delete('/{supplier}', [SupplierController::class, 'destroy'])->name('destroy');
+        });
+
+        // Módulo 7: Tipos de Flujos y Estados Dinámicos
+        Route::prefix('workflows')->name('workflows.')->group(function (): void {
+            Route::get('/', [WorkflowController::class, 'index'])->name('index');
+            Route::post('/', [WorkflowController::class, 'store'])->name('store');
+            Route::patch('/{workflow}', [WorkflowController::class, 'update'])->name('update');
+            Route::post('/{workflow}/stages', [WorkflowController::class, 'storeStage'])->name('stages.store');
+            Route::post('/{workflow}/stages/reorder', [WorkflowController::class, 'reorderStages'])->name('stages.reorder');
+            Route::patch('/stages/{stage}', [WorkflowController::class, 'updateStage'])->name('stages.update');
+            Route::delete('/stages/{stage}', [WorkflowController::class, 'destroyStage'])->name('stages.destroy');
+        });
+
+        // Unidades de Medida
+        Route::prefix('units-of-measure')->name('units-of-measure.')->group(function (): void {
+            Route::get('/', [UnitOfMeasureController::class, 'index'])->name('index');
+            Route::post('/', [UnitOfMeasureController::class, 'store'])->name('store');
+            Route::patch('/{unitOfMeasure}', [UnitOfMeasureController::class, 'update'])->name('update');
+            Route::delete('/{unitOfMeasure}', [UnitOfMeasureController::class, 'destroy'])->name('destroy');
+        });
+
+        // Rutas de Creación Rápida en Contexto (Quick Create)
+        Route::prefix('quick')->name('quick.')->group(function (): void {
+            Route::post('/products', [ProductController::class, 'quickStore'])->name('products');
+            Route::post('/product-types', [QuickCreateController::class, 'productType'])->name('product-types');
+            Route::put('/product-types/{productType}', [QuickCreateController::class, 'updateProductType'])->name('product-types.update');
+            Route::post('/workflows', [QuickCreateController::class, 'workflow'])->name('workflows');
+            Route::post('/suppliers', [QuickCreateController::class, 'supplier'])->name('suppliers');
+            Route::post('/customers', [QuickCreateController::class, 'customer'])->name('customers');
+            Route::post('/raw-materials', [QuickCreateController::class, 'rawMaterial'])->name('raw-materials');
+            Route::post('/units-of-measure', [QuickCreateController::class, 'unitOfMeasure'])->name('units-of-measure');
+            Route::post('/attributes', [QuickCreateController::class, 'attribute'])->name('attributes');
+            Route::post('/attributes/{orthogonalAttribute}/options', [QuickCreateController::class, 'attributeOption'])->name('attributes.options');
+        });
+
+
+        // Módulo de Suscripción y Configuración de Pagos (Bold)
+        Route::prefix('settings/billing')->name('settings.billing.')->group(function (): void {
+            Route::get('/', [PaymentController::class, 'billing'])->name('index');
+            Route::post('/payment-method', [PaymentController::class, 'updatePaymentMethod'])->name('payment-method.update');
+            Route::post('/upgrade', [PaymentController::class, 'upgradePlan'])->name('upgrade');
+        });
+        Route::get('/settings/billing', [PaymentController::class, 'billing'])->name('settings.billing');
+
+        // Configuración del Taller y Equipo (Solo Dueño o Admin)
+        Route::prefix('settings')->name('settings.')->group(function (): void {
+            Route::patch('/tenant', [TenantSettingsController::class, 'update'])->name('tenant.update');
+            Route::patch('/', [TenantSettingsController::class, 'update'])->name('update');
+            Route::post('/members', [TenantSettingsController::class, 'addMember'])->name('members.store');
+            Route::put('/members/{user}', [TenantSettingsController::class, 'updateMember'])->name('members.update');
+            Route::put('/team/{user}', [TenantSettingsController::class, 'updateMember'])->name('team.update');
+            Route::delete('/members/{user}', [TenantSettingsController::class, 'removeMember'])->name('members.destroy');
+        });
     });
 
     // Panel SuperAdmin SaaS (Solo SuperAdmin)
@@ -172,5 +184,9 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
         Route::get('/', [AdminManagementController::class, 'index'])->name('index');
         Route::post('/users', [AdminManagementController::class, 'storeUser'])->name('users.store');
         Route::post('/switch-tenant/{tenant}', [AdminManagementController::class, 'switchTenant'])->name('switch-tenant');
+        Route::post('/tenants/{tenant}/extend-trial', [AdminManagementController::class, 'extendTrial'])->name('tenants.extend-trial');
     });
+
+    // Alias para ruta de super admin
+    Route::post('/super-admin/tenants/{tenant}/extend-trial', [AdminManagementController::class, 'extendTrial']);
 });

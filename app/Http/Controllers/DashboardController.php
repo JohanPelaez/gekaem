@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Dashboard\GetDashboardStatsAction;
 use App\Models\Tenant;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -15,8 +16,12 @@ class DashboardController extends Controller
     /**
      * Display the main gipPyme dashboard with KPIs and recent orders.
      */
-    public function index(Request $request, GetDashboardStatsAction $action): Response
+    public function index(Request $request, GetDashboardStatsAction $action): Response|RedirectResponse
     {
+        if ($request->user()?->currentRole() === 'worker') {
+            return redirect()->route('kanban.index');
+        }
+
         $tenant = $this->resolveTenant();
         Tenant::ensureDefaultData($tenant->id);
 

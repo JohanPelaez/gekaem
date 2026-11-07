@@ -68,6 +68,31 @@
 
     // Elementos de navegación vertical limpia (1 sola línea por ítem)
     let navItems = $derived.by(() => {
+        // Vista Exclusiva del Rol Trabajador (Sprint 9)
+        if (auth?.user?.role === 'worker') {
+            return [
+                {
+                    name: 'Kanban',
+                    href: '/kanban',
+                    badge: null,
+                    icon: 'kanban',
+                },
+                {
+                    name: 'Kanban de Flujos',
+                    href: '/kanban?view=workflows',
+                    badge: null,
+                    icon: 'workflows_kanban',
+                },
+                {
+                    name: 'Materia Prima',
+                    href: '/raw-materials',
+                    badge: counts?.raw_material_alerts > 0 ? `${counts.raw_material_alerts}` : null,
+                    badgeColor: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25',
+                    icon: 'materials',
+                },
+            ];
+        }
+
         const items = [
             {
                 name: 'Dashboard',
@@ -186,7 +211,11 @@
     function handleGlobalSearch(e) {
         e.preventDefault();
         if (!searchQuery.trim()) return;
-        router.get('/orders', { search: searchQuery.trim() });
+        if (auth?.user?.role === 'worker') {
+            router.get('/raw-materials', { search: searchQuery.trim() });
+        } else {
+            router.get('/orders', { search: searchQuery.trim() });
+        }
     }
 
     // Iniciales del usuario para avatar
@@ -363,19 +392,35 @@
         <div class="p-2.5 border-t border-slate-200/80 dark:border-[#26334D] bg-slate-50/50 dark:bg-[#151D2C]">
             {#if !isSidebarCollapsed}
                 <div class="p-2 rounded-xl bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] flex items-center justify-between gap-2 shadow-xs">
-                    <Link href="/settings" class="flex items-center gap-2 min-w-0 group hover:opacity-90 transition-opacity">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#06B6D4] flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0 ring-2 ring-indigo-500/20">
-                            {userInitials}
+                    {#if auth?.user?.role !== 'worker'}
+                        <Link href="/settings" class="flex items-center gap-2 min-w-0 group hover:opacity-90 transition-opacity">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#06B6D4] flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0 ring-2 ring-indigo-500/20">
+                                {userInitials}
+                            </div>
+                            <div class="truncate">
+                                <p class="text-xs font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-[#4F46E5] dark:group-hover:text-[#06B6D4] transition-colors">
+                                    {auth?.user?.name ?? 'Usuario'}
+                                </p>
+                                <span class="text-[10px] text-slate-400 truncate block">
+                                    {auth?.user?.is_super_admin ? 'Admin' : (auth?.user?.role === 'owner' ? 'Dueño' : 'Trabajador')}
+                                </span>
+                            </div>
+                        </Link>
+                    {:else}
+                        <div class="flex items-center gap-2 min-w-0">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#06B6D4] flex items-center justify-center font-bold text-xs text-white shadow-xs shrink-0 ring-2 ring-indigo-500/20">
+                                {userInitials}
+                            </div>
+                            <div class="truncate">
+                                <p class="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                                    {auth?.user?.name ?? 'Usuario'}
+                                </p>
+                                <span class="text-[10px] text-slate-400 truncate block">
+                                    Trabajador
+                                </span>
+                            </div>
                         </div>
-                        <div class="truncate">
-                            <p class="text-xs font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-[#4F46E5] dark:group-hover:text-[#06B6D4] transition-colors">
-                                {auth?.user?.name ?? 'Usuario'}
-                            </p>
-                            <span class="text-[10px] text-slate-400 truncate block">
-                                {auth?.user?.is_super_admin ? 'Admin' : (auth?.user?.role === 'owner' ? 'Dueño' : 'Trabajador')}
-                            </span>
-                        </div>
-                    </Link>
+                    {/if}
 
                     <button
                         type="button"
@@ -391,13 +436,22 @@
                 </div>
             {:else}
                 <div class="flex flex-col items-center gap-2">
-                    <Link
-                        href="/settings"
-                        class="w-9 h-9 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#06B6D4] flex items-center justify-center font-bold text-xs text-white shadow-xs ring-2 ring-indigo-500/20 hover:opacity-90 transition-opacity"
-                        title="{auth?.user?.name ?? 'Usuario'} (Ver Perfil)"
-                    >
-                        {userInitials}
-                    </Link>
+                    {#if auth?.user?.role !== 'worker'}
+                        <Link
+                            href="/settings"
+                            class="w-9 h-9 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#06B6D4] flex items-center justify-center font-bold text-xs text-white shadow-xs ring-2 ring-indigo-500/20 hover:opacity-90 transition-opacity"
+                            title="{auth?.user?.name ?? 'Usuario'} (Ver Perfil)"
+                        >
+                            {userInitials}
+                        </Link>
+                    {:else}
+                        <div
+                            class="w-9 h-9 rounded-full bg-gradient-to-tr from-[#4F46E5] to-[#06B6D4] flex items-center justify-center font-bold text-xs text-white shadow-xs ring-2 ring-indigo-500/20"
+                            title="{auth?.user?.name ?? 'Usuario'} (Trabajador)"
+                        >
+                            {userInitials}
+                        </div>
+                    {/if}
                     <button
                         type="button"
                         onclick={logout}
@@ -493,7 +547,7 @@
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                         </svg>
-                        {#if (counts?.raw_material_alerts ?? 0) > 0 || (counts?.active_orders ?? 0) > 0}
+                        {#if (counts?.raw_material_alerts ?? 0) > 0 || (counts?.active_orders ?? 0) > 0 || (auth?.user?.role !== 'worker' && (counts?.pending_material_requests ?? 0) > 0)}
                             <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#06B6D4]"></span>
                         {/if}
                     </button>
@@ -505,6 +559,17 @@
                                 <span class="text-[10px] text-[#06B6D4] font-bold uppercase tracking-wider">gipPyme</span>
                             </div>
                             <div class="p-3 space-y-2 text-xs">
+                                {#if auth?.user?.role !== 'worker' && (counts?.pending_material_requests ?? 0) > 0}
+                                    <Link href="/raw-materials" onclick={() => notificationsOpen = false} class="block p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/40 text-amber-800 dark:text-amber-200 hover:opacity-90">
+                                        <div class="font-bold flex items-center justify-between">
+                                            <span>🔔 Solicitudes de Materia Prima</span>
+                                            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 font-extrabold">{counts.pending_material_requests}</span>
+                                        </div>
+                                        <p class="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                                            {counts.pending_material_requests} {counts.pending_material_requests === 1 ? 'solicitud de insumo enviada' : 'solicitudes de insumos enviadas'} por el equipo.
+                                        </p>
+                                    </Link>
+                                {/if}
                                 {#if (counts?.raw_material_alerts ?? 0) > 0}
                                     <Link href="/raw-materials" onclick={() => notificationsOpen = false} class="block p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 text-rose-800 dark:text-rose-200 hover:opacity-90">
                                         <div class="font-bold">⚠️ Alerta de Stock Mínimo</div>
@@ -520,7 +585,7 @@
                                             {counts.active_orders} pedidos activos en producción.
                                         </p>
                                     </Link>
-                                {:else}
+                                {:else if (counts?.raw_material_alerts ?? 0) === 0 && (auth?.user?.role === 'worker' || (counts?.pending_material_requests ?? 0) === 0)}
                                     <p class="text-center text-slate-400 py-2 text-xs">Sin notificaciones pendientes.</p>
                                 {/if}
                             </div>
@@ -556,16 +621,18 @@
                                 <p class="text-[11px] text-slate-400 truncate">{auth?.user?.email}</p>
                             </div>
                             <div class="py-1">
-                                <Link
-                                    href="/settings"
-                                    onclick={() => userMenuOpen = false}
-                                    class="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
-                                >
-                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                    <span>Mi Perfil y Taller</span>
-                                </Link>
+                                {#if auth?.user?.role !== 'worker'}
+                                    <Link
+                                        href="/settings"
+                                        onclick={() => userMenuOpen = false}
+                                        class="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
+                                    >
+                                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                        <span>Mi Perfil y Taller</span>
+                                    </Link>
+                                {/if}
                                 {#if auth?.user?.is_super_admin}
                                     <Link
                                         href="/admin"

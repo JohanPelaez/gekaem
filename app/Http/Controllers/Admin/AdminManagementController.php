@@ -26,7 +26,19 @@ class AdminManagementController extends Controller
 
         $tenants = Tenant::with([
             'users' => fn ($q) => $q->withPivot('role'),
-        ])->withCount(['orders'])->get();
+        ])->withCount(['orders'])->get()->map(function (Tenant $tenant): array {
+            $cutDate = $tenant->nextCutDate();
+            $daysRemaining = $tenant->daysUntilNextCut();
+
+            $data = $tenant->toArray();
+            $data['next_cut_date'] = $cutDate?->format('d/m/Y');
+            $data['next_cut_date_label'] = $cutDate ? ($cutDate->format('d') . ' ' . $cutDate->translatedFormat('M Y')) : null;
+            $data['days_until_cut'] = $daysRemaining;
+            $data['is_cut_expired'] = $daysRemaining < 0;
+            $data['is_cut_today'] = $daysRemaining === 0;
+
+            return $data;
+        });
 
         $users = User::with([
             'tenants' => fn ($q) => $q->withPivot('role'),
@@ -109,6 +121,53 @@ class AdminManagementController extends Controller
         return redirect()->route('kanban.index')->with(
             'success',
             "Administrando ahora el taller: {$tenant->name}"
+        );
+    }
+
+    /**
+     * Extend free trial days for a specific tenant.
+     */
+    public function extendTrial(Request $request, Tenant $tenant): RedirectResponse
+    {
+        abort_unless(auth()->user()?->isSuperAdmin(), 403);
+
+        $validated = $request->validate([
+            'days' => ['required', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        $days = (int) $validated['days'];
+
+        DB::transaction(function () use ($tenant, $days): void {
+            $currentTrialEnds = $tenant->trial_ends_at ?? $tenant->created_at?->copy()->addDays(15) ?? now();
+
+            if (now()->greaterThan($currentTrialEnds)) {
+                $newTrialEnds = now()->addDays($days);
+            } else {
+                $newTrialEnds = $currentTrialEnds->copy()->addDays($days);
+            }
+
+            $updateData = [
+                'trial_ends_at' => $newTrialEnds,
+            ];
+
+            // Si el taller estaba bloqueado o vencido sin pago, reactivar en trialing para restaurar acceso
+            if (
+                in_array($tenant->subscription_status, ['past_due', 'expired', 'canceled', 'unpaid'], true) ||
+                $tenant->isTrialExpired()
+            ) {
+                if ($tenant->subscription_status !== 'active') {
+                    $updateData['subscription_status'] = 'trialing';
+                }
+            }
+
+            $tenant->update($updateData);
+        });
+
+        $formattedDate = $tenant->fresh()->trial_ends_at?->format('d/m/Y');
+
+        return redirect()->back()->with(
+            'success',
+            "¡Prueba extendida con éxito! Se otorgaron {$days} días adicionales a '{$tenant->name}'. Nuevo vencimiento: {$formattedDate}."
         );
     }
 }

@@ -30,7 +30,7 @@
 
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
-    let isOwnerOrAdmin = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner'));
+    let isOwnerOrAdmin = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner' || authUser?.role === 'admin'));
 
     // Copia local de pedidos para optimismo reactivo
     let localOrders = $state([]);
@@ -812,15 +812,17 @@
 
                 <!-- ACCIONES DE CABECERA: BOTÓN NUEVO PEDIDO + CONFIGURACIÓN DE ESTADOS + SELECTOR DE VISTA -->
                 <div class="flex items-center gap-2 shrink-0 self-start md:self-auto flex-wrap">
-                    <!-- Botón Crear Nuevo Pedido directamente en Kanban -->
-                    <button
-                        type="button"
-                        onclick={openNewOrderModal}
-                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
-                    >
-                        <span>➕</span>
-                        <span>Nuevo Pedido</span>
-                    </button>
+                    <!-- Botón Crear Nuevo Pedido directamente en Kanban (Solo Dueño o Admin) -->
+                    {#if isOwnerOrAdmin}
+                        <button
+                            type="button"
+                            onclick={openNewOrderModal}
+                            class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+                        >
+                            <span>➕</span>
+                            <span>Nuevo Pedido</span>
+                        </button>
+                    {/if}
 
                     <!-- Botón Configuración de Estados (Visible para Dueño y Admin) -->
                     {#if isOwnerOrAdmin}

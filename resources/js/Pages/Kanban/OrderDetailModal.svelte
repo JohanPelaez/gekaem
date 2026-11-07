@@ -1,6 +1,6 @@
 <script>
     import { untrack } from 'svelte';
-    import { router } from '@inertiajs/svelte';
+    import { router, page } from '@inertiajs/svelte';
     import CurrencyInput from '../../Components/CurrencyInput.svelte';
 
     let {
@@ -20,6 +20,9 @@
         },
         onClose = () => {},
     } = $props();
+
+    let authUser = $derived(page.props.auth?.user);
+    let isOwnerOrAdmin = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner' || authUser?.role === 'admin'));
 
     // Estado del formulario rápido de abonos colapsable
     let showNewPaymentForm = $state(false);
@@ -558,17 +561,19 @@
             <!-- PIE DEL MODAL (ACCIONES) -->
             <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onclick={() => {
-                            closeModal();
-                            onEditOrder(order);
-                        }}
-                        class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors flex items-center gap-1.5"
-                    >
-                        <span>✏️</span>
-                        <span>Editar Pedido</span>
-                    </button>
+                    {#if isOwnerOrAdmin}
+                        <button
+                            type="button"
+                            onclick={() => {
+                                closeModal();
+                                onEditOrder(order);
+                            }}
+                            class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors flex items-center gap-1.5"
+                        >
+                            <span>✏️</span>
+                            <span>Editar Pedido</span>
+                        </button>
+                    {/if}
 
                     {#if !isIsolatedView && order}
                         <button

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Models\MaterialRequest;
 use App\Models\RawMaterial;
 use App\Models\RawMaterialMovement;
 use App\Models\Supplier;
@@ -40,11 +41,18 @@ class RawMaterialController extends Controller
             ->withQueryString();
 
         $allSuppliers = Supplier::orderBy('name', 'asc')->get(['id', 'name']);
+        $pendingRequests = MaterialRequest::with(['user:id,name', 'rawMaterial:id,name,unit_of_measure'])
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+        $allMaterialsList = RawMaterial::orderBy('name', 'asc')->get(['id', 'name', 'unit_of_measure', 'current_stock']);
 
         return Inertia::render('RawMaterials/Index', [
             'rawMaterials' => $rawMaterials,
             'allSuppliers' => $allSuppliers,
             'unitsOfMeasure' => UnitOfMeasure::orderBy('name', 'asc')->get(['id', 'name', 'abbreviation']),
+            'pendingRequests' => $pendingRequests,
+            'allMaterialsList' => $allMaterialsList,
             'filters' => [
                 'search' => $search,
                 'unit_of_measure' => $unit,
@@ -59,6 +67,8 @@ class RawMaterialController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        abort_if($request->user()?->currentRole() === 'worker', 403, 'Los trabajadores no pueden crear materia prima.');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'sku' => ['nullable', 'string', 'max:50'],
@@ -117,6 +127,8 @@ class RawMaterialController extends Controller
      */
     public function update(Request $request, RawMaterial $rawMaterial): RedirectResponse
     {
+        abort_if($request->user()?->currentRole() === 'worker', 403, 'Los trabajadores no pueden modificar materia prima.');
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'sku' => ['nullable', 'string', 'max:50'],
@@ -157,6 +169,8 @@ class RawMaterialController extends Controller
      */
     public function adjustStock(Request $request, RawMaterial $rawMaterial): RedirectResponse
     {
+        abort_if($request->user()?->currentRole() === 'worker', 403, 'Los trabajadores no pueden ajustar el stock directamente. Usa la opción Solicitar Materia Prima al CEO.');
+
         $validated = $request->validate([
             'type' => ['required', 'in:purchase,adjustment,return'],
             'quantity' => ['required', 'numeric', 'min:0.001'],
@@ -193,6 +207,8 @@ class RawMaterialController extends Controller
      */
     public function destroy(RawMaterial $rawMaterial): RedirectResponse
     {
+        abort_if(request()->user()?->currentRole() === 'worker', 403, 'Los trabajadores no pueden eliminar materia prima.');
+
         if ($rawMaterial->productMaterialRequirements()->exists()) {
             return redirect()->back()->with('error', 'No se puede eliminar la materia prima porque está incluida en recetas BOM de productos.');
         }

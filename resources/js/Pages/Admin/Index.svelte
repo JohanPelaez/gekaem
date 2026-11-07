@@ -64,6 +64,38 @@
             onFinish: () => { switchingId = null; },
         });
     }
+
+    // Modal para Extender Periodo de Prueba (Sprint 9)
+    let showExtendModal = $state(false);
+    let selectedTenant = $state(null);
+    let extendDays = $state(15);
+    let isExtending = $state(false);
+
+    function openExtendTrial(tenant) {
+        selectedTenant = tenant;
+        extendDays = 15;
+        showExtendModal = true;
+    }
+
+    function setQuickDays(days) {
+        extendDays = days;
+    }
+
+    function submitExtendTrial(e) {
+        e.preventDefault();
+        if (!selectedTenant) return;
+        isExtending = true;
+        router.post(`/admin/tenants/${selectedTenant.id}/extend-trial`, {
+            days: Number(extendDays),
+        }, {
+            preserveScroll: true,
+            onFinish: () => { isExtending = false; },
+            onSuccess: () => {
+                showExtendModal = false;
+                selectedTenant = null;
+            },
+        });
+    }
 </script>
 
 <AppLayout title="Panel SuperAdmin SaaS">
@@ -130,6 +162,7 @@
                             <th class="p-4">Taller (Tenant)</th>
                             <th class="p-4 text-center">Jornada Productiva</th>
                             <th class="p-4 text-center">Holgura Base</th>
+                            <th class="p-4 text-center">Próximo Corte / Vencimiento</th>
                             <th class="p-4 text-center">Pedidos</th>
                             <th class="p-4">Equipo Vinculado</th>
                             <th class="p-4 text-right">Acción SuperAdmin</th>
@@ -149,6 +182,30 @@
                                     +{t.default_buffer_percent}%
                                 </td>
                                 <td class="p-4 text-center">
+                                    {#if t.next_cut_date}
+                                        <div class="font-bold text-xs text-slate-900 dark:text-white">
+                                            {t.next_cut_date_label || t.next_cut_date}
+                                        </div>
+                                        <div class="mt-1">
+                                            {#if t.days_until_cut > 0}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
+                                                    En {t.days_until_cut} {t.days_until_cut === 1 ? 'día' : 'días'} ({t.next_cut_date})
+                                                </span>
+                                            {:else if t.days_until_cut === 0}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
+                                                    Vence hoy ({t.next_cut_date})
+                                                </span>
+                                            {:else}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
+                                                    Vencido hace {Math.abs(t.days_until_cut)} {Math.abs(t.days_until_cut) === 1 ? 'día' : 'días'} ({t.next_cut_date})
+                                                </span>
+                                            {/if}
+                                        </div>
+                                    {:else}
+                                        <span class="text-slate-400 text-[11px] italic">Sin fecha</span>
+                                    {/if}
+                                </td>
+                                <td class="p-4 text-center">
                                     <span class="px-2 py-0.5 rounded-full font-mono font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
                                         {t.orders_count ?? 0}
                                     </span>
@@ -165,19 +222,30 @@
                                     </div>
                                 </td>
                                 <td class="p-4 text-right">
-                                    <button
-                                        type="button"
-                                        onclick={() => switchTenant(t)}
-                                        disabled={switchingId === t.id}
-                                        class="px-3 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-medium text-xs shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1.5"
-                                    >
-                                        {#if switchingId === t.id}
-                                            <span>Cambiando...</span>
-                                        {:else}
-                                            <span>Administrar Taller</span>
-                                            <span>→</span>
-                                        {/if}
-                                    </button>
+                                    <div class="flex items-center justify-end gap-2 flex-wrap">
+                                        <button
+                                            type="button"
+                                            onclick={() => openExtendTrial(t)}
+                                            class="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold text-xs shadow-xs transition-all inline-flex items-center gap-1"
+                                            title="Extender días de prueba para {t.name}"
+                                        >
+                                            <span>⏳</span>
+                                            <span>Extender Prueba</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onclick={() => switchTenant(t)}
+                                            disabled={switchingId === t.id}
+                                            class="px-3 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-medium text-xs shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1.5"
+                                        >
+                                            {#if switchingId === t.id}
+                                                <span>Cambiando...</span>
+                                            {:else}
+                                                <span>Administrar Taller</span>
+                                                <span>→</span>
+                                            {/if}
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         {/each}
@@ -382,6 +450,91 @@
                         class="px-5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm transition disabled:opacity-50"
                     >
                         Registrar Usuario
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+{/if}
+
+<!-- MODAL EXTENDER PERIODO DE PRUEBA (SPRINT 9) -->
+{#if showExtendModal && selectedTenant}
+    <div class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">⏳</span>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Extender Periodo de Prueba</h3>
+                </div>
+                <button type="button" onclick={() => showExtendModal = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">✕</button>
+            </div>
+
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] space-y-1 text-xs">
+                <div class="text-slate-500 dark:text-slate-400">Taller: <strong class="text-slate-900 dark:text-white">{selectedTenant.name}</strong></div>
+                <div class="text-slate-500 dark:text-slate-400">Vencimiento actual: <strong class="text-indigo-600 dark:text-indigo-400">{selectedTenant.next_cut_date_label || selectedTenant.next_cut_date || 'Sin fecha'}</strong></div>
+                <div class="text-[11px] text-slate-400">Si el taller está bloqueado por vencimiento, se reactivará automáticamente en modo de prueba.</div>
+            </div>
+
+            <form onsubmit={submitExtendTrial} class="space-y-4 text-xs">
+                <div>
+                    <span class="block font-semibold text-slate-700 dark:text-slate-300 mb-2">Selección Rápida de Días:</span>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button
+                            type="button"
+                            onclick={() => setQuickDays(7)}
+                            class="py-2 px-3 rounded-xl border text-xs font-bold transition-all {extendDays === 7 ? 'bg-amber-500 text-white border-amber-600 shadow-xs' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}"
+                        >
+                            +7 días
+                        </button>
+                        <button
+                            type="button"
+                            onclick={() => setQuickDays(15)}
+                            class="py-2 px-3 rounded-xl border text-xs font-bold transition-all {extendDays === 15 ? 'bg-amber-500 text-white border-amber-600 shadow-xs' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}"
+                        >
+                            +15 días
+                        </button>
+                        <button
+                            type="button"
+                            onclick={() => setQuickDays(30)}
+                            class="py-2 px-3 rounded-xl border text-xs font-bold transition-all {extendDays === 30 ? 'bg-amber-500 text-white border-amber-600 shadow-xs' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}"
+                        >
+                            +30 días
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="extend-days-input" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Días adicionales a otorgar:</label>
+                    <input
+                        id="extend-days-input"
+                        type="number"
+                        min="1"
+                        max="365"
+                        bind:value={extendDays}
+                        required
+                        class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono text-sm focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                    />
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]">
+                    <button
+                        type="button"
+                        onclick={() => showExtendModal = false}
+                        class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={isExtending}
+                        class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                        {#if isExtending}
+                            <span>Guardando...</span>
+                        {:else}
+                            <span>⏳</span>
+                            <span>Guardar y Extender Prueba</span>
+                        {/if}
                     </button>
                 </div>
             </form>

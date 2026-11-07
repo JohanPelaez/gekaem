@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Models\MaterialRequest;
 use App\Models\Order;
 use App\Models\RawMaterial;
 use App\Models\Tenant;
@@ -53,10 +54,12 @@ class HandleInertiaRequests extends Middleware
 
         $activeOrdersCount = 0;
         $materialAlertsCount = 0;
+        $pendingMaterialRequestsCount = 0;
 
         if ($tenant !== null) {
             $activeOrdersCount = Order::where('derived_status', '!=', 'delivered')->count();
             $materialAlertsCount = RawMaterial::whereColumn('current_stock', '<=', 'min_stock_alert')->count();
+            $pendingMaterialRequestsCount = MaterialRequest::where('status', 'pending')->count();
         }
 
         return [
@@ -100,6 +103,7 @@ class HandleInertiaRequests extends Middleware
             'counts' => [
                 'active_orders' => $activeOrdersCount,
                 'raw_material_alerts' => $materialAlertsCount,
+                'pending_material_requests' => $pendingMaterialRequestsCount,
             ],
         ];
     }

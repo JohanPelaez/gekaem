@@ -107,4 +107,14 @@ class RawMaterial extends Model
     {
         return $this->hasMany(ProductMaterialRequirement::class);
     }
+
+    /**
+     * Get the material requests referencing this raw material.
+     *
+     * @return HasMany<MaterialRequest>
+     */
+    public function materialRequests(): HasMany
+    {
+        return $this->hasMany(MaterialRequest::class);
+    }
 }

@@ -44,7 +44,14 @@ class PaymentController extends Controller
         /** @var Tenant $tenant */
         $tenant = $request->user()->currentTenant();
 
-        $action->execute($request->validated(), $tenant);
+        $result = $action->execute($request->validated(), $tenant);
+
+        if ($result['charged_immediately']) {
+            return redirect()->route('settings.billing')->with(
+                'success',
+                '¡Pago procesado con éxito! Tu taller ha sido reactivado y tu suscripción mensual quedó configurada.'
+            );
+        }
 
         return redirect()->route('settings.billing')->with(
             'success',

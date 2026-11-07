@@ -9,6 +9,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -180,5 +181,15 @@ class User extends Authenticatable
         $role = strtolower((string) ($pivot?->role ?? 'worker'));
 
         return in_array($role, ['owner', 'dueño', 'dueno'], true) ? 'owner' : 'worker';
+    }
+
+    /**
+     * Get the material requests created by the user.
+     *
+     * @return HasMany<MaterialRequest>
+     */
+    public function materialRequests(): HasMany
+    {
+        return $this->hasMany(MaterialRequest::class);
     }
 }

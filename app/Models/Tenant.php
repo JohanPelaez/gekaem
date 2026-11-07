@@ -99,6 +99,32 @@ class Tenant extends Model
     }
 
     /**
+     * Get the next cut / renewal or trial expiration date.
+     */
+    public function nextCutDate(): ?\Carbon\Carbon
+    {
+        if ($this->subscription_status === 'active' && $this->current_period_ends_at !== null) {
+            return $this->current_period_ends_at;
+        }
+
+        return $this->trial_ends_at ?? $this->created_at?->copy()->addDays(15);
+    }
+
+    /**
+     * Get the signed number of days remaining until the next cut date.
+     * Negative values indicate expired cut.
+     */
+    public function daysUntilNextCut(): int
+    {
+        $cut = $this->nextCutDate();
+        if ($cut === null) {
+            return 0;
+        }
+
+        return (int) ceil(now()->floatDiffInDays($cut, false));
+    }
+
+    /**
      * Determine whether the tenant can access operational workshop routes.
      * If trial expired, the workshop must have a valid payment method or active subscription.
      */
@@ -280,6 +306,16 @@ class Tenant extends Model
     public function productionTasks(): HasMany
     {
         return $this->hasMany(ProductionTask::class);
+    }
+
+    /**
+     * Get the material requests belonging to the tenant.
+     *
+     * @return HasMany<MaterialRequest>
+     */
+    public function materialRequests(): HasMany
+    {
+        return $this->hasMany(MaterialRequest::class);
     }
 
     /**
