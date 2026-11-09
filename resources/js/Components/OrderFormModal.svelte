@@ -56,6 +56,7 @@
     let quickCustomerModalOpen = $state(false);
     let productModalOpen = $state(false);
     let processing = $state(false);
+    let formErrorMessage = $state('');
 
     // Estado del formulario
     let orderForm = $state({
@@ -79,6 +80,7 @@
     let newPaymentNotes = $state('');
     let paymentActionLoading = $state(false);
     let paymentErrorMessage = $state('');
+    let paymentIdToDelete = $state(null);
 
     let prevIsOpen = false;
     let prevEditingOrder = null;
@@ -93,15 +95,18 @@
             prevEditingOrder = currentOrder;
 
             untrack(() => {
-                if (isEditing && currentOrder) {
+                formErrorMessage = '';
+                paymentIdToDelete = null;
+
+                if ((isEditing || currentOrder?.id) && currentOrder) {
                     orderForm.id = currentOrder.id;
                     orderForm.customer_id = currentOrder.customer_id || currentOrder.customer?.id || '';
                     orderForm.shipping_type = currentOrder.shipping_type || 'contraentrega';
                     orderForm.notes = currentOrder.notes || '';
 
-                    // Normalizar fecha al formato YYYY-MM-DD para input date y selector de calendario
-                    const rawDate = currentOrder.promised_date || currentOrder.committed_delivery_at || currentOrder.predicted_delivery_at || currentOrder.delivery_date_key || '';
-                    const dateStr = rawDate ? String(rawDate).trim().substring(0, 10) : '';
+                    // Normalizar fecha al formato YYYY-MM-DD de 10 caracteres
+                    const rawDate = currentOrder.promised_date || currentOrder.delivery_date_key || currentOrder.committed_delivery_at || currentOrder.predicted_delivery_at || '';
+                    const dateStr = rawDate ? String(rawDate).trim().slice(0, 10) : '';
                     let timeStr = '17:00';
                     if (String(rawDate).includes('T')) {
                         timeStr = String(rawDate).split('T')[1].slice(0, 5) || '17:00';
@@ -116,20 +121,42 @@
                     newPaymentNotes = '';
                     paymentErrorMessage = '';
 
+                    // C. Mostrar TODOS los Productos al Editar Pedido
                     const tasks = currentOrder.production_tasks || currentOrder.productionTasks || currentOrder.tasks || [];
                     if (tasks.length > 0) {
                         orderForm.items = tasks.map((task) => {
                             const variant = task.product_variant || task.productVariant || {};
-                            const foundProduct = localProducts.find((p) =>
-                                p.id == variant.product_id || (p.variants || []).some((v) => v.id == task.product_variant_id)
+                            const taskProduct = variant.product || task.product || null;
+                            let resolvedProductId = variant.product_id || taskProduct?.id || '';
+
+                            let existingProd = localProducts.find((p) =>
+                                (resolvedProductId && p.id == resolvedProductId) ||
+                                (p.variants || []).some((v) => v.id == task.product_variant_id)
                             );
+
+                            // Inyectar producto o variante en localProducts si no estaba presente
+                            if (!existingProd && taskProduct) {
+                                existingProd = {
+                                    ...taskProduct,
+                                    variants: taskProduct.variants && taskProduct.variants.length > 0
+                                        ? taskProduct.variants
+                                        : (variant.id ? [variant] : []),
+                                };
+                                localProducts = [...localProducts, existingProd];
+                            } else if (existingProd && variant.id && !(existingProd.variants || []).some((v) => v.id == variant.id)) {
+                                existingProd.variants = [...(existingProd.variants || []), variant];
+                            }
+
+                            resolvedProductId = resolvedProductId || existingProd?.id || '';
+
                             const baseUnitPrice = task.unit_price !== null && task.unit_price !== undefined && Number(task.unit_price) > 0
                                 ? Number(task.unit_price)
-                                : Number(variant.price_override ?? foundProduct?.base_price ?? 0);
+                                : Number(variant.price_override ?? existingProd?.base_price ?? 0);
+
                             return {
                                 id: task.id,
-                                product_id: variant.product_id || foundProduct?.id || '',
-                                product_variant_id: task.product_variant_id,
+                                product_id: resolvedProductId,
+                                product_variant_id: task.product_variant_id || variant.id || '',
                                 quantity: Math.max(1, Math.round(Number(task.quantity)) || 1),
                                 unit_price: baseUnitPrice,
                                 discount_percentage: Number(task.discount_percentage) || 0,
@@ -147,7 +174,7 @@
                 } else {
                     orderForm.id = null;
                     orderForm.customer_id = localCustomers[0]?.id ?? '';
-                    const dateStr = initialDate ? String(initialDate).trim().substring(0, 10) : '';
+                    const dateStr = initialDate ? String(initialDate).trim().slice(0, 10) : '';
                     orderForm.promised_date = dateStr;
                     orderForm.committed_delivery_at = dateStr ? `${dateStr}T17:00` : '';
                     orderForm.shipping_type = 'contraentrega';
@@ -339,8 +366,11 @@
         }
     }
 
-    async function handleDeletePaymentInModal(paymentId) {
-        if (!confirm('¿Estás seguro de anular este abono?')) return;
+    function requestDeletePaymentInModal(paymentId) {
+        paymentIdToDelete = paymentId;
+    }
+
+    async function confirmDeletePaymentInModal(paymentId) {
         paymentActionLoading = true;
         paymentErrorMessage = '';
         try {
@@ -356,12 +386,17 @@
             if (editingOrder) {
                 editingOrder.payments = localPayments;
             }
+            paymentIdToDelete = null;
             onSuccess();
         } catch (err) {
             paymentErrorMessage = err?.message || 'Error de conexión.';
         } finally {
             paymentActionLoading = false;
         }
+    }
+
+    function cancelDeletePaymentInModal() {
+        paymentIdToDelete = null;
     }
 
     function formatCurrency(val) {
@@ -407,20 +442,22 @@
 
     function handleSubmit(e) {
         e.preventDefault();
+        formErrorMessage = '';
 
         if (!orderForm.committed_delivery_at) {
-            alert('Por favor selecciona un día en el calendario para comprometer la entrega.');
+            formErrorMessage = 'Por favor selecciona un día en el calendario para comprometer la entrega.';
             return;
         }
 
         if (orderForm.items.length === 0) {
-            alert('Agrega al menos un producto al pedido.');
+            formErrorMessage = 'Agrega al menos un producto al pedido.';
             return;
         }
 
-        const orderId = editingOrder?.id || orderForm.id;
+        const orderId = orderForm.id || editingOrder?.id;
 
         if (orderId) {
+            processing = true;
             router.put(`/orders/${orderId}`, {
                 customer_id: Number(orderForm.customer_id),
                 committed_delivery_at: orderForm.committed_delivery_at,
@@ -440,6 +477,9 @@
                 onSuccess: () => {
                     closeModal();
                     onSuccess();
+                },
+                onError: (errs) => {
+                    formErrorMessage = Object.values(errs || {}).flat().join(', ') || 'Error al actualizar el pedido.';
                 },
             });
             return;
@@ -494,6 +534,16 @@
                 </div>
                 <button type="button" onclick={closeModal} class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg">✕</button>
             </div>
+
+            {#if formErrorMessage}
+                <div class="p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-500/30 rounded-2xl text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span>⚠️</span>
+                        <span>{formErrorMessage}</span>
+                    </div>
+                    <button type="button" onclick={() => formErrorMessage = ''} class="text-rose-500 hover:text-rose-700 text-xs">✕</button>
+                </div>
+            {/if}
 
             <form onsubmit={handleSubmit} class="space-y-4 text-xs">
                 <!-- CLIENTE Y MODALIDAD DE ENVÍO -->
@@ -830,18 +880,21 @@
                             <div>
                                 <h4 class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
                                     <span>💳</span>
-                                    <span>Abonos y Pagos Registrados</span>
+                                    <span>Abonos del Pedido</span>
                                 </h4>
                                 <p class="text-[11px] text-[#64748B] dark:text-slate-400">
                                     Visualiza los pagos recibidos y registra nuevos abonos directamente sin salir.
                                 </p>
                             </div>
-                            <div class="flex items-center gap-2 text-xs">
+                            <div class="flex items-center gap-2 text-xs flex-wrap">
                                 <span class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px]">
-                                    Abonado: <strong class="text-emerald-600 dark:text-emerald-400">{formatCurrency(totalPaidInModal)}</strong>
+                                    Total Pedido: <strong class="text-slate-900 dark:text-white">{formatCurrency(totalAmount)}</strong>
+                                </span>
+                                <span class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px]">
+                                    Total Abonado: <strong class="text-emerald-600 dark:text-emerald-400">{formatCurrency(totalPaidInModal)}</strong>
                                 </span>
                                 <span class="px-2.5 py-1 rounded-xl font-mono text-[11px] {pendingBalanceInModal > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'}">
-                                    Saldo: <strong>{formatCurrency(pendingBalanceInModal)}</strong>
+                                    Saldo Pendiente: <strong>{formatCurrency(pendingBalanceInModal)}</strong>
                                 </span>
                             </div>
                         </div>
@@ -875,15 +928,37 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onclick={() => handleDeletePaymentInModal(payment.id)}
-                                                disabled={paymentActionLoading}
-                                                class="px-2 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[11px] font-semibold border border-rose-200 dark:border-rose-900/40 transition-colors"
-                                                title="Eliminar este abono si hubo error"
-                                            >
-                                                🗑️ Eliminar
-                                            </button>
+                                            {#if paymentIdToDelete === payment.id}
+                                                <div class="flex items-center gap-1.5 shrink-0">
+                                                    <span class="text-[10px] text-rose-500 font-semibold">¿Anular?</span>
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => confirmDeletePaymentInModal(payment.id)}
+                                                        disabled={paymentActionLoading}
+                                                        class="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition"
+                                                    >
+                                                        Sí
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onclick={cancelDeletePaymentInModal}
+                                                        disabled={paymentActionLoading}
+                                                        class="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold transition"
+                                                    >
+                                                        No
+                                                    </button>
+                                                </div>
+                                            {:else}
+                                                <button
+                                                    type="button"
+                                                    onclick={() => requestDeletePaymentInModal(payment.id)}
+                                                    disabled={paymentActionLoading}
+                                                    class="px-2 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[11px] font-semibold border border-rose-200 dark:border-rose-900/40 transition-colors"
+                                                    title="Eliminar este abono si hubo error"
+                                                >
+                                                    🗑️ Eliminar
+                                                </button>
+                                            {/if}
                                         </div>
                                     {/each}
                                 </div>
@@ -934,7 +1009,7 @@
                                                 disabled={paymentActionLoading || !newPaymentAmount || Number(newPaymentAmount) <= 0}
                                                 class="w-full px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
                                             >
-                                                {paymentActionLoading ? '...' : '+ Abono'}
+                                                {paymentActionLoading ? '...' : '+ Agregar Abono'}
                                             </button>
                                         </div>
                                     </div>

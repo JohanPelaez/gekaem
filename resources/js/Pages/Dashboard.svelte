@@ -61,6 +61,20 @@
 
     // Configuración y personalización de columnas en Pedidos Recientes
     let showColumnsDropdown = $state(false);
+    let columnsDropdownCoords = $state({ top: 0, right: 0 });
+
+    function toggleColumnsDropdown(e) {
+        if (showColumnsDropdown) {
+            showColumnsDropdown = false;
+            return;
+        }
+        const rect = e.currentTarget.getBoundingClientRect();
+        columnsDropdownCoords = {
+            top: rect.bottom + 6,
+            right: Math.max(16, window.innerWidth - rect.right),
+        };
+        showColumnsDropdown = true;
+    }
 
     const AVAILABLE_COLUMNS = [
         { id: 'order_id', label: 'ID Pedido', default: true },
@@ -250,7 +264,12 @@
     }
 
     function openEditModal(order) {
-        selectedOrderForEdit = order;
+        const rawDate = order?.promised_date || order?.delivery_date_key || order?.committed_delivery_at || order?.predicted_delivery_at || '';
+        const normalizedDate = rawDate ? String(rawDate).trim().slice(0, 10) : '';
+        selectedOrderForEdit = {
+            ...order,
+            promised_date: normalizedDate,
+        };
         isEditingOrder = true;
         showOrderModal = true;
     }
@@ -513,7 +532,7 @@
                     <div class="relative">
                         <button
                             type="button"
-                            onclick={() => showColumnsDropdown = !showColumnsDropdown}
+                            onclick={toggleColumnsDropdown}
                             class="text-xs px-3 py-1.5 bg-slate-50 dark:bg-[#0B0F17] hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-200 rounded-xl focus:outline-none flex items-center gap-1.5 font-medium transition-colors"
                             title="Personalizar columnas visibles"
                         >
@@ -525,12 +544,15 @@
 
                         {#if showColumnsDropdown}
                             <div
-                                class="fixed inset-0 z-20"
+                                class="fixed inset-0 z-[9998]"
                                 onclick={() => showColumnsDropdown = false}
                                 aria-hidden="true"
                             ></div>
 
-                            <div class="absolute right-0 mt-1.5 w-60 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl p-3 z-30 space-y-1.5 animate-in fade-in zoom-in-95 duration-100 text-xs">
+                            <div
+                                style="top: {columnsDropdownCoords.top}px; right: {columnsDropdownCoords.right}px;"
+                                class="fixed z-[9999] w-64 max-h-none py-3 px-4 rounded-2xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-2xl space-y-2 animate-in fade-in zoom-in-95 duration-100 text-xs"
+                            >
                                 <div class="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-[#26334D]/60 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                                     <span>Columnas Visibles</span>
                                     <button
@@ -544,7 +566,7 @@
                                         Restablecer
                                     </button>
                                 </div>
-                                <div class="max-h-64 overflow-y-auto space-y-1 pt-1">
+                                <div class="space-y-1 pt-1 max-h-none">
                                     {#each AVAILABLE_COLUMNS as col}
                                         {#if !col.financial || hasFinancialAccess}
                                             <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-slate-700 dark:text-slate-200 text-xs select-none">

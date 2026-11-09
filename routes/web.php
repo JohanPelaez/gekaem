@@ -131,6 +131,7 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
             Route::get('/', [WorkflowController::class, 'index'])->name('index');
             Route::post('/', [WorkflowController::class, 'store'])->name('store');
             Route::patch('/{workflow}', [WorkflowController::class, 'update'])->name('update');
+            Route::delete('/{workflow}', [WorkflowController::class, 'destroy'])->name('destroy');
             Route::post('/{workflow}/stages', [WorkflowController::class, 'storeStage'])->name('stages.store');
             Route::post('/{workflow}/stages/reorder', [WorkflowController::class, 'reorderStages'])->name('stages.reorder');
             Route::patch('/stages/{stage}', [WorkflowController::class, 'updateStage'])->name('stages.update');

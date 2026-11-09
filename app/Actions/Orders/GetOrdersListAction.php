@@ -67,7 +67,7 @@ class GetOrdersListAction
             });
 
         $orders = (clone $query)
-            ->with(['customer', 'productionTasks.productVariant.product', 'productionTasks.currentStage', 'payments.creator'])
+            ->with(['customer', 'orderStatus', 'productionTasks.productVariant.product', 'productionTasks.currentStage', 'payments.creator'])
             ->withCount([
                 'tasks',
                 'tasks as completed_tasks_count' => fn ($q) => $q->whereHas('currentStage', fn ($s) => $s->where('stage_category', 'done')),

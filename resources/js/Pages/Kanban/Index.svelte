@@ -52,10 +52,20 @@
 
     // ID del pedido actualmente abierto en vista aislada
     let activeOrderId = $state(null);
-    // Vista general: 'kanban' (Macro Pedidos) | 'workflows' (Kanban de Flujos) | 'table' (Tabla de Tareas)
+    // Vista general: 'kanban' (Tablero de Pedidos) | 'workflows' (Tablero de Trabajo) | 'table' (Tabla de Producción)
     let generalViewMode = $state('kanban');
-    let selectedGlobalWorkflowId = $state(null);
-    let selectedGlobalOrderId = $state('');
+
+    // Estados reactivos dedicados para el Tablero de Trabajo (Punto 2)
+    let defaultWorkflowId = $derived(workflows.find((w) => w.is_default)?.id || workflows[0]?.id || null);
+    let selectedWorkflowId = $state(null);
+    let selectedOrderIdFilter = $state('all');
+    let workflowSearchQuery = $state('');
+
+    $effect(() => {
+        if (!selectedWorkflowId && defaultWorkflowId) {
+            selectedWorkflowId = defaultWorkflowId;
+        }
+    });
 
     $effect(() => {
         const incomingId = selectedOrderId;
@@ -231,69 +241,112 @@
         return [...stages].sort((a, b) => (a.position || 0) - (b.position || 0));
     });
 
-    // Flujo activo para la vista Kanban de Flujos (Todos los Productos)
+    // Flujo activo para la vista Tablero de Trabajo (Kanban de Flujos)
     let currentSelectedWorkflow = $derived.by(() => {
         if (!workflows || workflows.length === 0) return null;
-        if (selectedGlobalWorkflowId) {
-            const found = workflows.find((w) => Number(w.id) === Number(selectedGlobalWorkflowId));
+        if (selectedWorkflowId) {
+            const found = workflows.find((w) => Number(w.id) === Number(selectedWorkflowId));
             if (found) return found;
         }
         return workflows.find((w) => w.is_default) || workflows[0];
     });
 
-    // Etapas ordenadas del flujo seleccionado en modo Kanban de Flujos
+    // Etapas ordenadas del flujo seleccionado en modo Tablero de Trabajo
     let currentWorkflowStages = $derived.by(() => {
         if (!currentSelectedWorkflow) return [];
         const stages = currentSelectedWorkflow.stages ?? currentSelectedWorkflow.workflow_stages ?? [];
         return [...stages].sort((a, b) => (a.position || 0) - (b.position || 0));
     });
 
-    // Todas las tareas de todos los pedidos activos para la vista global de flujos
-    let globalWorkflowTasks = $derived.by(() => {
-        if (!currentSelectedWorkflow) return [];
-        const wfId = Number(currentSelectedWorkflow.id);
-        const tasks = [];
+    // Tareas agrupadas por stage_id en el flujo actual según las 3 reglas del Punto 2
+    let tasksByStageId = $derived.by(() => {
+        const map = new Map();
+        if (!currentSelectedWorkflow || currentWorkflowStages.length === 0) {
+            return map;
+        }
+
+        for (const stage of currentWorkflowStages) {
+            map.set(Number(stage.id), []);
+        }
+
+        const firstStage = currentWorkflowStages[0];
+        const firstStageId = Number(firstStage.id);
+        const activeWfId = Number(currentSelectedWorkflow.id);
+        const search = workflowSearchQuery.trim().toLowerCase();
 
         for (const order of localOrders) {
             if (order.derived_status === 'delivered') continue;
-            if (selectedGlobalOrderId && Number(order.id) !== Number(selectedGlobalOrderId)) {
-                continue;
+
+            // Regla 2: Filtro por Pedido específico o 'all'
+            if (selectedOrderIdFilter !== 'all' && String(selectedOrderIdFilter).trim() !== '') {
+                if (Number(order.id) !== Number(selectedOrderIdFilter)) {
+                    continue;
+                }
             }
 
             const ordTasks = getOrderTasks(order);
             for (const task of ordTasks) {
+                const variant = getTaskVariant(task);
+                const product = getTaskProduct(task);
                 const taskWfId = getTaskWorkflowId(task);
-                if (taskWfId === wfId) {
-                    tasks.push({
-                        ...task,
-                        order_id: order.id,
-                        order_number: order.order_number,
-                        customer_name: order.customer?.name ?? 'Cliente',
-                        order_status_name: order.order_status?.name ?? order.derived_status,
-                        committed_delivery_at: order.committed_delivery_at,
-                    });
+
+                // Determinar si la tarea pertenece a este flujo de trabajo
+                const belongsToWorkflow = (taskWfId === activeWfId) ||
+                    (Number(product?.workflow_id) === activeWfId) ||
+                    (task.current_stage_id && map.has(Number(task.current_stage_id)));
+
+                if (!belongsToWorkflow) {
+                    continue;
+                }
+
+                // Regla 3: Búsqueda textual por producto, variante, cliente o # de pedido
+                if (search) {
+                    const prodName = (product?.name || task.item_name_snapshot || '').toLowerCase();
+                    const varLabel = (variant?.name_label || '').toLowerCase();
+                    const sku = (variant?.sku || '').toLowerCase();
+                    const custName = (order.customer?.name || '').toLowerCase();
+                    const orderNum = String(order.order_number || '');
+
+                    const matchesSearch = prodName.includes(search) ||
+                        varLabel.includes(search) ||
+                        sku.includes(search) ||
+                        custName.includes(search) ||
+                        orderNum.includes(search);
+
+                    if (!matchesSearch) {
+                        continue;
+                    }
+                }
+
+                const enrichedTask = {
+                    ...task,
+                    order_id: order.id,
+                    order_number: order.order_number,
+                    customer_name: order.customer?.name ?? 'Cliente',
+                    order_status_name: order.order_status?.name ?? order.derived_status,
+                    committed_delivery_at: order.committed_delivery_at,
+                };
+
+                // Regla 1: Que pertenezca a esa etapa o, si no tiene etapa asignada aún, caiga en la primera etapa del flujo
+                const currentStageId = Number(task.current_stage_id);
+                if (currentStageId && map.has(currentStageId)) {
+                    map.get(currentStageId).push(enrichedTask);
+                } else {
+                    map.get(firstStageId).push(enrichedTask);
                 }
             }
         }
 
-        return tasks;
+        return map;
     });
 
-    // Tareas agrupadas por stage_id en el flujo actual
-    let tasksByStageId = $derived.by(() => {
-        const map = new Map();
-        for (const stage of currentWorkflowStages) {
-            map.set(Number(stage.id), []);
+    // Todas las tareas activas mostradas en el flujo para métricas y compatibilidad
+    let globalWorkflowTasks = $derived.by(() => {
+        const list = [];
+        for (const stageTasks of tasksByStageId.values()) {
+            list.push(...stageTasks);
         }
-        for (const task of globalWorkflowTasks) {
-            const sId = Number(task.current_stage_id);
-            if (map.has(sId)) {
-                map.get(sId).push(task);
-            } else if (currentWorkflowStages.length > 0) {
-                map.get(Number(currentWorkflowStages[0].id))?.push(task);
-            }
-        }
-        return map;
+        return list;
     });
 
     // Tareas del pedido que corresponden al flujo seleccionado
@@ -512,8 +565,13 @@
     }
 
     function openEditOrderModal(order) {
+        const rawDate = order?.promised_date || order?.delivery_date_key || order?.committed_delivery_at || order?.predicted_delivery_at || '';
+        const normalizedDate = rawDate ? String(rawDate).trim().slice(0, 10) : '';
         isEditingOrder = true;
-        editingOrder = order;
+        editingOrder = {
+            ...order,
+            promised_date: normalizedDate,
+        };
         isOrderFormOpen = true;
     }
 
@@ -795,7 +853,7 @@
     }
 </script>
 
-<AppLayout title="Tablero Kanban de Producción">
+<AppLayout title={generalViewMode === 'workflows' ? 'Flujo de Trabajo' : generalViewMode === 'table' ? 'Tabla de Producción' : 'Tablero de Pedidos'}>
     <div class="space-y-4 w-full max-w-none min-w-0">
         <!-- ========================================== -->
         <!-- MODO 1: TABLERO GENERAL CENTRADO EN PEDIDOS -->
@@ -804,9 +862,15 @@
             <!-- ENCABEZADO Y CONTROLES GENERALES -->
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-1">
                 <div>
-                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Tablero de Producción por Pedidos</h1>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        {generalViewMode === 'workflows' ? 'Flujo de Trabajo' : generalViewMode === 'table' ? 'Tabla de Producción' : 'Tablero de Pedidos'}
+                    </h1>
                     <p class="text-xs text-[#64748B] dark:text-slate-400 mt-0.5">
-                        Monitorea el avance integral de cada pedido con columnas dinámicas personalizables.
+                        {generalViewMode === 'workflows'
+                            ? 'Supervisa el avance de los productos en cada etapa del flujo de trabajo.'
+                            : generalViewMode === 'table'
+                            ? 'Listado detallado de todas las tareas y productos de producción.'
+                            : 'Monitorea el avance integral de cada pedido con columnas dinámicas personalizables.'}
                     </p>
                 </div>
 
@@ -837,25 +901,25 @@
                         </button>
                     {/if}
 
-                    <!-- SELECTOR DE VISTA: TABLERO MACRO / KANBAN DE FLUJOS / TABLA DE PRODUCCIÓN -->
+                    <!-- SELECTOR DE VISTA: TABLERO DE PEDIDOS / TABLERO DE TRABAJO / TABLA DE PRODUCCIÓN -->
                     <div class="bg-slate-100 dark:bg-[#0B0F17] p-1 rounded-xl border border-slate-200 dark:border-[#26334D] flex items-center shadow-sm">
                         <button
                             type="button"
                             onclick={() => setGeneralViewMode('kanban')}
                             class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all {generalViewMode === 'kanban' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 font-bold shadow-sm border border-slate-200 dark:border-[#4F46E5]/30' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}"
-                            title="Tablero Macro de Pedidos por estados"
+                            title="Tablero de Pedidos agrupados por estados"
                         >
                             <span>🗂️</span>
-                            <span>Tablero Macro</span>
+                            <span>Tablero de Pedidos</span>
                         </button>
                         <button
                             type="button"
                             onclick={() => setGeneralViewMode('workflows')}
                             class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all {generalViewMode === 'workflows' ? 'bg-white dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-400 font-bold shadow-sm border border-slate-200 dark:border-[#4F46E5]/30' : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}"
-                            title="Kanban de Flujos de Trabajo con todos los productos de los pedidos"
+                            title="Tablero de Trabajo por etapas con todos los productos"
                         >
                             <span>🔧</span>
-                            <span>Kanban de Flujos</span>
+                            <span>Tablero de Trabajo</span>
                         </button>
                         <button
                             type="button"
@@ -1160,29 +1224,29 @@
             <!-- VISTA B: KANBAN DE FLUJOS (TODOS LOS PRODUCTOS DE TODOS LOS PEDIDOS ACTIVOS) -->
             {:else if generalViewMode === 'workflows'}
                 <div class="space-y-4">
-                    <!-- BARRA SUPERIOR DE FILTROS EN TIEMPO REAL DEL KANBAN DE FLUJOS -->
+                    <!-- BARRA SUPERIOR DE FILTROS EN TIEMPO REAL DEL TABLERO DE TRABAJO -->
                     <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div class="flex items-center gap-2 flex-wrap">
                             <span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-300 border border-[#4F46E5]/30 flex items-center gap-1.5 shadow-xs">
                                 <span>🔧</span>
                                 <span>Flujo de Trabajo: {currentSelectedWorkflow?.name || 'Flujo de Taller'}</span>
                             </span>
-                            <span class="text-xs text-[#64748B] dark:text-slate-400">
+                            <span class="text-xs text-[#64748B] dark:text-slate-400 font-mono">
                                 {globalWorkflowTasks.length} producto(s) en {currentWorkflowStages.length} etapas
                             </span>
                         </div>
 
-                        <!-- 2 Selectores en tiempo real -->
-                        <div class="flex flex-wrap items-center gap-3 text-xs">
+                        <!-- 3 Selectores y Búsqueda en tiempo real del Tablero de Trabajo -->
+                        <div class="flex flex-wrap items-center gap-2.5 text-xs">
                             <!-- 1. Filtrar por Tipo de Flujo de Trabajo -->
-                            <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1.5">
                                 <label for="flow-filter-wf" class="font-bold text-slate-700 dark:text-slate-300 shrink-0">
-                                    Flujo de Trabajo:
+                                    Flujo:
                                 </label>
                                 <select
                                     id="flow-filter-wf"
-                                    bind:value={selectedGlobalWorkflowId}
-                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-[#4F46E5]"
+                                    bind:value={selectedWorkflowId}
+                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-[#4F46E5]"
                                 >
                                     {#each workflows as wf}
                                         <option value={wf.id}>{wf.name} {wf.is_default ? '(Predeterminado)' : ''}</option>
@@ -1191,21 +1255,55 @@
                             </div>
 
                             <!-- 2. Filtrar por Pedido -->
-                            <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1.5">
                                 <label for="flow-filter-order" class="font-bold text-slate-700 dark:text-slate-300 shrink-0">
-                                    Filtrar por Pedido:
+                                    Pedido:
                                 </label>
                                 <select
                                     id="flow-filter-order"
-                                    bind:value={selectedGlobalOrderId}
-                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-medium focus:outline-none focus:border-[#4F46E5] max-w-[240px] truncate"
+                                    bind:value={selectedOrderIdFilter}
+                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-white font-medium focus:outline-none focus:border-[#4F46E5] max-w-[200px] truncate"
                                 >
-                                    <option value="">Todos los Pedidos</option>
+                                    <option value="all">Todos los Pedidos</option>
                                     {#each localOrders.filter(o => o.derived_status !== 'delivered') as ord}
-                                        <option value={ord.id}>Pedido #{ord.order_number} — {ord.customer?.name || 'Cliente'}</option>
+                                        <option value={ord.id}>#{ord.order_number} — {ord.customer?.name || 'Cliente'}</option>
                                     {/each}
                                 </select>
                             </div>
+
+                            <!-- 3. Búsqueda textual por Producto, Variante, SKU, # Pedido o Cliente -->
+                            <div class="relative min-w-[190px]">
+                                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 text-xs">
+                                    🔍
+                                </span>
+                                <input
+                                    type="text"
+                                    bind:value={workflowSearchQuery}
+                                    placeholder="Buscar producto, SKU, #..."
+                                    class="w-full pl-7 pr-6 py-1.5 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5]"
+                                />
+                                {#if workflowSearchQuery}
+                                    <button
+                                        type="button"
+                                        onclick={() => workflowSearchQuery = ''}
+                                        class="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
+                                        title="Borrar búsqueda"
+                                    >
+                                        ✕
+                                    </button>
+                                {/if}
+                            </div>
+
+                            {#if selectedOrderIdFilter !== 'all' || workflowSearchQuery.trim() !== ''}
+                                <button
+                                    type="button"
+                                    onclick={() => { selectedOrderIdFilter = 'all'; workflowSearchQuery = ''; }}
+                                    class="px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-xs transition"
+                                    title="Restablecer filtros del Tablero de Trabajo"
+                                >
+                                    Limpiar
+                                </button>
+                            {/if}
                         </div>
                     </div>
 

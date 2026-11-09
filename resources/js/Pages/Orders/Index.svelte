@@ -242,9 +242,14 @@
     }
 
     function openEditOrder(order) {
+        const rawDate = order?.promised_date || order?.delivery_date_key || order?.committed_delivery_at || order?.predicted_delivery_at || '';
+        const normalizedDate = rawDate ? String(rawDate).trim().slice(0, 10) : '';
         isEditingOrder = true;
-        selectedOrderForEdit = order;
-        initialDateForModal = '';
+        selectedOrderForEdit = {
+            ...order,
+            promised_date: normalizedDate,
+        };
+        initialDateForModal = normalizedDate;
         showCreateModal = true;
     }
 

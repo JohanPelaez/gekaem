@@ -137,10 +137,20 @@ class Order extends Model
      */
     public function getDeliveryDateKeyAttribute(): ?string
     {
-        $raw = $this->getRawOriginal('committed_delivery_at') ?: $this->getRawOriginal('predicted_delivery_at');
+        $raw = $this->attributes['committed_delivery_at']
+            ?? $this->getRawOriginal('committed_delivery_at')
+            ?? $this->attributes['predicted_delivery_at']
+            ?? $this->getRawOriginal('predicted_delivery_at')
+            ?? null;
+
         if (!$raw) {
             return null;
         }
+
+        if ($raw instanceof \DateTimeInterface) {
+            return $raw->format('Y-m-d');
+        }
+
         return substr(trim((string) $raw), 0, 10);
     }
 

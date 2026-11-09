@@ -72,13 +72,13 @@
         if (auth?.user?.role === 'worker') {
             return [
                 {
-                    name: 'Kanban',
+                    name: 'Tablero de Pedidos',
                     href: '/kanban',
                     badge: null,
                     icon: 'kanban',
                 },
                 {
-                    name: 'Kanban de Flujos',
+                    name: 'Tablero de Trabajo',
                     href: '/kanban?view=workflows',
                     badge: null,
                     icon: 'workflows_kanban',
@@ -108,13 +108,13 @@
                 icon: 'orders',
             },
             {
-                name: 'Kanban',
+                name: 'Tablero de Pedidos',
                 href: '/kanban',
                 badge: null,
                 icon: 'kanban',
             },
             {
-                name: 'Kanban de Flujos',
+                name: 'Tablero de Trabajo',
                 href: '/kanban?view=workflows',
                 badge: null,
                 icon: 'workflows_kanban',
@@ -145,7 +145,7 @@
                 icon: 'suppliers',
             },
             {
-                name: 'Tipos de Flujos',
+                name: 'Flujos de Trabajo',
                 href: '/workflows',
                 badge: null,
                 icon: 'workflows',

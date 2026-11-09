@@ -28,6 +28,61 @@
     let showCreateStageModal = $state(false);
     let editingStage = $state(null);
 
+    // Modal de Eliminación de Flujo con doble confirmación y reasignación
+    let showDeleteWorkflowModal = $state(false);
+    let workflowToDelete = $state(null);
+    let targetWorkflowId = $state(null);
+    let confirmDeleteUnderstood = $state(false);
+    let deleteWorkflowProcessing = $state(false);
+
+    function openDeleteWorkflowModal(wf) {
+        if (localWorkflows.length <= 1) return;
+        workflowToDelete = wf;
+        confirmDeleteUnderstood = false;
+        const others = localWorkflows.filter((w) => Number(w.id) !== Number(wf.id));
+        const defaultOther = others.find((w) => w.is_default) || others[0];
+        targetWorkflowId = defaultOther ? defaultOther.id : null;
+        showDeleteWorkflowModal = true;
+    }
+
+    function submitDeleteWorkflow() {
+        if (!workflowToDelete || !confirmDeleteUnderstood || !targetWorkflowId) return;
+        deleteWorkflowProcessing = true;
+        router.delete(`/workflows/${workflowToDelete.id}`, {
+            data: { target_workflow_id: targetWorkflowId },
+            preserveScroll: true,
+            onFinish: () => {
+                deleteWorkflowProcessing = false;
+                showDeleteWorkflowModal = false;
+                workflowToDelete = null;
+                confirmDeleteUnderstood = false;
+            },
+        });
+    }
+
+    // Modal de Confirmación Estilizado para Eliminar Etapa
+    let showDeleteStageModal = $state(false);
+    let stageToDelete = $state(null);
+    let deleteStageProcessing = $state(false);
+
+    function openDeleteStageModal(stage) {
+        stageToDelete = stage;
+        showDeleteStageModal = true;
+    }
+
+    function submitDeleteStage() {
+        if (!stageToDelete) return;
+        deleteStageProcessing = true;
+        router.delete(`/workflows/stages/${stageToDelete.id}`, {
+            preserveScroll: true,
+            onFinish: () => {
+                deleteStageProcessing = false;
+                showDeleteStageModal = false;
+                stageToDelete = null;
+            },
+        });
+    }
+
     let workflowProcessing = $state(false);
     let stageProcessing = $state(false);
     let reorderProcessing = $state(false);
@@ -170,11 +225,7 @@
     }
 
     function deleteStage(stage) {
-        if (confirm(`¿Eliminar la etapa "${stage.name}"? Esta acción no se puede deshacer.`)) {
-            router.delete(`/workflows/stages/${stage.id}`, {
-                preserveScroll: true,
-            });
-        }
+        openDeleteStageModal(stage);
     }
 
     // Estado y handlers para Drag & Drop de Columnas (Punto 16)
@@ -292,12 +343,12 @@
     }
 </script>
 
-<AppLayout title="Tipos de Flujos">
+<AppLayout title="Flujos de Trabajo">
     <div class="space-y-4">
         <!-- ENCABEZADO -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Tipos de Flujos y Estados Dinámicos</h1>
+                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Flujos de Trabajo y Estados Dinámicos</h1>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Configura los flujos de producción del taller, edita títulos, personaliza colores en tiempo real y reordena las columnas de los tableros Kanban.
                 </p>
@@ -337,11 +388,23 @@
                                     </svg>
                                     <span>Editar</span>
                                 </button>
+                                <button
+                                    type="button"
+                                    disabled={workflows.length <= 1}
+                                    onclick={() => openDeleteWorkflowModal(wf)}
+                                    class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/40 transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title={workflows.length <= 1 ? 'El taller debe mantener al menos 1 flujo de trabajo' : 'Eliminar este flujo de trabajo y reasignar sus productos'}
+                                >
+                                    <span>🗑️</span>
+                                    <span>Eliminar Flujo</span>
+                                </button>
                             </div>
                             <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{wf.description ?? 'Sin descripción'}</p>
-                            <span class="text-[11px] text-slate-400 dark:text-slate-500 block mt-1">
-                                {wf.products_count ?? 0} producto(s) asignados a este flujo
-                            </span>
+                            <div class="flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                                <span>{wf.products_count ?? 0} producto(s) en catálogo</span>
+                                <span>•</span>
+                                <span>{wf.production_tasks_count ?? 0} tarea(s) en producción</span>
+                            </div>
                         </div>
 
                         <button
@@ -710,6 +773,133 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+{/if}
+
+<!-- MODAL DE DOBLE CONFIRMACIÓN Y REASIGNACIÓN PARA ELIMINAR FLUJO -->
+{#if showDeleteWorkflowModal && workflowToDelete}
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center text-xl shrink-0">
+                    ⚠️
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Eliminar Flujo de Trabajo</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Flujo: <strong class="text-slate-800 dark:text-slate-200">{workflowToDelete.name}</strong></p>
+                </div>
+            </div>
+
+            <!-- Paso 1: Alerta informativa -->
+            <div class="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl text-xs space-y-1.5 text-amber-800 dark:text-amber-300">
+                <div class="font-bold flex items-center gap-1.5">
+                    <span>📌 Impacto actual en el taller:</span>
+                </div>
+                <ul class="list-disc list-inside space-y-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+                    <li><strong>{workflowToDelete.products_count ?? 0}</strong> producto(s) del catálogo asignados a este flujo.</li>
+                    <li><strong>{workflowToDelete.production_tasks_count ?? 0}</strong> tarea(s) en producción activas en sus etapas.</li>
+                </ul>
+                <p class="text-[11px] text-amber-700 dark:text-amber-400 pt-1">
+                    Para no dejar ningún producto ni pedido huérfano, todos los elementos se reasignarán automáticamente al flujo que selecciones.
+                </p>
+            </div>
+
+            <!-- Selector de reasignación -->
+            <div>
+                <label for="reassign-workflow" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Reasignar productos y tareas activas al flujo: *
+                </label>
+                <select
+                    id="reassign-workflow"
+                    bind:value={targetWorkflowId}
+                    required
+                    class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] font-semibold"
+                >
+                    {#each localWorkflows.filter((w) => Number(w.id) !== Number(workflowToDelete.id)) as target}
+                        <option value={target.id}>
+                            {target.name} {target.is_default ? '(Predeterminado)' : ''}
+                        </option>
+                    {/each}
+                </select>
+                <p class="text-[10px] text-slate-400 mt-1">
+                    Las tareas activas se moverán a la primera columna del flujo destino seleccionado.
+                </p>
+            </div>
+
+            <!-- Paso 2: Checkbox obligatorio de doble confirmación -->
+            <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D]">
+                <label class="flex items-start gap-2.5 cursor-pointer text-xs select-none">
+                    <input
+                        type="checkbox"
+                        bind:checked={confirmDeleteUnderstood}
+                        class="rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500 mt-0.5"
+                    />
+                    <span class="text-slate-700 dark:text-slate-300 text-[11px] font-medium leading-tight">
+                        Entiendo que este flujo será eliminado permanentemente y sus productos pasarán al flujo seleccionado
+                    </span>
+                </label>
+            </div>
+
+            <!-- Acciones -->
+            <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-[#26334D]">
+                <button
+                    type="button"
+                    onclick={() => { showDeleteWorkflowModal = false; workflowToDelete = null; }}
+                    disabled={deleteWorkflowProcessing}
+                    class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    onclick={submitDeleteWorkflow}
+                    disabled={!confirmDeleteUnderstood || !targetWorkflowId || deleteWorkflowProcessing}
+                    class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                    {#if deleteWorkflowProcessing}
+                        <span>Procesando...</span>
+                    {:else}
+                        <span>Confirmar y Eliminar Flujo</span>
+                    {/if}
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}
+
+<!-- MODAL ESTILIZADO PARA ELIMINAR ETAPA / COLUMNA (SIN WINDOW.CONFIRM) -->
+{#if showDeleteStageModal && stageToDelete}
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-3.5">
+            <div class="flex items-center gap-2.5 text-rose-600 dark:text-rose-400 font-bold text-sm">
+                <span class="text-lg">🗑️</span>
+                <span>Eliminar Columna de Flujo</span>
+            </div>
+            <p class="text-xs text-slate-600 dark:text-slate-300">
+                ¿Estás seguro de eliminar la columna <strong class="text-slate-900 dark:text-white">"{stageToDelete.name}"</strong>?
+            </p>
+            <p class="text-[11px] text-slate-400 dark:text-slate-500">
+                Nota: Solo se pueden eliminar columnas que no contengan productos o tareas de producción activas.
+            </p>
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#26334D]">
+                <button
+                    type="button"
+                    onclick={() => { showDeleteStageModal = false; stageToDelete = null; }}
+                    disabled={deleteStageProcessing}
+                    class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    onclick={submitDeleteStage}
+                    disabled={deleteStageProcessing}
+                    class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm disabled:opacity-50"
+                >
+                    {deleteStageProcessing ? 'Eliminando...' : 'Eliminar Columna'}
+                </button>
+            </div>
         </div>
     </div>
 {/if}

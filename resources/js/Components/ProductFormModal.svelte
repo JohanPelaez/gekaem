@@ -290,28 +290,47 @@
         }
     }
 
-    async function handleEditSelectedProductType() {
+    let showEditTypeModal = $state(false);
+    let editTypeName = $state('');
+    let editingTypeId = $state(null);
+    let editTypeErrorMessage = $state('');
+    let editTypeProcessing = $state(false);
+
+    function handleEditSelectedProductType() {
         const currentType = localProductTypes.find((pt) => Number(pt.id) === Number(productForm.product_type_id));
         if (!currentType) return;
-        const newName = prompt('Editar nombre del Tipo de Producto:', currentType.name);
-        if (!newName || !newName.trim() || newName.trim() === currentType.name) return;
+        editingTypeId = currentType.id;
+        editTypeName = currentType.name;
+        editTypeErrorMessage = '';
+        showEditTypeModal = true;
+    }
+
+    async function handleSaveEditedProductType() {
+        if (!editTypeName.trim() || !editingTypeId) return;
+        editTypeProcessing = true;
+        editTypeErrorMessage = '';
 
         try {
-            const res = await csrfFetch(`/quick/product-types/${currentType.id}`, {
+            const res = await csrfFetch(`/quick/product-types/${editingTypeId}`, {
                 method: 'PUT',
-                body: JSON.stringify({ name: newName.trim() }),
+                body: JSON.stringify({ name: editTypeName.trim() }),
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.id) {
                 localProductTypes = localProductTypes.map((pt) =>
                     Number(pt.id) === Number(data.id) ? { ...pt, name: data.name } : pt
                 );
+                showEditTypeModal = false;
+                editingTypeId = null;
+                editTypeName = '';
             } else {
-                alert(data.message || 'Error al actualizar el tipo de producto.');
+                editTypeErrorMessage = data.message || 'Error al actualizar el tipo de producto.';
             }
         } catch (e) {
             console.error('Error updating product type:', e);
-            alert('Error al actualizar el tipo de producto.');
+            editTypeErrorMessage = 'Error al actualizar el tipo de producto.';
+        } finally {
+            editTypeProcessing = false;
         }
     }
 
@@ -967,3 +986,53 @@
     unitsOfMeasure={sortedUnitsOfMeasure}
     onSuccess={handleQuickSuccess}
 />
+
+<!-- SUBMODAL ESTILIZADO GIPPYME PARA EDITAR TIPO DE PRODUCTO (SIN WINDOW.PROMPT) -->
+{#if showEditTypeModal}
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4">
+            <div>
+                <h4 class="text-sm font-bold text-slate-900 dark:text-white">Editar Tipo de Producto</h4>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Modifica el nombre para todos los productos de esta categoría.</p>
+            </div>
+
+            {#if editTypeErrorMessage}
+                <div class="p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-500/30 rounded-xl text-xs text-rose-600 dark:text-rose-400">
+                    {editTypeErrorMessage}
+                </div>
+            {/if}
+
+            <div>
+                <label for="edit-type-name-input-modal" class="block font-semibold text-slate-700 dark:text-slate-300 text-xs mb-1.5">
+                    Nombre del Tipo de Producto *
+                </label>
+                <input
+                    id="edit-type-name-input-modal"
+                    type="text"
+                    bind:value={editTypeName}
+                    placeholder="Ej. Ropa, Calzado, Accesorio..."
+                    class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5]"
+                />
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#26334D]">
+                <button
+                    type="button"
+                    onclick={() => { showEditTypeModal = false; editingTypeId = null; }}
+                    disabled={editTypeProcessing}
+                    class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    onclick={handleSaveEditedProductType}
+                    disabled={!editTypeName.trim() || editTypeProcessing}
+                    class="px-3.5 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold shadow-sm transition disabled:opacity-50"
+                >
+                    {editTypeProcessing ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}

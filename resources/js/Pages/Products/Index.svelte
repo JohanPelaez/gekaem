@@ -175,28 +175,47 @@
         router.reload({ only: ['products', 'productTypes', 'workflows', 'rawMaterials', 'orthogonalAttributes'] });
     }
 
-    async function handleEditProductType(pt) {
+    let showEditTypeModal = $state(false);
+    let editTypeName = $state('');
+    let editingTypeId = $state(null);
+    let editTypeErrorMessage = $state('');
+    let editTypeProcessing = $state(false);
+
+    function openEditProductTypeModal(pt) {
         if (!pt) return;
-        const newName = prompt('Editar nombre del Tipo de Producto:', pt.name);
-        if (!newName || !newName.trim() || newName.trim() === pt.name) return;
+        editingTypeId = pt.id;
+        editTypeName = pt.name;
+        editTypeErrorMessage = '';
+        showEditTypeModal = true;
+    }
+
+    async function handleSaveEditedProductType() {
+        if (!editTypeName.trim() || !editingTypeId) return;
+        editTypeProcessing = true;
+        editTypeErrorMessage = '';
 
         try {
-            const res = await csrfFetch(`/quick/product-types/${pt.id}`, {
+            const res = await csrfFetch(`/quick/product-types/${editingTypeId}`, {
                 method: 'PUT',
-                body: JSON.stringify({ name: newName.trim() }),
+                body: JSON.stringify({ name: editTypeName.trim() }),
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.id) {
                 localProductTypes = localProductTypes.map((t) =>
                     Number(t.id) === Number(data.id) ? { ...t, name: data.name } : t
                 );
+                showEditTypeModal = false;
+                editingTypeId = null;
+                editTypeName = '';
                 router.reload({ only: ['productTypes', 'products'] });
             } else {
-                alert(data.message || 'Error al actualizar el Tipo de Producto.');
+                editTypeErrorMessage = data.message || 'Error al actualizar el Tipo de Producto.';
             }
         } catch (e) {
             console.error('Error updating product type:', e);
-            alert('Error de conexión.');
+            editTypeErrorMessage = 'Error de conexión al actualizar el Tipo de Producto.';
+        } finally {
+            editTypeProcessing = false;
         }
     }
 
@@ -454,7 +473,7 @@
                             {#if selectedPt}
                                 <button
                                     type="button"
-                                    onclick={() => handleEditProductType(selectedPt)}
+                                    onclick={() => openEditProductTypeModal(selectedPt)}
                                     class="px-2.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-semibold border border-amber-500/30 transition-colors flex items-center gap-1"
                                     title="Renombrar este tipo de producto"
                                 >
@@ -1066,3 +1085,53 @@
     unitsOfMeasure={sortedUnitsOfMeasure}
     onSuccess={handleQuickSuccess}
 />
+
+<!-- SUBMODAL ESTILIZADO GIPPYME PARA EDITAR TIPO DE PRODUCTO (SIN WINDOW.PROMPT) -->
+{#if showEditTypeModal}
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4">
+            <div>
+                <h4 class="text-sm font-bold text-slate-900 dark:text-white">Editar Tipo de Producto</h4>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Modifica el nombre para todos los productos de esta categoría.</p>
+            </div>
+
+            {#if editTypeErrorMessage}
+                <div class="p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-500/30 rounded-xl text-xs text-rose-600 dark:text-rose-400">
+                    {editTypeErrorMessage}
+                </div>
+            {/if}
+
+            <div>
+                <label for="edit-type-name-input-index" class="block font-semibold text-slate-700 dark:text-slate-300 text-xs mb-1.5">
+                    Nombre del Tipo de Producto *
+                </label>
+                <input
+                    id="edit-type-name-input-index"
+                    type="text"
+                    bind:value={editTypeName}
+                    placeholder="Ej. Ropa, Calzado, Accesorio..."
+                    class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5]"
+                />
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#26334D]">
+                <button
+                    type="button"
+                    onclick={() => { showEditTypeModal = false; editingTypeId = null; }}
+                    disabled={editTypeProcessing}
+                    class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    onclick={handleSaveEditedProductType}
+                    disabled={!editTypeName.trim() || editTypeProcessing}
+                    class="px-3.5 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold shadow-sm transition disabled:opacity-50"
+                >
+                    {editTypeProcessing ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}
