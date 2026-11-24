@@ -260,7 +260,7 @@ class OrderController extends Controller
         return response()->json([
             'success' => true,
             'message' => "Pedido #{$order->order_number} devuelto a la columna \"{$targetStatus->name}\".",
-            'order' => $order->fresh(['customer', 'orderStatus']),
+            'order' => $order->fresh(['customer', 'orderStatus', 'productionTasks.currentStage']),
             'target_status' => $targetStatus,
         ]);
     }

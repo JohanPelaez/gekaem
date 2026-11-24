@@ -790,6 +790,31 @@
         dragOverMacroStatusId = null;
     }
 
+    function syncOrderStatusFromServer(orderId, serverOrder) {
+        if (!serverOrder) return;
+        const localOrder = localOrders.find((o) => Number(o.id) === Number(orderId));
+        if (!localOrder) return;
+
+        if (serverOrder.order_status_id !== undefined && serverOrder.order_status_id !== null) {
+            localOrder.order_status_id = Number(serverOrder.order_status_id);
+        }
+
+        const resolvedStatus =
+            serverOrder.order_status ??
+            serverOrder.orderStatus ??
+            localStatuses.find((s) => Number(s.id) === Number(serverOrder.order_status_id)) ??
+            null;
+
+        if (resolvedStatus) {
+            localOrder.order_status = resolvedStatus;
+            localOrder.orderStatus = resolvedStatus;
+        }
+
+        if (serverOrder.derived_status) {
+            localOrder.derived_status = serverOrder.derived_status;
+        }
+    }
+
     async function updateOrderStatus(orderId, newStatusId) {
         const order = localOrders.find((o) => o.id === orderId);
         if (!order) return;
@@ -814,8 +839,10 @@
             }
             showHistoryToast(`📦 Pedido #${orderNumberSnapshot} enviado al Historial de Pedidos`);
         } else {
-            // Actualización optimista normal
+            // Actualización optimista solo del pedido (sin alterar production_tasks)
             order.order_status_id = targetStatus.id;
+            order.order_status = targetStatus;
+            order.orderStatus = targetStatus;
             if (targetStatus.system_key && targetStatus.system_key !== 'custom') {
                 order.derived_status = targetStatus.system_key;
             }
@@ -875,7 +902,7 @@
         dragOverStageId = null;
     }
 
-    function moveTask(taskId, targetStageId) {
+    async function moveTask(taskId, targetStageId) {
         const allStages = [
             ...(activeOrderStages || []),
             ...(currentWorkflowStages || []),
@@ -884,15 +911,22 @@
         const targetStage = allStages.find((s) => Number(s.id) === Number(targetStageId));
         if (!targetStage) return;
 
+        let targetOrderId = null;
+        let previousStageId = null;
+        let previousStage = null;
+
         // Actualizar en todas las instancias de localOrders
         for (const ord of localOrders) {
             const tasks = getOrderTasks(ord);
             for (const task of tasks) {
                 if (task.id === taskId) {
+                    targetOrderId = ord.id;
+                    previousStageId = task.current_stage_id;
+                    previousStage = task.current_stage ?? task.currentStage ?? null;
                     task.current_stage_id = targetStageId;
                     task.current_stage = targetStage;
                     task.currentStage = targetStage;
-                    if (targetStage.stage_category === 'in_progress') {
+                    if (['in_progress', 'done'].includes(targetStage.stage_category)) {
                         task.materials_consumed = true;
                     }
                     break;
@@ -904,20 +938,54 @@
             selectedTaskDetail.current_stage_id = targetStageId;
             selectedTaskDetail.current_stage = targetStage;
             selectedTaskDetail.currentStage = targetStage;
-            if (targetStage.stage_category === 'in_progress') {
+            if (['in_progress', 'done'].includes(targetStage.stage_category)) {
                 selectedTaskDetail.materials_consumed = true;
             }
         }
 
         isMoving = true;
-        router.patch(
-            `/kanban/tasks/${taskId}/move`,
-            { target_stage_id: targetStageId, column_position: 0 },
-            {
-                preserveScroll: true,
-                onFinish: () => { isMoving = false; },
-            },
-        );
+        try {
+            const response = await csrfFetch(`/kanban/tasks/${taskId}/move`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    target_stage_id: targetStageId,
+                    column_position: 0,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al mover la tarea en el tablero.');
+            }
+
+            const data = await response.json().catch(() => null);
+            if (data?.order) {
+                syncOrderStatusFromServer(targetOrderId ?? data.order.id, data.order);
+            }
+        } catch (err) {
+            console.error('Error moving task:', err);
+            if (previousStageId !== null) {
+                for (const ord of localOrders) {
+                    const tasks = getOrderTasks(ord);
+                    const foundTask = tasks.find((t) => t.id === taskId);
+                    if (foundTask) {
+                        foundTask.current_stage_id = previousStageId;
+                        foundTask.current_stage = previousStage;
+                        foundTask.currentStage = previousStage;
+                        break;
+                    }
+                }
+                if (selectedTaskDetail && selectedTaskDetail.id === taskId) {
+                    selectedTaskDetail.current_stage_id = previousStageId;
+                    selectedTaskDetail.current_stage = previousStage;
+                    selectedTaskDetail.currentStage = previousStage;
+                }
+            } else {
+                router.reload({ preserveScroll: true });
+            }
+        } finally {
+            isMoving = false;
+        }
     }
 
     // Modificación directa e inmediata de etapa en la tabla de producción o modal de detalle
@@ -953,6 +1021,7 @@
         try {
             const response = await csrfFetch(`/kanban/tasks/${task.id}/stage`, {
                 method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     stage_id: stageId,
                 }),
@@ -962,12 +1031,9 @@
                 throw new Error('Error al actualizar la etapa de la tarea.');
             }
 
-            const data = await response.json();
-            if (data.order) {
-                const localOrder = localOrders.find((o) => o.id === task.order_id);
-                if (localOrder && data.order.derived_status) {
-                    localOrder.derived_status = data.order.derived_status;
-                }
+            const data = await response.json().catch(() => null);
+            if (data?.order) {
+                syncOrderStatusFromServer(task.order_id ?? data.order.id, data.order);
             }
         } catch (err) {
             console.error('Error updating task stage:', err);

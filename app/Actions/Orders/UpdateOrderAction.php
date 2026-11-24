@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions\Orders;
 
-use App\Actions\Kanban\SyncOrderDerivedStatusAction;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\ProductMaterialRequirement;
@@ -21,8 +20,7 @@ use InvalidArgumentException;
 class UpdateOrderAction
 {
     public function __construct(
-        protected PredictDeliveryDateAction $predictDeliveryDateAction,
-        protected SyncOrderDerivedStatusAction $syncOrderDerivedStatusAction
+        protected PredictDeliveryDateAction $predictDeliveryDateAction
     ) {}
 
     /**
@@ -298,9 +296,6 @@ class UpdateOrderAction
             $order->buffer_minutes = $prediction['buffer_minutes'];
             $order->predicted_delivery_at = $prediction['predicted_delivery_at'];
             $order->save();
-
-            // 7. Recalcular el derived_status del pedido según las tareas vigentes
-            $this->syncOrderDerivedStatusAction->execute($order);
 
             return $order->fresh(['tasks.currentStage', 'customer']);
         });

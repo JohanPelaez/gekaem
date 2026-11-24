@@ -199,12 +199,11 @@ class KanbanController extends Controller
     }
 
     /**
-     * Update an order's status and optionally advance its underlying tasks.
+     * Update an order's status without modifying its underlying production tasks.
      */
     public function updateOrderStatus(
         Request $request,
-        Order $order,
-        MoveProductionTaskAction $moveAction
+        Order $order
     ): JsonResponse|RedirectResponse {
         abort_if($request->user()?->currentRole() === 'worker', 403, 'Los trabajadores no pueden modificar el estado del pedido.');
 
@@ -228,7 +227,7 @@ class KanbanController extends Controller
             return response()->json(['error' => 'Estado de pedido no encontrado.'], 422);
         }
 
-        DB::transaction(function () use ($order, $orderStatus, $moveAction): void {
+        DB::transaction(function () use ($order, $orderStatus): void {
             $order->order_status_id = $orderStatus->id;
 
             if ($orderStatus->is_history_status) {
@@ -241,17 +240,7 @@ class KanbanController extends Controller
                 $order->delivered_at = null;
 
                 if ($orderStatus->system_key && in_array($orderStatus->system_key, ['pending', 'in_progress', 'blocked', 'ready'], true)) {
-                    $targetStatus = $orderStatus->system_key;
-                    $targetCategory = ($targetStatus === 'ready') ? 'done' : $targetStatus;
-
-                    $tasks = $order->productionTasks()->with('workflow.stages')->get();
-                    foreach ($tasks as $task) {
-                        $stage = $task->workflow?->stages->firstWhere('stage_category', $targetCategory);
-                        if ($stage && $task->current_stage_id !== $stage->id) {
-                            $moveAction->execute($task, $stage->id, 0);
-                        }
-                    }
-                    $order->derived_status = $targetStatus;
+                    $order->derived_status = $orderStatus->system_key;
                 } elseif ($order->derived_status === 'delivered') {
                     $order->derived_status = 'in_progress';
                 }
@@ -272,6 +261,12 @@ class KanbanController extends Controller
                     'customer',
                     'payments.creator',
                     'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+                    'productionTasks.productVariant.product.productType',
+                    'productionTasks.productVariant.product.materials.rawMaterial',
+                    'productionTasks.productVariant.attributeOptions.attribute',
+                    'productionTasks.productVariant.materialRequirements.rawMaterial',
+                    'productionTasks.workflow.stages' => fn ($q) => $q->orderBy('position'),
+                    'productionTasks.currentStage',
                 ]),
             ]);
         }
@@ -280,13 +275,12 @@ class KanbanController extends Controller
     }
 
     /**
-     * Legacy helper to update an order's macro status and advance its underlying tasks.
+     * Legacy helper to update an order's macro status.
      */
     public function macroStatus(
         Request $request,
-        Order $order,
-        MoveProductionTaskAction $moveAction
+        Order $order
     ): RedirectResponse|JsonResponse {
-        return $this->updateOrderStatus($request, $order, $moveAction);
+        return $this->updateOrderStatus($request, $order);
     }
 }

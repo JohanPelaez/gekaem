@@ -5,70 +5,120 @@ declare(strict_types=1);
 namespace App\Actions\Kanban;
 
 use App\Models\Order;
-use App\Models\ProductionTask;
+use App\Models\OrderStatus;
+use App\Models\WorkflowStage;
 use Illuminate\Support\Facades\DB;
 
 class SyncOrderDerivedStatusAction
 {
     /**
-     * Synchronize the derived status of an Order based on all its Kanban Production Tasks.
+     * Unidirectional rule: when a production task moves into an active/in-progress stage
+     * and its parent order is still in its initial waiting state, promote the order to
+     * the tenant's "En Producción" status. Never modifies any tasks or regresses orders.
      */
-    public function execute(Order $order): Order
+    public function execute(Order $order, ?WorkflowStage $targetStage = null): Order
     {
-        return DB::transaction(function () use ($order): Order {
-            // Obtener todas las tareas del pedido con su etapa actual
-            $tasks = ProductionTask::withoutGlobalScope('tenant')
-                ->where('order_id', $order->id)
-                ->with('currentStage')
-                ->get();
+        if ($targetStage === null) {
+            return $order;
+        }
 
-            if ($tasks->isEmpty()) {
+        return DB::transaction(function () use ($order, $targetStage): Order {
+            // 1. Verificar que la nueva etapa sea activa / en progreso:
+            //    - NO es la primera etapa inicial del flujo donde esperan tareas nuevas.
+            //    - NO es una etapa bloqueada/detenida.
+            $firstStageId = WorkflowStage::where('workflow_id', $targetStage->workflow_id)
+                ->orderBy('position', 'asc')
+                ->orderBy('id', 'asc')
+                ->value('id');
+
+            if ($firstStageId !== null && (int) $targetStage->id === (int) $firstStageId) {
                 return $order;
             }
 
-            $categories = $tasks->map(fn (ProductionTask $task): string => (string) ($task->currentStage?->stage_category ?? 'pending'));
-
-            $hasBlocked = $categories->contains('blocked');
-            $allDone = $categories->every(fn (string $cat): bool => $cat === 'done');
-            $allPending = $categories->every(fn (string $cat): bool => $cat === 'pending');
-
-            if ($hasBlocked) {
-                $newStatus = 'blocked';
-            } elseif ($allDone) {
-                $newStatus = ($order->derived_status === 'delivered') ? 'delivered' : 'ready';
-            } elseif ($allPending) {
-                $newStatus = 'pending';
-            } else {
-                $newStatus = 'in_progress';
+            $normalizedStageName = mb_strtolower(trim((string) $targetStage->name), 'UTF-8');
+            if (
+                $targetStage->stage_category === 'blocked'
+                || str_contains($normalizedStageName, 'bloquead')
+                || str_contains($normalizedStageName, 'detenid')
+            ) {
+                return $order;
             }
 
-            $needsSave = false;
-            if ($order->derived_status !== $newStatus) {
-                $order->derived_status = $newStatus;
-                $needsSave = true;
-            }
-
-            // Si el pedido no está en un estado personalizado ni en historial, sincronizar su order_status_id
+            // 2. Verificar que el pedido padre se encuentre en su estado inicial de espera
+            $order->loadMissing('orderStatus');
             $currentStatus = $order->orderStatus;
-            $isCustom = $currentStatus && $currentStatus->system_key === 'custom';
-            $isHistory = $currentStatus && $currentStatus->is_history_status;
-            $targetKey = ($newStatus === 'delivered') ? 'ready' : $newStatus;
 
-            if (!$isCustom && !$isHistory && in_array($targetKey, ['pending', 'in_progress', 'blocked', 'ready'], true)) {
-                $matchingStatus = \App\Models\OrderStatus::withoutGlobalScope('tenant')
-                    ->where('tenant_id', $order->tenant_id)
-                    ->where('system_key', $targetKey)
-                    ->first();
+            if (
+                ($currentStatus && $currentStatus->is_history_status)
+                || $order->shipped_at !== null
+                || $order->derived_status === 'delivered'
+            ) {
+                return $order;
+            }
 
-                if ($matchingStatus && $order->order_status_id !== $matchingStatus->id) {
-                    $order->order_status_id = $matchingStatus->id;
-                    $needsSave = true;
+            $activeStatuses = OrderStatus::withoutGlobalScope('tenant')
+                ->where('tenant_id', $order->tenant_id)
+                ->where('is_history_status', false)
+                ->orderBy('position', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            $firstStatus = $activeStatuses->first();
+            $isOrderInInitialWaitingState = false;
+
+            if ($currentStatus !== null) {
+                $normalizedOrderStatusName = mb_strtolower(trim((string) $currentStatus->name), 'UTF-8');
+                $isOrderInInitialWaitingState = ($firstStatus !== null && (int) $currentStatus->id === (int) $firstStatus->id)
+                    || $currentStatus->system_key === 'pending'
+                    || in_array($normalizedOrderStatusName, ['pendiente', 'por iniciar'], true);
+            } else {
+                $isOrderInInitialWaitingState = $order->derived_status === 'pending';
+            }
+
+            if (!$isOrderInInitialWaitingState) {
+                return $order;
+            }
+
+            // 3. Buscar el estado de producción del taller (mismo tenant_id)
+            $productionStatus = $activeStatuses->first(function (OrderStatus $st): bool {
+                $name = mb_strtolower(trim((string) $st->name), 'UTF-8');
+                if (str_contains($name, 'bloquead') || str_contains($name, 'detenid')) {
+                    return false;
                 }
+
+                return str_contains($name, 'producción')
+                    || str_contains($name, 'produccion')
+                    || str_contains($name, 'proceso');
+            });
+
+            if ($productionStatus === null) {
+                $productionStatus = $activeStatuses->first(
+                    fn (OrderStatus $st): bool => $st->system_key === 'in_progress'
+                );
             }
 
-            if ($needsSave) {
-                $order->save();
+            if ($productionStatus === null) {
+                $productionStatus = $activeStatuses
+                    ->filter(function (OrderStatus $st) use ($firstStatus): bool {
+                        if ($firstStatus !== null && (int) $st->id === (int) $firstStatus->id) {
+                            return false;
+                        }
+
+                        $name = mb_strtolower(trim((string) $st->name), 'UTF-8');
+
+                        return $st->system_key !== 'blocked'
+                            && !str_contains($name, 'bloquead')
+                            && !str_contains($name, 'detenid');
+                    })
+                    ->first();
             }
+
+            if ($productionStatus !== null) {
+                $order->order_status_id = $productionStatus->id;
+            }
+
+            $order->derived_status = 'in_progress';
+            $order->save();
 
             return $order;
         });

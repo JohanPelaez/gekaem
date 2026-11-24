@@ -87,10 +87,10 @@ class MoveProductionTaskAction
 
             $task->save();
 
-            // Sincronizar el estado derivado del pedido padre ("US")
+            // Promover pedido padre de estado inicial a En Producción si la tarea entró a una etapa activa
             /** @var Order $order */
             $order = Order::withoutGlobalScope('tenant')->findOrFail($task->order_id);
-            $this->syncOrderDerivedStatusAction->execute($order);
+            $this->syncOrderDerivedStatusAction->execute($order, $targetStage);
 
             return $task->fresh(['order', 'currentStage']);
         });
