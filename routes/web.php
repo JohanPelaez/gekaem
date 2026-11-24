@@ -110,8 +110,11 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
             Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
             Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
             Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');
+            Route::delete('/{order}/payments/{payment}', [OrderPaymentController::class, 'destroyForOrder'])->name('payments.destroy');
             Route::post('/{order}/payment-schedules', [OrderPaymentScheduleController::class, 'store'])->name('payment-schedules.store');
+            Route::put('/{order}/payment-schedules/{schedule}', [OrderPaymentScheduleController::class, 'update'])->name('payment-schedules.update');
             Route::post('/{order}/payment-schedules/{schedule}/mark-paid', [OrderPaymentScheduleController::class, 'markPaid'])->name('payment-schedules.mark-paid');
+            Route::post('/{order}/payment-schedules/{schedule}/unmark-paid', [OrderPaymentScheduleController::class, 'unmarkPaid'])->name('payment-schedules.unmark-paid');
             Route::delete('/{order}/payment-schedules/{schedule}', [OrderPaymentScheduleController::class, 'destroy'])->name('payment-schedules.destroy');
             Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
         });

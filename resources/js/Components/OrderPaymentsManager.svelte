@@ -15,7 +15,8 @@
      * NO usa etiquetas <form> anidadas para poder incrustarse dentro de OrderFormModal sin conflictos.
      */
     let {
-        orderId,
+        order = null,
+        orderId = null,
         orderTotal = 0,
         payments = [],
         paymentSchedules = [],
@@ -23,6 +24,23 @@
         compact = false,
         onUpdated = () => {},
     } = $props();
+
+    let effectiveOrderId = $derived(order?.id ?? orderId ?? null);
+    let effectiveOrderTotal = $derived(
+        order !== null && order !== undefined
+            ? Number(order.total_amount ?? orderTotal ?? 0)
+            : Number(orderTotal ?? 0)
+    );
+    let incomingPaymentsProp = $derived(
+        order !== null && order !== undefined
+            ? (order.payments ?? [])
+            : (payments ?? [])
+    );
+    let incomingSchedulesProp = $derived(
+        order !== null && order !== undefined
+            ? (order.payment_schedules ?? order.paymentSchedules ?? [])
+            : (paymentSchedules ?? [])
+    );
 
     let localPayments = $state([]);
     let localSchedules = $state([]);
@@ -52,6 +70,12 @@
     let scheduleSuccess = $state('');
     let scheduleActionId = $state(null);
     let confirmDeleteScheduleId = $state(null);
+    let editingScheduleId = $state(null);
+    let editScheduleForm = $state({
+        scheduled_date: '',
+        amount: '',
+        notes: '',
+    });
 
     function getOffsetDateKey(daysAhead) {
         const d = new Date();
@@ -65,9 +89,9 @@
     // Sincronizar props entrantes cuando cambia el pedido o se recargan sus datos
     let prevOrderId = null;
     $effect(() => {
-        const incomingOrderId = orderId;
-        const incomingPayments = payments;
-        const incomingSchedules = paymentSchedules;
+        const incomingOrderId = effectiveOrderId;
+        const incomingPayments = incomingPaymentsProp;
+        const incomingSchedules = incomingSchedulesProp;
 
         untrack(() => {
             localPayments = [...(incomingPayments || [])];
@@ -81,6 +105,10 @@
                 scheduleSuccess = '';
                 confirmDeletePaymentId = null;
                 confirmDeleteScheduleId = null;
+                editingScheduleId = null;
+                editScheduleForm.scheduled_date = '';
+                editScheduleForm.amount = '';
+                editScheduleForm.notes = '';
                 paymentForm.payment_date = getTodayLocalDateKey();
                 paymentForm.notes = '';
                 paymentForm.voucher = null;
@@ -92,8 +120,24 @@
         });
     });
 
-    // Cálculos reactivos financieros con descuentos ya reflejados en orderTotal
-    let totalOrder = $derived(Math.max(0, Number(orderTotal || 0)));
+    // Cálculos reactivos financieros con descuentos ya reflejados en effectiveOrderTotal
+    let totalOrder = $derived(Math.max(0, Number(effectiveOrderTotal || 0)));
+
+    function notifyParent(nextPayments, nextSchedules) {
+        const paidSum = Math.round(
+            (nextPayments || []).reduce((sum, p) => sum + Number(p?.amount || 0), 0) * 100
+        ) / 100;
+        const pendingBal = Math.max(0, Math.round((totalOrder - paidSum) * 100) / 100);
+
+        onUpdated({
+            payments: nextPayments,
+            paymentSchedules: nextSchedules,
+            payment_schedules: nextSchedules,
+            total_amount: totalOrder,
+            paid_amount: paidSum,
+            pending_balance: pendingBal,
+        });
+    }
 
     let totalPaid = $derived.by(() =>
         Math.round(
@@ -135,6 +179,20 @@
         scheduleAmountNum > 0 && scheduleAmountNum > availableToSchedule + 0.01
     );
 
+    let editScheduleAmountNum = $derived(Number(editScheduleForm.amount || 0));
+    let editMaxAllowed = $derived.by(() => {
+        if (!editingScheduleId) return 0;
+        const otherPending = Math.round(
+            localSchedules
+                .filter((s) => s?.status === 'pending' && s?.id !== editingScheduleId)
+                .reduce((sum, s) => sum + Number(s?.amount || 0), 0) * 100
+        ) / 100;
+        return Math.max(0, Math.round((totalOrder - totalPaid - otherPending) * 100) / 100);
+    });
+    let editScheduleExceedsMax = $derived(
+        editingScheduleId !== null && editScheduleAmountNum > 0 && editScheduleAmountNum > editMaxAllowed + 0.01
+    );
+
     function formatCurrency(val) {
         return new Intl.NumberFormat('es-CO', {
             style: 'currency',
@@ -163,7 +221,7 @@
     }
 
     async function handleRegisterPayment() {
-        if (!orderId) return;
+        if (!effectiveOrderId) return;
         paymentError = '';
         paymentSuccess = '';
 
@@ -197,14 +255,14 @@
                     : null;
                 if (metaToken) headers['X-CSRF-TOKEN'] = metaToken;
 
-                res = await fetch(`/orders/${orderId}/payments`, {
+                res = await fetch(`/orders/${effectiveOrderId}/payments`, {
                     method: 'POST',
                     headers,
                     body: fd,
                     credentials: 'same-origin',
                 });
             } else {
-                res = await csrfFetch(`/orders/${orderId}/payments`, {
+                res = await csrfFetch(`/orders/${effectiveOrderId}/payments`, {
                     method: 'POST',
                     body: JSON.stringify({
                         amount: paymentAmountNum,
@@ -236,10 +294,7 @@
             paymentForm.voucher = null;
             paymentSuccess = 'Abono registrado exitosamente.';
 
-            onUpdated({
-                payments: localPayments,
-                paymentSchedules: localSchedules,
-            });
+            notifyParent(localPayments, localSchedules);
         } catch (err) {
             paymentError = err?.message || 'Error de conexión al registrar abono.';
         } finally {
@@ -252,7 +307,8 @@
         paymentError = '';
         paymentSuccess = '';
         try {
-            const res = await csrfFetch(`/payments/${paymentId}`, {
+            const endpoint = effectiveOrderId ? `/orders/${effectiveOrderId}/payments/${paymentId}` : `/payments/${paymentId}`;
+            const res = await csrfFetch(endpoint, {
                 method: 'DELETE',
             });
             const data = await res.json().catch(() => ({}));
@@ -269,10 +325,7 @@
             }
             confirmDeletePaymentId = null;
 
-            onUpdated({
-                payments: localPayments,
-                paymentSchedules: localSchedules,
-            });
+            notifyParent(localPayments, localSchedules);
         } catch (err) {
             paymentError = err?.message || 'Error de conexión al eliminar abono.';
         } finally {
@@ -281,7 +334,7 @@
     }
 
     async function handleCreateSchedule() {
-        if (!orderId) return;
+        if (!effectiveOrderId) return;
         scheduleError = '';
         scheduleSuccess = '';
 
@@ -300,7 +353,7 @@
 
         scheduleLoading = true;
         try {
-            const res = await csrfFetch(`/orders/${orderId}/payment-schedules`, {
+            const res = await csrfFetch(`/orders/${effectiveOrderId}/payment-schedules`, {
                 method: 'POST',
                 body: JSON.stringify({
                     scheduled_date: scheduleForm.scheduled_date,
@@ -315,6 +368,9 @@
                 return;
             }
 
+            if (Array.isArray(data.payments)) {
+                localPayments = data.payments;
+            }
             if (Array.isArray(data.payment_schedules)) {
                 localSchedules = data.payment_schedules;
             } else if (data.schedule) {
@@ -325,10 +381,7 @@
             scheduleForm.notes = '';
             scheduleSuccess = 'Cobro programado agregado correctamente.';
 
-            onUpdated({
-                payments: localPayments,
-                paymentSchedules: localSchedules,
-            });
+            notifyParent(localPayments, localSchedules);
         } catch (err) {
             scheduleError = err?.message || 'Error de conexión al programar el cobro.';
         } finally {
@@ -337,13 +390,13 @@
     }
 
     async function handleMarkSchedulePaid(schedule) {
-        if (!orderId || !schedule?.id) return;
+        if (!effectiveOrderId || !schedule?.id) return;
         scheduleError = '';
         scheduleSuccess = '';
         scheduleActionId = schedule.id;
 
         try {
-            const res = await csrfFetch(`/orders/${orderId}/payment-schedules/${schedule.id}/mark-paid`, {
+            const res = await csrfFetch(`/orders/${effectiveOrderId}/payment-schedules/${schedule.id}/mark-paid`, {
                 method: 'POST',
                 body: JSON.stringify({
                     payment_method: 'transfer',
@@ -364,10 +417,7 @@
             }
             scheduleSuccess = 'Cobro marcado como cobrado y convertido en abono real.';
 
-            onUpdated({
-                payments: localPayments,
-                paymentSchedules: localSchedules,
-            });
+            notifyParent(localPayments, localSchedules);
         } catch (err) {
             scheduleError = err?.message || 'Error de conexión al marcar cobro.';
         } finally {
@@ -375,14 +425,118 @@
         }
     }
 
+    function startEditSchedule(sched) {
+        confirmDeleteScheduleId = null;
+        scheduleError = '';
+        scheduleSuccess = '';
+        editingScheduleId = sched.id;
+        editScheduleForm.scheduled_date = normalizeScheduleDateKey(sched.scheduled_date) || '';
+        editScheduleForm.amount = String(Math.round(Number(sched.amount || 0) * 100) / 100);
+        editScheduleForm.notes = sched.notes || '';
+    }
+
+    function cancelEditSchedule() {
+        editingScheduleId = null;
+        scheduleError = '';
+    }
+
+    async function handleUpdateSchedule(scheduleId) {
+        if (!effectiveOrderId || !scheduleId) return;
+        scheduleError = '';
+        scheduleSuccess = '';
+
+        if (!editScheduleForm.scheduled_date) {
+            scheduleError = 'Selecciona la fecha del cobro programado.';
+            return;
+        }
+        if (!editScheduleAmountNum || editScheduleAmountNum <= 0) {
+            scheduleError = 'Ingresa un valor válido mayor a 0.';
+            return;
+        }
+        if (editScheduleExceedsMax) {
+            scheduleError = `El monto supera el disponible por programar tras descuentos y abonos (${formatCurrency(editMaxAllowed)}).`;
+            return;
+        }
+
+        scheduleActionId = scheduleId;
+        try {
+            const res = await csrfFetch(`/orders/${effectiveOrderId}/payment-schedules/${scheduleId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    scheduled_date: editScheduleForm.scheduled_date,
+                    amount: editScheduleAmountNum,
+                    notes: (editScheduleForm.notes || '').trim() || null,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const firstErr = data?.errors ? Object.values(data.errors).flat()[0] : null;
+                scheduleError = firstErr || data.message || 'No se pudo actualizar el cobro programado.';
+                return;
+            }
+
+            if (Array.isArray(data.payments)) {
+                localPayments = data.payments;
+            }
+            if (Array.isArray(data.payment_schedules)) {
+                localSchedules = data.payment_schedules;
+            } else if (data.schedule) {
+                localSchedules = localSchedules.map((s) => (s.id === scheduleId ? data.schedule : s));
+            }
+            editingScheduleId = null;
+            scheduleSuccess = data.message || 'Cobro programado actualizado correctamente.';
+
+            notifyParent(localPayments, localSchedules);
+        } catch (err) {
+            scheduleError = err?.message || 'Error de conexión al actualizar cobro programado.';
+        } finally {
+            scheduleActionId = null;
+        }
+    }
+
+    async function handleUnmarkSchedulePaid(schedule) {
+        if (!effectiveOrderId || !schedule?.id) return;
+        scheduleError = '';
+        scheduleSuccess = '';
+        confirmDeleteScheduleId = null;
+        editingScheduleId = null;
+        scheduleActionId = schedule.id;
+
+        try {
+            const res = await csrfFetch(`/orders/${effectiveOrderId}/payment-schedules/${schedule.id}/unmark-paid`, {
+                method: 'POST',
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const firstErr = data?.errors ? Object.values(data.errors).flat()[0] : null;
+                scheduleError = firstErr || data.message || 'No se pudo revertir el cobro.';
+                return;
+            }
+
+            if (Array.isArray(data.payments)) {
+                localPayments = data.payments;
+            }
+            if (Array.isArray(data.payment_schedules)) {
+                localSchedules = data.payment_schedules;
+            }
+            scheduleSuccess = data.message || 'Cobro revertido a pendiente.';
+
+            notifyParent(localPayments, localSchedules);
+        } catch (err) {
+            scheduleError = err?.message || 'Error de conexión al revertir cobro.';
+        } finally {
+            scheduleActionId = null;
+        }
+    }
+
     async function handleDeleteSchedule(scheduleId) {
-        if (!orderId || !scheduleId) return;
+        if (!effectiveOrderId || !scheduleId) return;
         scheduleError = '';
         scheduleSuccess = '';
         scheduleActionId = scheduleId;
 
         try {
-            const res = await csrfFetch(`/orders/${orderId}/payment-schedules/${scheduleId}`, {
+            const res = await csrfFetch(`/orders/${effectiveOrderId}/payment-schedules/${scheduleId}`, {
                 method: 'DELETE',
             });
             const data = await res.json().catch(() => ({}));
@@ -391,15 +545,19 @@
                 return;
             }
 
+            if (Array.isArray(data.payments)) {
+                localPayments = data.payments;
+            }
             localSchedules = Array.isArray(data.payment_schedules)
                 ? data.payment_schedules
                 : localSchedules.filter((s) => s.id !== scheduleId);
             confirmDeleteScheduleId = null;
+            if (editingScheduleId === scheduleId) {
+                editingScheduleId = null;
+            }
+            scheduleSuccess = data.message || 'Cobro programado eliminado correctamente.';
 
-            onUpdated({
-                payments: localPayments,
-                paymentSchedules: localSchedules,
-            });
+            notifyParent(localPayments, localSchedules);
         } catch (err) {
             scheduleError = err?.message || 'Error de conexión al eliminar cobro programado.';
         } finally {
@@ -488,11 +646,11 @@
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label for="opm-pay-amount-{orderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            <label for="opm-pay-amount-{effectiveOrderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                 Monto del Abono ($) *
                             </label>
                             <CurrencyInput
-                                id="opm-pay-amount-{orderId}"
+                                id="opm-pay-amount-{effectiveOrderId}"
                                 bind:value={paymentForm.amount}
                                 placeholder="0"
                             />
@@ -504,11 +662,11 @@
                         </div>
 
                         <div>
-                            <label for="opm-pay-date-{orderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            <label for="opm-pay-date-{effectiveOrderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                 Fecha de Pago *
                             </label>
                             <input
-                                id="opm-pay-date-{orderId}"
+                                id="opm-pay-date-{effectiveOrderId}"
                                 type="date"
                                 bind:value={paymentForm.payment_date}
                                 class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-[#4F46E5]"
@@ -518,11 +676,11 @@
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label for="opm-pay-method-{orderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            <label for="opm-pay-method-{effectiveOrderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                 Método de Pago *
                             </label>
                             <select
-                                id="opm-pay-method-{orderId}"
+                                id="opm-pay-method-{effectiveOrderId}"
                                 bind:value={paymentForm.payment_method}
                                 class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
                             >
@@ -534,11 +692,11 @@
                         </div>
 
                         <div>
-                            <label for="opm-pay-notes-{orderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            <label for="opm-pay-notes-{effectiveOrderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                 Notas / Referencia
                             </label>
                             <input
-                                id="opm-pay-notes-{orderId}"
+                                id="opm-pay-notes-{effectiveOrderId}"
                                 type="text"
                                 bind:value={paymentForm.notes}
                                 placeholder="Ej. Aprobación #1234..."
@@ -549,11 +707,11 @@
 
                     {#if allowVoucher}
                         <div>
-                            <label for="opm-pay-voucher-{orderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            <label for="opm-pay-voucher-{effectiveOrderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                 Comprobante de Pago (Foto o PDF, máx 5MB)
                             </label>
                             <input
-                                id="opm-pay-voucher-{orderId}"
+                                id="opm-pay-voucher-{effectiveOrderId}"
                                 type="file"
                                 accept="image/*,.pdf"
                                 onchange={handleVoucherFileChange}
@@ -609,11 +767,11 @@
                     {:else}
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label for="opm-sched-date-{orderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                <label for="opm-sched-date-{effectiveOrderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                     Fecha del Cobro *
                                 </label>
                                 <input
-                                    id="opm-sched-date-{orderId}"
+                                    id="opm-sched-date-{effectiveOrderId}"
                                     type="date"
                                     bind:value={scheduleForm.scheduled_date}
                                     class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-[#4F46E5]"
@@ -627,11 +785,11 @@
                             </div>
 
                             <div>
-                                <label for="opm-sched-amount-{orderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                <label for="opm-sched-amount-{effectiveOrderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                     Valor a Cobrar ($) *
                                 </label>
                                 <input
-                                    id="opm-sched-amount-{orderId}"
+                                    id="opm-sched-amount-{effectiveOrderId}"
                                     type="number"
                                     min="1"
                                     step="1"
@@ -648,11 +806,11 @@
                         </div>
 
                         <div>
-                            <label for="opm-sched-notes-{orderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                            <label for="opm-sched-notes-{effectiveOrderId}" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                                 Nota / Recordatorio (Opcional)
                             </label>
                             <input
-                                id="opm-sched-notes-{orderId}"
+                                id="opm-sched-notes-{effectiveOrderId}"
                                 type="text"
                                 bind:value={scheduleForm.notes}
                                 placeholder="Ej. Segundo abono antes de despacho"
@@ -705,79 +863,225 @@
             {/if}
         </div>
 
+        {#if scheduleError && (remainingBalance <= 0 || activeTab !== 'schedule')}
+            <p class="text-[11px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">
+                ⚠️ {scheduleError}
+            </p>
+        {/if}
+        {#if scheduleSuccess && (remainingBalance <= 0 || activeTab !== 'schedule')}
+            <p class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1.5">
+                ✓ {scheduleSuccess}
+            </p>
+        {/if}
+
         {#if sortedSchedules.length === 0}
             <div class="p-3.5 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-slate-400 text-xs italic">
                 No hay cobros programados para este pedido.
             </div>
         {:else}
-            <div class="space-y-1.5 {compact ? 'max-h-44' : 'max-h-56'} overflow-y-auto pr-0.5">
+            <div class="space-y-1.5 {compact ? 'max-h-56' : 'max-h-72'} overflow-y-auto pr-0.5">
                 {#each sortedSchedules as sched (sched.id)}
                     {@const traffic = sched.status === 'pending' ? getScheduleDateTrafficLight(sched.scheduled_date) : null}
-                    <div class="p-2.5 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] flex flex-wrap items-center justify-between gap-2">
-                        <div class="space-y-0.5 min-w-0">
-                            <div class="flex flex-wrap items-center gap-2">
-                                {#if sched.status === 'paid'}
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
-                                        ✓ Cobrado
+                    <div class="p-2.5 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-2">
+                        {#if editingScheduleId === sched.id && sched.status === 'pending'}
+                            <div class="space-y-2.5">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-[11px] font-bold text-[#4F46E5] dark:text-indigo-400">
+                                        ✏️ Editando Cobro Programado
                                     </span>
-                                {:else if traffic}
-                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border {traffic.badgeClass}">
-                                        <span class="w-1.5 h-1.5 rounded-full {traffic.dotClass}"></span>
-                                        <span>{traffic.label}</span>
+                                    <span class="text-[10px] font-mono text-[#64748B] dark:text-slate-400">
+                                        Máx. disponible: {formatCurrency(editMaxAllowed)}
                                     </span>
-                                {/if}
-                                <span class="font-mono font-bold text-slate-900 dark:text-white text-xs">
-                                    {formatCurrency(sched.amount)}
-                                </span>
-                            </div>
-                            <div class="text-[11px] text-[#64748B] dark:text-slate-400 flex flex-wrap items-center gap-1.5">
-                                <span class="font-mono">📆 {formatFullScheduleDate(sched.scheduled_date)}</span>
-                                {#if sched.notes}
-                                    <span>•</span>
-                                    <span class="truncate max-w-[220px]" title={sched.notes}>{sched.notes}</span>
-                                {/if}
-                            </div>
-                        </div>
+                                </div>
 
-                        {#if sched.status === 'pending'}
-                            <div class="flex items-center gap-1.5 shrink-0">
-                                {#if confirmDeleteScheduleId === sched.id}
-                                    <span class="text-[10px] text-rose-500 font-semibold">¿Borrar?</span>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    <div>
+                                        <label for="opm-edit-date-{sched.id}" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Fecha del Cobro *
+                                        </label>
+                                        <input
+                                            id="opm-edit-date-{sched.id}"
+                                            type="date"
+                                            bind:value={editScheduleForm.scheduled_date}
+                                            class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-[#4F46E5]"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label for="opm-edit-amount-{sched.id}" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                            Valor a Cobrar ($) *
+                                        </label>
+                                        <input
+                                            id="opm-edit-amount-{sched.id}"
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            bind:value={editScheduleForm.amount}
+                                            class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white font-mono font-bold text-xs focus:outline-none focus:border-[#4F46E5]"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="opm-edit-notes-{sched.id}" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                        Nota
+                                    </label>
+                                    <input
+                                        id="opm-edit-notes-{sched.id}"
+                                        type="text"
+                                        bind:value={editScheduleForm.notes}
+                                        placeholder="Ej. Segundo abono antes de despacho"
+                                        class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none focus:border-[#4F46E5]"
+                                    />
+                                </div>
+
+                                {#if editScheduleExceedsMax}
+                                    <p class="text-[11px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-2.5 py-1.5">
+                                        ⚠️ El valor ingresado supera el tope disponible por programar tras descuentos y abonos ({formatCurrency(editMaxAllowed)}).
+                                    </p>
+                                {/if}
+
+                                <div class="flex items-center justify-end gap-1.5">
                                     <button
                                         type="button"
-                                        onclick={() => handleDeleteSchedule(sched.id)}
+                                        onclick={cancelEditSchedule}
                                         disabled={scheduleActionId === sched.id}
-                                        class="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold"
+                                        class="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[11px] font-semibold transition-colors"
                                     >
-                                        Sí
+                                        Cancelar
                                     </button>
                                     <button
                                         type="button"
-                                        onclick={() => confirmDeleteScheduleId = null}
-                                        disabled={scheduleActionId === sched.id}
-                                        class="px-2 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold"
+                                        onclick={() => handleUpdateSchedule(sched.id)}
+                                        disabled={scheduleActionId === sched.id || !editScheduleForm.scheduled_date || !editScheduleAmountNum || editScheduleAmountNum <= 0 || editScheduleExceedsMax}
+                                        class="px-3 py-1 rounded-lg bg-[#4F46E5] hover:bg-[#4338CA] disabled:opacity-50 text-white text-[11px] font-bold shadow-sm transition-colors"
                                     >
-                                        No
+                                        {scheduleActionId === sched.id ? 'Guardando...' : 'Guardar Cambios'}
                                     </button>
-                                {:else}
-                                    <button
-                                        type="button"
-                                        onclick={() => handleMarkSchedulePaid(sched)}
-                                        disabled={scheduleActionId === sched.id}
-                                        class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[11px] font-bold transition-colors shadow-sm"
-                                        title="Marcar cobro como recibido y registrarlo como abono"
-                                    >
-                                        {scheduleActionId === sched.id ? '...' : '✓ Marcar Cobrado'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onclick={() => confirmDeleteScheduleId = sched.id}
-                                        disabled={scheduleActionId === sched.id}
-                                        class="px-2 py-1 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-slate-200 dark:border-slate-700 text-[11px] font-bold transition-colors"
-                                        title="Eliminar cobro programado"
-                                    >
-                                        ✕
-                                    </button>
+                                </div>
+                            </div>
+                        {:else}
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div class="space-y-0.5 min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        {#if sched.status === 'paid'}
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                                                ✓ Cobrado
+                                            </span>
+                                        {:else if traffic}
+                                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border {traffic.badgeClass}">
+                                                <span class="w-1.5 h-1.5 rounded-full {traffic.dotClass}"></span>
+                                                <span>{traffic.label}</span>
+                                            </span>
+                                        {/if}
+                                        <span class="font-mono font-bold text-slate-900 dark:text-white text-xs">
+                                            {formatCurrency(sched.amount)}
+                                        </span>
+                                    </div>
+                                    <div class="text-[11px] text-[#64748B] dark:text-slate-400 flex flex-wrap items-center gap-1.5">
+                                        <span class="font-mono">📆 {formatFullScheduleDate(sched.scheduled_date)}</span>
+                                        {#if sched.notes}
+                                            <span>•</span>
+                                            <span class="truncate max-w-[220px]" title={sched.notes}>{sched.notes}</span>
+                                        {/if}
+                                    </div>
+                                </div>
+
+                                {#if sched.status === 'pending'}
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        {#if confirmDeleteScheduleId === sched.id}
+                                            <span class="text-[10px] text-rose-500 font-semibold">¿Eliminar?</span>
+                                            <button
+                                                type="button"
+                                                onclick={() => handleDeleteSchedule(sched.id)}
+                                                disabled={scheduleActionId === sched.id}
+                                                class="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold"
+                                            >
+                                                Sí
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onclick={() => confirmDeleteScheduleId = null}
+                                                disabled={scheduleActionId === sched.id}
+                                                class="px-2 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold"
+                                            >
+                                                No
+                                            </button>
+                                        {:else}
+                                            <button
+                                                type="button"
+                                                onclick={() => handleMarkSchedulePaid(sched)}
+                                                disabled={scheduleActionId === sched.id}
+                                                class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[11px] font-bold transition-colors shadow-sm"
+                                                title="Marcar cobro como recibido y registrarlo como abono"
+                                            >
+                                                {scheduleActionId === sched.id ? '...' : '✓ Marcar Cobrado'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onclick={() => startEditSchedule(sched)}
+                                                disabled={scheduleActionId === sched.id}
+                                                class="px-2 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-[#4F46E5] dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold transition-colors"
+                                                title="Editar cobro programado"
+                                            >
+                                                ✏️
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onclick={() => { editingScheduleId = null; confirmDeleteScheduleId = sched.id; }}
+                                                disabled={scheduleActionId === sched.id}
+                                                class="px-2 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-[11px] font-semibold transition-colors"
+                                                title="Eliminar cobro programado"
+                                            >
+                                                🗑️
+                                            </button>
+                                        {/if}
+                                    </div>
+                                {:else if sched.status === 'paid'}
+                                    <div class="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
+                                        {#if confirmDeleteScheduleId === sched.id}
+                                            <div class="flex flex-wrap items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 rounded-lg px-2 py-1">
+                                                <span class="text-[10px] text-rose-600 dark:text-rose-400 font-semibold">
+                                                    Se eliminará el cobro programado y su abono asociado. ¿Confirmar?
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onclick={() => handleDeleteSchedule(sched.id)}
+                                                    disabled={scheduleActionId === sched.id}
+                                                    class="px-2 py-0.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold"
+                                                >
+                                                    Sí
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onclick={() => confirmDeleteScheduleId = null}
+                                                    disabled={scheduleActionId === sched.id}
+                                                    class="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold"
+                                                >
+                                                    No
+                                                </button>
+                                            </div>
+                                        {:else}
+                                            <button
+                                                type="button"
+                                                onclick={() => handleUnmarkSchedulePaid(sched)}
+                                                disabled={scheduleActionId === sched.id}
+                                                class="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-50 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[11px] font-semibold transition-colors"
+                                                title="Deshacer cobro y volver a pendiente"
+                                            >
+                                                {scheduleActionId === sched.id ? '...' : '↩️ Deshacer'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onclick={() => { editingScheduleId = null; confirmDeleteScheduleId = sched.id; }}
+                                                disabled={scheduleActionId === sched.id}
+                                                class="px-2 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-[11px] font-semibold transition-colors"
+                                                title="Eliminar cobro programado y su abono asociado"
+                                            >
+                                                🗑️
+                                            </button>
+                                        {/if}
+                                    </div>
                                 {/if}
                             </div>
                         {/if}

@@ -1,7 +1,7 @@
 <script>
     import { untrack } from 'svelte';
     import { router, page } from '@inertiajs/svelte';
-    import CurrencyInput from '../../Components/CurrencyInput.svelte';
+    import OrderPaymentsManager from '../../Components/OrderPaymentsManager.svelte';
     import ShippingGuideModal from '../../Components/ShippingGuideModal.svelte';
 
     let {
@@ -15,6 +15,7 @@
         errors = {},
         onStatusChange = () => {},
         onTaskStageChange = () => {},
+        onPaymentsUpdated = () => {},
         onEditOrder = () => {},
         onOpenIsolatedBoard = (ordId) => {
             router.visit(`/kanban?order_id=${ordId}`);
@@ -37,37 +38,6 @@
                 localSenderProfile = { ...incoming };
             }
         });
-    });
-
-    // Estado del formulario rápido de abonos colapsable
-    let showNewPaymentForm = $state(false);
-    let paymentAmount = $state('');
-    let paymentDate = $state(new Date().toISOString().slice(0, 10));
-    let paymentMethod = $state('transfer');
-    let paymentNotes = $state('');
-    let paymentVoucher = $state(null);
-    let isSavingPayment = $state(false);
-    let paymentError = $state('');
-
-    let prevOrderId = null;
-
-    // Resetear formulario de abono cuando cambia el pedido
-    $effect(() => {
-        const curOrderId = order?.id ?? null;
-        if (curOrderId && curOrderId !== prevOrderId) {
-            prevOrderId = curOrderId;
-            untrack(() => {
-                paymentAmount = order.pending_balance > 0 ? Number(order.pending_balance) : '';
-                paymentDate = new Date().toISOString().slice(0, 10);
-                paymentMethod = 'transfer';
-                paymentNotes = '';
-                paymentVoucher = null;
-                showNewPaymentForm = false;
-                paymentError = '';
-            });
-        } else if (!curOrderId) {
-            prevOrderId = null;
-        }
     });
 
     function getOrderTasks(ord) {
@@ -156,49 +126,6 @@
         }
         return orderStatuses.find((s) => s.system_key === order.derived_status) ?? null;
     });
-
-    function handleVoucherChange(e) {
-        paymentVoucher = e.target.files?.[0] ?? null;
-    }
-
-    function handlePaymentSubmit(e) {
-        e.preventDefault();
-        if (!order || !paymentAmount) return;
-
-        paymentError = '';
-        isSavingPayment = true;
-
-        const formData = new FormData();
-        formData.append('amount', String(paymentAmount));
-        formData.append('payment_date', paymentDate);
-        formData.append('payment_method', paymentMethod);
-        formData.append('notes', paymentNotes ?? '');
-        if (paymentVoucher) {
-            formData.append('voucher', paymentVoucher);
-        }
-
-        router.post(`/orders/${order.id}/payments`, formData, {
-            preserveScroll: true,
-            onFinish: () => { isSavingPayment = false; },
-            onSuccess: () => {
-                showNewPaymentForm = false;
-                paymentAmount = '';
-                paymentNotes = '';
-                paymentVoucher = null;
-            },
-            onError: (errs) => {
-                paymentError = Object.values(errs).flat().join(' ');
-            },
-        });
-    }
-
-    function handleDeletePayment(payment) {
-        if (confirm(`¿Eliminar este abono por ${formatCurrency(payment.amount)}?`)) {
-            router.delete(`/payments/${payment.id}`, {
-                preserveScroll: true,
-            });
-        }
-    }
 
     function handleStatusSelect(e) {
         const newStatusId = Number(e.target.value);
@@ -414,175 +341,20 @@
                 </div>
             </div>
 
-            <!-- BLOQUE FINANCIERO Y ABONOS (SOLO VISIBLE CON PERMISOS) -->
+            <!-- BLOQUE FINANCIERO, ABONOS Y COBROS PROGRAMADOS (SOLO VISIBLE CON PERMISOS) -->
             {#if hasFinancialAccess}
                 <div class="p-4 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-3">
                     <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                        <span class="font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider text-[11px]">Estado Financiero del Pedido</span>
-                        <button
-                            type="button"
-                            onclick={() => showNewPaymentForm = !showNewPaymentForm}
-                            class="px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-600/20 dark:hover:bg-emerald-600/30 dark:text-emerald-400 font-semibold text-xs border border-emerald-200 dark:border-emerald-500/30 transition-colors flex items-center gap-1"
-                        >
-                            <span>{showNewPaymentForm ? '✕ Cancelar' : '+ Registrar Abono'}</span>
-                        </button>
+                        <span class="font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider text-[11px]">
+                            Estado Financiero, Abonos y Cobros Programados
+                        </span>
                     </div>
 
-                    <!-- Resumen de Saldos -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div class="p-3 bg-white dark:bg-[#151D2C] rounded-xl border border-slate-200 dark:border-[#26334D] shadow-sm">
-                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-0.5">Total del Pedido</span>
-                            <span class="font-mono font-bold text-slate-900 dark:text-white text-base">{formatCurrency(order.total_amount)}</span>
-                        </div>
-
-                        <div class="p-3 bg-white dark:bg-[#151D2C] rounded-xl border border-slate-200 dark:border-[#26334D] shadow-sm">
-                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-0.5">Total Abonado</span>
-                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-base">{formatCurrency(order.paid_amount)}</span>
-                        </div>
-
-                        <div class="p-3 bg-white dark:bg-[#151D2C] rounded-xl border border-slate-200 dark:border-[#26334D] shadow-sm">
-                            <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-0.5">Saldo Pendiente</span>
-                            <span class="font-mono font-bold text-base {order.pending_balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">
-                                {order.pending_balance > 0 ? formatCurrency(order.pending_balance) : '✓ Pagado ($0)'}
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Formulario Rápido Colapsable de Nuevo Abono -->
-                    {#if showNewPaymentForm}
-                        <form onsubmit={handlePaymentSubmit} class="p-3.5 bg-white dark:bg-[#151D2C] rounded-xl border border-emerald-500/30 space-y-3 animate-in fade-in duration-150 shadow-sm">
-                            <span class="text-xs font-bold text-emerald-700 dark:text-emerald-400 block">Nuevo Abono a Pedido #{order.order_number}</span>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div>
-                                    <label for="detail-pay-amount" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Monto ($) *</label>
-                                    <CurrencyInput bind:value={paymentAmount} id="detail-pay-amount" required placeholder="0" />
-                                </div>
-
-                                <div>
-                                    <label for="detail-pay-date" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Fecha de Pago *</label>
-                                    <input
-                                        id="detail-pay-date"
-                                        type="date"
-                                        bind:value={paymentDate}
-                                        required
-                                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5] font-mono"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label for="detail-pay-method" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Método de Pago *</label>
-                                    <select
-                                        id="detail-pay-method"
-                                        bind:value={paymentMethod}
-                                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
-                                    >
-                                        <option value="transfer">Transferencia / Nequi / Daviplata</option>
-                                        <option value="cash">Efectivo</option>
-                                        <option value="card">Tarjeta</option>
-                                        <option value="other">Otro medio</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div>
-                                    <label for="detail-pay-notes" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Notas / Referencia</label>
-                                    <input
-                                        id="detail-pay-notes"
-                                        type="text"
-                                        bind:value={paymentNotes}
-                                        placeholder="Ej. Aprobación #1234..."
-                                        class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label for="detail-pay-voucher" class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">Comprobante de Pago (Foto o PDF)</label>
-                                    <input
-                                        id="detail-pay-voucher"
-                                        type="file"
-                                        accept="image/*,.pdf"
-                                        onchange={handleVoucherChange}
-                                        class="w-full text-slate-600 dark:text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
-                                    />
-                                </div>
-                            </div>
-
-                            {#if paymentError}
-                                <p class="text-[11px] text-rose-600 dark:text-rose-400">{paymentError}</p>
-                            {/if}
-
-                            <div class="flex justify-end gap-2 pt-1">
-                                <button
-                                    type="button"
-                                    onclick={() => showNewPaymentForm = false}
-                                    class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 text-xs font-semibold"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSavingPayment || !paymentAmount}
-                                    class="px-4 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold rounded-xl text-xs shadow-sm disabled:opacity-50"
-                                >
-                                    {isSavingPayment ? 'Guardando Abono...' : 'Guardar Abono'}
-                                </button>
-                            </div>
-                        </form>
-                    {/if}
-
-                    <!-- Historial de Abonos -->
-                    <div class="space-y-1.5 pt-1">
-                        <span class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 block">Historial de Pagos</span>
-                        {#if !order.payments || order.payments.length === 0}
-                            <div class="p-3 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-[#64748B] dark:text-slate-500 text-xs">
-                                No se han registrado abonos previos en este pedido.
-                            </div>
-                        {:else}
-                            <div class="space-y-1.5">
-                                {#each order.payments as pay}
-                                    <div class="p-2.5 bg-white dark:bg-[#151D2C] rounded-xl border border-slate-200 dark:border-[#26334D] flex items-center justify-between text-xs shadow-sm">
-                                        <div class="flex items-center gap-3">
-                                            <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                                {formatCurrency(pay.amount)}
-                                            </span>
-                                            <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                                {pay.payment_method}
-                                            </span>
-                                            <span class="text-[#64748B] dark:text-slate-400 font-mono text-[11px]">
-                                                📅 {formatPaymentDate(pay.payment_date)}
-                                            </span>
-                                            {#if pay.notes}
-                                                <span class="text-[#64748B] dark:text-slate-500 truncate max-w-xs">• "{pay.notes}"</span>
-                                            {/if}
-                                        </div>
-
-                                        <div class="flex items-center gap-2">
-                                            {#if pay.voucher_path}
-                                                <a
-                                                    href={`/storage/${pay.voucher_path}`}
-                                                    target="_blank"
-                                                    class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#4F46E5] dark:text-sky-400 text-[11px] font-semibold border border-slate-200 dark:border-slate-700 flex items-center gap-1"
-                                                >
-                                                    <span>📎</span>
-                                                    <span>Recibo</span>
-                                                </a>
-                                            {/if}
-                                            <button
-                                                type="button"
-                                                onclick={() => handleDeletePayment(pay)}
-                                                class="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1"
-                                                title="Eliminar abono"
-                                            >
-                                                🗑
-                                            </button>
-                                        </div>
-                                    </div>
-                                {/each}
-                            </div>
-                        {/if}
-                    </div>
+                    <OrderPaymentsManager
+                        {order}
+                        allowVoucher={true}
+                        onUpdated={(payload) => onPaymentsUpdated(payload)}
+                    />
                 </div>
             {/if}
 

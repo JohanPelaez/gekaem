@@ -31,6 +31,7 @@
         hasFinancialAccess = true,
         errors = {},
         onSuccess = () => {},
+        onPaymentsUpdated = () => {},
         onClose = () => {},
         onCustomerCreated = () => {},
         onProductCreated = () => {},
@@ -309,7 +310,8 @@
             editingOrder.payments = localPayments;
             editingOrder.payment_schedules = localPaymentSchedules;
         }
-        onSuccess();
+        onPaymentsUpdated({ payments: localPayments, paymentSchedules: localPaymentSchedules });
+        router.reload({ preserveScroll: true });
     }
 
     function formatCurrency(val) {

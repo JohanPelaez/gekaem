@@ -354,22 +354,35 @@
         showPaymentModal = true;
     }
 
+    let confirmDeleteRowPaymentId = $state(null);
+
     function handleOrderPaymentsUpdated({ payments: updatedPayments, paymentSchedules: updatedSchedules }) {
         if (selectedOrderForPayment) {
+            const paidSum = Math.round(
+                (updatedPayments || []).reduce((sum, p) => sum + Number(p?.amount || 0), 0) * 100
+            ) / 100;
+            const totalOrder = Number(selectedOrderForPayment.total_amount || 0);
             selectedOrderForPayment = {
                 ...selectedOrderForPayment,
                 payments: updatedPayments,
                 payment_schedules: updatedSchedules,
+                paid_amount: paidSum,
+                pending_balance: Math.max(0, Math.round((totalOrder - paidSum) * 100) / 100),
             };
         }
         router.reload({ preserveScroll: true });
     }
 
-    function deletePayment(payment) {
-        if (confirm(`¿Eliminar este abono por ${formatCurrency(payment.amount)}?`)) {
-            router.delete(`/payments/${payment.id}`, {
-                preserveScroll: true,
-            });
+    async function deletePayment(payment, orderId = null) {
+        const endpoint = orderId ? `/orders/${orderId}/payments/${payment.id}` : `/payments/${payment.id}`;
+        try {
+            const res = await csrfFetch(endpoint, { method: 'DELETE' });
+            if (res.ok) {
+                confirmDeleteRowPaymentId = null;
+                router.reload({ preserveScroll: true });
+            }
+        } catch {
+            // Silently ignore network errors here; user can retry
         }
     }
 
@@ -1046,14 +1059,32 @@
                                                                                 Comprobante ↗
                                                                             </a>
                                                                         {/if}
-                                                                        <button
-                                                                            type="button"
-                                                                            onclick={() => deletePayment(pay)}
-                                                                            class="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs"
-                                                                            title="Eliminar abono"
-                                                                        >
-                                                                            ✕
-                                                                        </button>
+                                                                        {#if confirmDeleteRowPaymentId === pay.id}
+                                                                            <span class="text-[10px] text-rose-500 font-semibold">¿Eliminar?</span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onclick={() => deletePayment(pay, order.id)}
+                                                                                class="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold"
+                                                                            >
+                                                                                Sí
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onclick={() => confirmDeleteRowPaymentId = null}
+                                                                                class="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold"
+                                                                            >
+                                                                                No
+                                                                            </button>
+                                                                        {:else}
+                                                                            <button
+                                                                                type="button"
+                                                                                onclick={() => confirmDeleteRowPaymentId = pay.id}
+                                                                                class="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs"
+                                                                                title="Eliminar abono"
+                                                                            >
+                                                                                ✕
+                                                                            </button>
+                                                                        {/if}
                                                                     </div>
                                                                 </div>
                                                             {:else}

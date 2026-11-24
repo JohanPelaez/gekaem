@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-DNTc_4-H.css",
+    "file": "assets/app-B2U-RN5n.css",
     "name": "app",
     "names": [
       "app.css"
@@ -9,13 +9,13 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-ByThus4t.js",
+    "file": "assets/app-yWK_SAah.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
     "css": [
       "assets/app-BRG_puSI.css",
-      "assets/app-DNTc_4-H.css"
+      "assets/app-B2U-RN5n.css"
     ]
   }
 }

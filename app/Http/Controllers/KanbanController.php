@@ -48,8 +48,8 @@ class KanbanController extends Controller
             ->with([
                 'customer',
                 'orderStatus',
-                'payments',
-                'paymentSchedules',
+                'payments.creator',
+                'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
                 'productionTasks.productVariant.product.productType',
                 'productionTasks.productVariant.product.materials.rawMaterial',
                 'productionTasks.productVariant.attributeOptions.attribute',
@@ -186,7 +186,12 @@ class KanbanController extends Controller
                 'success' => true,
                 'message' => 'Etapa actualizada correctamente.',
                 'task' => $updatedTask->load(['currentStage', 'workflow']),
-                'order' => $updatedTask->order->fresh(['orderStatus', 'customer']),
+                'order' => $updatedTask->order->fresh([
+                    'orderStatus',
+                    'customer',
+                    'payments.creator',
+                    'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+                ]),
             ]);
         }
 
@@ -262,7 +267,12 @@ class KanbanController extends Controller
                 'message' => $orderStatus->is_history_status
                     ? "Pedido #{$order->order_number} enviado al Historial de Pedidos."
                     : "Estado del pedido #{$order->order_number} actualizado.",
-                'order' => $order->fresh(['orderStatus', 'customer', 'payments']),
+                'order' => $order->fresh([
+                    'orderStatus',
+                    'customer',
+                    'payments.creator',
+                    'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+                ]),
             ]);
         }
 

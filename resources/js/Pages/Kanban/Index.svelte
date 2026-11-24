@@ -143,9 +143,14 @@
     let isEditingOrder = $state(false);
     let editingOrder = $state(null);
 
-    // Modal de Detalle Completo de Pedido (Punto 18)
+    // Modal de Detalle Completo de Pedido (reactivo por ID contra localOrders)
     let isDetailModalOpen = $state(false);
-    let selectedOrderForDetail = $state(null);
+    let selectedDetailOrderId = $state(null);
+    let selectedDetailOrder = $derived(
+        selectedDetailOrderId !== null
+            ? localOrders.find((o) => Number(o.id) === Number(selectedDetailOrderId)) ?? null
+            : null
+    );
     let highlightedTaskId = $state(null);
 
     // Modal de Ficha Técnica de Producción al tocar una card de Producto (Punto 2)
@@ -700,9 +705,31 @@
     }
 
     function openDetailModal(order, taskId = null) {
-        selectedOrderForDetail = order;
+        selectedDetailOrderId = order?.id ?? null;
         highlightedTaskId = taskId;
         isDetailModalOpen = true;
+    }
+
+    function syncOrderFinancials(orderId, payload) {
+        localOrders = localOrders.map((o) => {
+            if (Number(o.id) !== Number(orderId)) return o;
+            const nextPayments = payload?.payments ?? o.payments ?? [];
+            const nextSchedules = payload?.payment_schedules ?? payload?.paymentSchedules ?? o.payment_schedules ?? [];
+            const paidSum = Math.round(
+                nextPayments.reduce((sum, p) => sum + Number(p?.amount || 0), 0) * 100
+            ) / 100;
+            const totalOrder = Number(payload?.total_amount ?? o.total_amount ?? 0);
+            const pendingBalance = Math.max(0, Math.round((totalOrder - paidSum) * 100) / 100);
+            const paymentStatus = paidSum <= 0 ? 'unpaid' : (paidSum >= totalOrder ? 'paid' : 'partial');
+            return {
+                ...o,
+                payments: [...nextPayments],
+                payment_schedules: [...nextSchedules],
+                paid_amount: paidSum,
+                pending_balance: pendingBalance,
+                payment_status: paymentStatus,
+            };
+        });
     }
 
     function openTaskDetailModal(task) {
@@ -756,9 +783,9 @@
             // Remover inmediatamente del tablero activo y notificar
             localOrders = localOrders.filter((o) => o.id !== orderId);
             localShippedCount = localShippedCount + 1;
-            if (selectedOrderForDetail && selectedOrderForDetail.id === orderId) {
+            if (selectedDetailOrderId !== null && Number(selectedDetailOrderId) === Number(orderId)) {
                 isDetailModalOpen = false;
-                selectedOrderForDetail = null;
+                selectedDetailOrderId = null;
             }
             if (activeOrderId && Number(activeOrderId) === Number(orderId)) {
                 activeOrderId = null;
@@ -770,13 +797,6 @@
             order.order_status_id = targetStatus.id;
             if (targetStatus.system_key && targetStatus.system_key !== 'custom') {
                 order.derived_status = targetStatus.system_key;
-            }
-
-            if (selectedOrderForDetail && selectedOrderForDetail.id === orderId) {
-                selectedOrderForDetail.order_status_id = targetStatus.id;
-                if (targetStatus.system_key && targetStatus.system_key !== 'custom') {
-                    selectedOrderForDetail.derived_status = targetStatus.system_key;
-                }
             }
         }
 
@@ -797,9 +817,6 @@
                 const idx = localOrders.findIndex((o) => o.id === orderId);
                 if (idx !== -1) {
                     localOrders[idx] = { ...localOrders[idx], ...data.order };
-                }
-                if (selectedOrderForDetail && selectedOrderForDetail.id === orderId) {
-                    selectedOrderForDetail = { ...selectedOrderForDetail, ...data.order };
                 }
             }
         } catch (err) {
@@ -854,16 +871,6 @@
                     }
                     break;
                 }
-            }
-        }
-
-        if (selectedOrderForDetail) {
-            const tasks = getOrderTasks(selectedOrderForDetail);
-            const task = tasks.find((t) => t.id === taskId);
-            if (task) {
-                task.current_stage_id = targetStageId;
-                task.current_stage = targetStage;
-                task.currentStage = targetStage;
             }
         }
 
@@ -1896,6 +1903,11 @@
         isOrderFormOpen = false;
         router.reload({ preserveScroll: true });
     }}
+    onPaymentsUpdated={(payload) => {
+        if (editingOrder?.id) {
+            syncOrderFinancials(editingOrder.id, payload);
+        }
+    }}
     onClose={() => {
         isOrderFormOpen = false;
         editingOrder = null;
@@ -1940,7 +1952,7 @@
 <!-- MODAL DE DETALLE COMPLETO AL TOCAR CUALQUIER CARD EN EL TABLERO (PUNTO 18) -->
 <OrderDetailModal
     bind:isOpen={isDetailModalOpen}
-    order={selectedOrderForDetail}
+    order={selectedDetailOrder}
     {highlightedTaskId}
     {orderStatuses}
     {workflows}
@@ -1948,13 +1960,18 @@
     isIsolatedView={Boolean(activeOrder)}
     onStatusChange={(ordId, newStatusId) => updateOrderStatus(ordId, newStatusId)}
     onTaskStageChange={(taskId, newStageId) => {
-        const t = filteredTableTasks.find((item) => item.id === taskId) || { id: taskId, order_id: selectedOrderForDetail?.id };
+        const t = filteredTableTasks.find((item) => item.id === taskId) || { id: taskId, order_id: selectedDetailOrder?.id };
         handleTableTaskStageChange(t, newStageId);
+    }}
+    onPaymentsUpdated={(payload) => {
+        if (selectedDetailOrder) {
+            syncOrderFinancials(selectedDetailOrder.id, payload);
+        }
     }}
     onEditOrder={(ord) => openEditOrderModal(ord)}
     onOpenIsolatedBoard={(ordId) => openOrderBoard(ordId)}
     onClose={() => {
-        selectedOrderForDetail = null;
+        selectedDetailOrderId = null;
         highlightedTaskId = null;
     }}
 />

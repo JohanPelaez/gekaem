@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\OrderPayment;
+use App\Models\OrderPaymentSchedule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,13 +67,17 @@ class OrderPaymentController extends Controller
         });
 
         if ($request->wantsJson()) {
-            $freshOrder = $order->fresh(['payments.creator', 'paymentSchedules']);
+            $freshOrder = $order->fresh([
+                'payments.creator',
+                'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+            ]);
             return response()->json([
                 'success' => true,
                 'message' => 'Abono registrado exitosamente.',
                 'payment' => $payment->load('creator'),
                 'payments' => $freshOrder->payments,
                 'payment_schedules' => $freshOrder->paymentSchedules,
+                'total_amount' => (float) $freshOrder->total_amount,
                 'paid_amount' => (float) $freshOrder->paid_amount,
                 'total_paid' => (float) $freshOrder->paid_amount,
                 'pending_balance' => (float) $freshOrder->pending_balance,
@@ -83,7 +88,22 @@ class OrderPaymentController extends Controller
     }
 
     /**
-     * Delete/void a payment and clean up its physical voucher.
+     * Delete/void a payment scoped to a specific order.
+     */
+    public function destroyForOrder(Order $order, OrderPayment $payment): RedirectResponse|JsonResponse
+    {
+        abort_if(auth()->user()?->currentRole() === 'worker', 403);
+        abort_if(
+            (int) $payment->order_id !== (int) $order->id || (int) $payment->tenant_id !== (int) $order->tenant_id,
+            404,
+            'El abono no pertenece a este pedido.'
+        );
+
+        return $this->destroy($payment);
+    }
+
+    /**
+     * Delete/void a payment, revert any linked payment schedule back to pending, and clean up its physical voucher.
      */
     public function destroy(OrderPayment $payment): RedirectResponse|JsonResponse
     {
@@ -92,6 +112,14 @@ class OrderPaymentController extends Controller
         $order = $payment->order;
 
         DB::transaction(function () use ($payment): void {
+            OrderPaymentSchedule::where('order_id', $payment->order_id)
+                ->where('payment_id', $payment->id)
+                ->update([
+                    'status' => 'pending',
+                    'paid_at' => null,
+                    'payment_id' => null,
+                ]);
+
             if ($payment->voucher_path && Storage::disk('public')->exists($payment->voucher_path)) {
                 Storage::disk('public')->delete($payment->voucher_path);
             }
@@ -100,12 +128,16 @@ class OrderPaymentController extends Controller
         });
 
         if (request()->wantsJson()) {
-            $freshOrder = $order?->fresh(['payments.creator', 'paymentSchedules']);
+            $freshOrder = $order?->fresh([
+                'payments.creator',
+                'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+            ]);
             return response()->json([
                 'success' => true,
                 'message' => 'Abono anulado exitosamente.',
                 'payments' => $freshOrder?->payments ?? [],
                 'payment_schedules' => $freshOrder?->paymentSchedules ?? [],
+                'total_amount' => (float) ($freshOrder?->total_amount ?? 0),
                 'paid_amount' => (float) ($freshOrder?->paid_amount ?? 0),
                 'total_paid' => (float) ($freshOrder?->paid_amount ?? 0),
                 'pending_balance' => (float) ($freshOrder?->pending_balance ?? 0),

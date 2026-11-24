@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderPayment;
 use App\Models\OrderPaymentSchedule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class OrderPaymentScheduleAction
@@ -49,9 +50,19 @@ class OrderPaymentScheduleAction
             ]);
         });
 
+        $freshOrder = $order->fresh([
+            'payments.creator',
+            'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+        ]);
+
         return [
             'schedule' => $schedule->fresh(),
-            'payment_schedules' => $order->paymentSchedules()->get(),
+            'payments' => $freshOrder->payments,
+            'payment_schedules' => $freshOrder->paymentSchedules,
+            'total_amount' => (float) $freshOrder->total_amount,
+            'paid_amount' => (float) $freshOrder->paid_amount,
+            'total_paid' => (float) $freshOrder->paid_amount,
+            'pending_balance' => (float) $freshOrder->pending_balance,
         ];
     }
 
@@ -109,12 +120,16 @@ class OrderPaymentScheduleAction
             return $createdPayment;
         });
 
-        $freshOrder = $order->fresh(['payments.creator', 'paymentSchedules']);
+        $freshOrder = $order->fresh([
+            'payments.creator',
+            'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+        ]);
 
         return [
             'payment' => $payment->load('creator'),
             'payments' => $freshOrder->payments,
             'payment_schedules' => $freshOrder->paymentSchedules,
+            'total_amount' => (float) $freshOrder->total_amount,
             'paid_amount' => (float) $freshOrder->paid_amount,
             'total_paid' => (float) $freshOrder->paid_amount,
             'pending_balance' => (float) $freshOrder->pending_balance,
@@ -122,7 +137,125 @@ class OrderPaymentScheduleAction
     }
 
     /**
-     * Delete a pending scheduled payment from an order.
+     * Update a pending scheduled payment after verifying the discounted cap excluding its previous amount.
+     *
+     * @param array{scheduled_date: string, amount: float|int|string, notes?: ?string} $data
+     * @return array<string, mixed>
+     */
+    public function update(Order $order, OrderPaymentSchedule $schedule, array $data): array
+    {
+        if ((int) $schedule->order_id !== (int) $order->id || (int) $schedule->tenant_id !== (int) $order->tenant_id) {
+            abort(404, 'Cobro programado no pertenece a este pedido.');
+        }
+
+        if ($schedule->status !== 'pending') {
+            throw ValidationException::withMessages([
+                'schedule' => 'Primero deshaz el cobro para poder editar este registro programado.',
+            ]);
+        }
+
+        $amount = round((float) $data['amount'], 2);
+        $totalOrder = $order->resolveEffectiveTotal();
+        $totalPaid = round((float) $order->payments()->sum('amount'), 2);
+        $otherPendingScheduled = round(
+            (float) $order->paymentSchedules()
+                ->where('status', 'pending')
+                ->where('id', '!=', $schedule->id)
+                ->sum('amount'),
+            2
+        );
+        $maxAllowedForThisSchedule = round(max(0.0, $totalOrder - $totalPaid - $otherPendingScheduled), 2);
+
+        if ($amount <= 0 || $amount > $maxAllowedForThisSchedule + 0.01) {
+            $formattedMax = number_format($maxAllowedForThisSchedule, 0, ',', '.');
+            throw ValidationException::withMessages([
+                'amount' => "El monto supera el disponible por programar tras descuentos y abonos (\${$formattedMax}).",
+            ]);
+        }
+
+        DB::transaction(function () use ($schedule, $data, $amount): void {
+            $schedule->update([
+                'scheduled_date' => $data['scheduled_date'],
+                'amount' => $amount,
+                'notes' => isset($data['notes']) && trim((string) $data['notes']) !== ''
+                    ? trim((string) $data['notes'])
+                    : null,
+            ]);
+        });
+
+        $freshOrder = $order->fresh([
+            'payments.creator',
+            'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+        ]);
+
+        return [
+            'schedule' => $schedule->fresh(),
+            'payments' => $freshOrder->payments,
+            'payment_schedules' => $freshOrder->paymentSchedules,
+            'total_amount' => (float) $freshOrder->total_amount,
+            'paid_amount' => (float) $freshOrder->paid_amount,
+            'total_paid' => (float) $freshOrder->paid_amount,
+            'pending_balance' => (float) $freshOrder->pending_balance,
+        ];
+    }
+
+    /**
+     * Revert a paid scheduled payment back to pending and remove its linked OrderPayment.
+     *
+     * @return array<string, mixed>
+     */
+    public function unmarkPaid(Order $order, OrderPaymentSchedule $schedule): array
+    {
+        if ((int) $schedule->order_id !== (int) $order->id || (int) $schedule->tenant_id !== (int) $order->tenant_id) {
+            abort(404, 'Cobro programado no pertenece a este pedido.');
+        }
+
+        if ($schedule->status !== 'paid') {
+            throw ValidationException::withMessages([
+                'schedule' => 'Este cobro programado no se encuentra en estado cobrado.',
+            ]);
+        }
+
+        DB::transaction(function () use ($order, $schedule): void {
+            if ($schedule->payment_id) {
+                $linkedPayment = OrderPayment::where('id', $schedule->payment_id)
+                    ->where('order_id', $order->id)
+                    ->where('tenant_id', $order->tenant_id)
+                    ->first();
+
+                if ($linkedPayment) {
+                    if ($linkedPayment->voucher_path && Storage::disk('public')->exists($linkedPayment->voucher_path)) {
+                        Storage::disk('public')->delete($linkedPayment->voucher_path);
+                    }
+                    $linkedPayment->delete();
+                }
+            }
+
+            $schedule->update([
+                'status' => 'pending',
+                'paid_at' => null,
+                'payment_id' => null,
+            ]);
+        });
+
+        $freshOrder = $order->fresh([
+            'payments.creator',
+            'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+        ]);
+
+        return [
+            'schedule' => $schedule->fresh(),
+            'payments' => $freshOrder->payments,
+            'payment_schedules' => $freshOrder->paymentSchedules,
+            'total_amount' => (float) $freshOrder->total_amount,
+            'paid_amount' => (float) $freshOrder->paid_amount,
+            'total_paid' => (float) $freshOrder->paid_amount,
+            'pending_balance' => (float) $freshOrder->pending_balance,
+        ];
+    }
+
+    /**
+     * Delete a scheduled payment (pending or paid) from an order, removing any linked payment if paid.
      *
      * @return array<string, mixed>
      */
@@ -132,18 +265,36 @@ class OrderPaymentScheduleAction
             abort(404, 'Cobro programado no pertenece a este pedido.');
         }
 
-        if ($schedule->status !== 'pending') {
-            throw ValidationException::withMessages([
-                'schedule' => 'Solo se pueden eliminar cobros programados en estado pendiente.',
-            ]);
-        }
+        DB::transaction(function () use ($order, $schedule): void {
+            if ($schedule->status === 'paid' && $schedule->payment_id) {
+                $linkedPayment = OrderPayment::where('id', $schedule->payment_id)
+                    ->where('order_id', $order->id)
+                    ->where('tenant_id', $order->tenant_id)
+                    ->first();
 
-        DB::transaction(function () use ($schedule): void {
+                if ($linkedPayment) {
+                    if ($linkedPayment->voucher_path && Storage::disk('public')->exists($linkedPayment->voucher_path)) {
+                        Storage::disk('public')->delete($linkedPayment->voucher_path);
+                    }
+                    $linkedPayment->delete();
+                }
+            }
+
             $schedule->delete();
         });
 
+        $freshOrder = $order->fresh([
+            'payments.creator',
+            'paymentSchedules' => fn ($q) => $q->orderBy('scheduled_date')->orderBy('id'),
+        ]);
+
         return [
-            'payment_schedules' => $order->paymentSchedules()->get(),
+            'payments' => $freshOrder->payments,
+            'payment_schedules' => $freshOrder->paymentSchedules,
+            'total_amount' => (float) $freshOrder->total_amount,
+            'paid_amount' => (float) $freshOrder->paid_amount,
+            'total_paid' => (float) $freshOrder->paid_amount,
+            'pending_balance' => (float) $freshOrder->pending_balance,
         ];
     }
 }
