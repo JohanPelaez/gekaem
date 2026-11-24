@@ -25,6 +25,7 @@ class AuthController extends Controller
 
         return Inertia::render('Auth/Login', [
             'canDemoLogin' => app()->isLocal(),
+            'status' => session('status'),
         ]);
     }
 

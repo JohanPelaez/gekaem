@@ -2,7 +2,7 @@
     import { router, Link } from '@inertiajs/svelte';
     import BrandLogo from '../../Components/BrandLogo.svelte';
 
-    let { canDemoLogin = false, errors = {} } = $props();
+    let { canDemoLogin = false, status = null, errors = {} } = $props();
 
     let processing = $state(false);
     let demoProcessing = $state(false);
@@ -68,6 +68,13 @@
                 </p>
             </div>
 
+            {#if status}
+                <div class="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium flex items-start gap-2.5">
+                    <span class="shrink-0 mt-0.5">✓</span>
+                    <span>{status}</span>
+                </div>
+            {/if}
+
             <form onsubmit={submit} class="space-y-4 text-xs">
                 <div>
                     <label for="l-email" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Correo Electrónico</label>
@@ -85,7 +92,15 @@
                 </div>
 
                 <div>
-                    <label for="l-pass" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Contraseña</label>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label for="l-pass" class="block font-semibold text-slate-700 dark:text-slate-300">Contraseña</label>
+                        <Link
+                            href="/forgot-password"
+                            class="text-[11px] font-semibold text-[#4F46E5] dark:text-[#06B6D4] hover:underline"
+                        >
+                            ¿Olvidaste tu contraseña?
+                        </Link>
+                    </div>
                     <input
                         id="l-pass"
                         type="password"
