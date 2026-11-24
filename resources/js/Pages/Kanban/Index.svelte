@@ -58,7 +58,10 @@
     // Estados reactivos dedicados para el Tablero de Trabajo (Punto 2)
     let defaultWorkflowId = $derived(workflows.find((w) => w.is_default)?.id || workflows[0]?.id || null);
     let selectedWorkflowId = $state(null);
+    let selectedCustomerId = $state('all');
     let selectedOrderIdFilter = $state('all');
+    let selectedStageFilter = $state('all');
+    let selectedDateFilter = $state('all');
     let workflowSearchQuery = $state('');
 
     $effect(() => {
@@ -66,6 +69,10 @@
             selectedWorkflowId = defaultWorkflowId;
         }
     });
+
+    function handleWorkflowFilterChange() {
+        selectedStageFilter = 'all';
+    }
 
     $effect(() => {
         const incomingId = selectedOrderId;
@@ -149,8 +156,18 @@
         return Number(task?.workflow_id ?? task?.workflow?.id ?? getTaskProduct(task)?.workflow_id ?? 0);
     }
 
+    function formatLocalDateKey(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
     function getOrderDateKey(ord) {
         if (!ord) return '';
+        if (ord.promised_date && /^\d{4}-\d{2}-\d{2}/.test(String(ord.promised_date).trim())) {
+            return String(ord.promised_date).trim().slice(0, 10);
+        }
         if (ord.delivery_date_key && /^\d{4}-\d{2}-\d{2}$/.test(ord.delivery_date_key)) {
             return ord.delivery_date_key;
         }
@@ -158,6 +175,32 @@
         if (!raw) return '';
         const match = String(raw).trim().match(/^(\d{4}-\d{2}-\d{2})/);
         return match ? match[1] : '';
+    }
+
+    function matchesWorkflowDateFilter(order, dateFilter) {
+        if (!dateFilter || dateFilter === 'all') return true;
+        const dateKey = getOrderDateKey(order);
+        if (!dateKey) return false;
+
+        const now = new Date();
+        const todayKey = formatLocalDateKey(now);
+
+        if (dateFilter === 'overdue') {
+            return dateKey < todayKey;
+        }
+        if (dateFilter === 'today') {
+            return dateKey === todayKey;
+        }
+        if (dateFilter === 'week') {
+            const next7 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+            const next7Key = formatLocalDateKey(next7);
+            return dateKey >= todayKey && dateKey <= next7Key;
+        }
+        if (dateFilter === 'month') {
+            const currentMonthPrefix = todayKey.slice(0, 7);
+            return dateKey.startsWith(currentMonthPrefix);
+        }
+        return true;
     }
 
     // Mapa reactivo de pedidos por fecha para el mini-calendario
@@ -258,30 +301,55 @@
         return [...stages].sort((a, b) => (a.position || 0) - (b.position || 0));
     });
 
-    // Tareas agrupadas por stage_id en el flujo actual según las 3 reglas del Punto 2
-    let tasksByStageId = $derived.by(() => {
+    // Etapas visibles en el Tablero de Trabajo (todas o únicamente la etapa filtrada)
+    let visibleWorkflowStages = $derived.by(() => {
+        if (selectedStageFilter === 'all' || String(selectedStageFilter).trim() === '') {
+            return currentWorkflowStages;
+        }
+        const targetId = Number(selectedStageFilter);
+        const filtered = currentWorkflowStages.filter((s) => Number(s.id) === targetId);
+        return filtered.length > 0 ? filtered : currentWorkflowStages;
+    });
+
+    // Único $derived del Tablero de Trabajo: aplica todos los filtros y agrupa tareas por etapa efectiva
+    let workflowBoardState = $derived.by(() => {
         const map = new Map();
+        const filteredTasks = [];
+
         if (!currentSelectedWorkflow || currentWorkflowStages.length === 0) {
-            return map;
+            return { tasksByStageId: map, filteredTasks };
         }
 
+        const validStageIds = new Set();
         for (const stage of currentWorkflowStages) {
-            map.set(Number(stage.id), []);
+            const stageId = Number(stage.id);
+            validStageIds.add(stageId);
+            map.set(stageId, []);
         }
 
-        const firstStage = currentWorkflowStages[0];
-        const firstStageId = Number(firstStage.id);
+        const firstStageId = Number(currentWorkflowStages[0].id);
         const activeWfId = Number(currentSelectedWorkflow.id);
         const search = workflowSearchQuery.trim().toLowerCase();
+        const hasCustomerFilter = selectedCustomerId !== 'all' && String(selectedCustomerId).trim() !== '';
+        const hasOrderFilter = selectedOrderIdFilter !== 'all' && String(selectedOrderIdFilter).trim() !== '';
+        const hasStageFilter = selectedStageFilter !== 'all' && String(selectedStageFilter).trim() !== '';
 
         for (const order of localOrders) {
             if (order.derived_status === 'delivered') continue;
 
-            // Regla 2: Filtro por Pedido específico o 'all'
-            if (selectedOrderIdFilter !== 'all' && String(selectedOrderIdFilter).trim() !== '') {
-                if (Number(order.id) !== Number(selectedOrderIdFilter)) {
-                    continue;
-                }
+            // Filtro por Cliente
+            if (hasCustomerFilter && Number(order.customer_id) !== Number(selectedCustomerId)) {
+                continue;
+            }
+
+            // Filtro por Pedido específico
+            if (hasOrderFilter && Number(order.id) !== Number(selectedOrderIdFilter)) {
+                continue;
+            }
+
+            // Filtro por Fecha de Entrega (promised_date local YYYY-MM-DD)
+            if (!matchesWorkflowDateFilter(order, selectedDateFilter)) {
+                continue;
             }
 
             const ordTasks = getOrderTasks(order);
@@ -291,27 +359,46 @@
                 const taskWfId = getTaskWorkflowId(task);
 
                 // Determinar si la tarea pertenece a este flujo de trabajo
-                const belongsToWorkflow = (taskWfId === activeWfId) ||
-                    (Number(product?.workflow_id) === activeWfId) ||
-                    (task.current_stage_id && map.has(Number(task.current_stage_id)));
+                const belongsToWorkflow = (Number(product?.workflow_id) === activeWfId) ||
+                    (taskWfId === activeWfId) ||
+                    (task.current_stage_id && validStageIds.has(Number(task.current_stage_id)));
 
                 if (!belongsToWorkflow) {
                     continue;
                 }
 
-                // Regla 3: Búsqueda textual por producto, variante, cliente o # de pedido
+                // Resolución de effectiveStageId (coincide con etapa del flujo o cae en la primera etapa)
+                const rawStageId = Number(task.current_stage_id);
+                const effectiveStageId = (rawStageId && validStageIds.has(rawStageId)) ? rawStageId : firstStageId;
+
+                // Filtro por Etapa / Columna del flujo
+                if (hasStageFilter && Number(effectiveStageId) !== Number(selectedStageFilter)) {
+                    continue;
+                }
+
+                // Búsqueda textual por producto, variante, SKU, # de pedido o cliente
                 if (search) {
                     const prodName = (product?.name || task.item_name_snapshot || '').toLowerCase();
+                    const itemSnap = (task.item_name_snapshot || '').toLowerCase();
+                    const varName = (variant?.name || variant?.name_label || '').toLowerCase();
                     const varLabel = (variant?.name_label || '').toLowerCase();
-                    const sku = (variant?.sku || '').toLowerCase();
+                    const sku = (variant?.sku || product?.barcode || '').toLowerCase();
                     const custName = (order.customer?.name || '').toLowerCase();
-                    const orderNum = String(order.order_number || '');
+                    const orderIdStr = String(order.id || '');
+                    const orderIdHash = `#${orderIdStr}`;
+                    const orderNumStr = String(order.order_number || '');
+                    const orderNumHash = orderNumStr ? `#${orderNumStr}` : '';
 
                     const matchesSearch = prodName.includes(search) ||
+                        itemSnap.includes(search) ||
+                        varName.includes(search) ||
                         varLabel.includes(search) ||
                         sku.includes(search) ||
                         custName.includes(search) ||
-                        orderNum.includes(search);
+                        orderIdStr.includes(search) ||
+                        orderIdHash.includes(search) ||
+                        orderNumStr.includes(search) ||
+                        orderNumHash.includes(search);
 
                     if (!matchesSearch) {
                         continue;
@@ -325,29 +412,22 @@
                     customer_name: order.customer?.name ?? 'Cliente',
                     order_status_name: order.order_status?.name ?? order.derived_status,
                     committed_delivery_at: order.committed_delivery_at,
+                    promised_date: order.promised_date,
+                    effective_stage_id: effectiveStageId,
+                    order,
+                    workflow: currentSelectedWorkflow,
                 };
 
-                // Regla 1: Que pertenezca a esa etapa o, si no tiene etapa asignada aún, caiga en la primera etapa del flujo
-                const currentStageId = Number(task.current_stage_id);
-                if (currentStageId && map.has(currentStageId)) {
-                    map.get(currentStageId).push(enrichedTask);
-                } else {
-                    map.get(firstStageId).push(enrichedTask);
-                }
+                map.get(effectiveStageId).push(enrichedTask);
+                filteredTasks.push(enrichedTask);
             }
         }
 
-        return map;
+        return { tasksByStageId: map, filteredTasks };
     });
 
-    // Todas las tareas activas mostradas en el flujo para métricas y compatibilidad
-    let globalWorkflowTasks = $derived.by(() => {
-        const list = [];
-        for (const stageTasks of tasksByStageId.values()) {
-            list.push(...stageTasks);
-        }
-        return list;
-    });
+    let tasksByStageId = $derived(workflowBoardState.tasksByStageId);
+    let globalWorkflowTasks = $derived(workflowBoardState.filteredTasks);
 
     // Tareas del pedido que corresponden al flujo seleccionado
     let activeOrderTasks = $derived.by(() => {
@@ -515,7 +595,19 @@
         }
     }
 
+    function resetWorkflowFilters() {
+        workflowSearchQuery = '';
+        selectedCustomerId = 'all';
+        selectedOrderIdFilter = 'all';
+        selectedStageFilter = 'all';
+        selectedDateFilter = 'all';
+    }
+
     function resetFilters() {
+        if (generalViewMode === 'workflows') {
+            resetWorkflowFilters();
+            return;
+        }
         filters.search = '';
         filters.customerId = '';
         filters.status = 'all';
@@ -525,7 +617,18 @@
         filters.productTypeId = '';
     }
 
+    let hasActiveWorkflowFilters = $derived(Boolean(
+        workflowSearchQuery.trim() ||
+        selectedCustomerId !== 'all' ||
+        selectedOrderIdFilter !== 'all' ||
+        selectedStageFilter !== 'all' ||
+        selectedDateFilter !== 'all'
+    ));
+
     let hasActiveFilters = $derived.by(() => {
+        if (generalViewMode === 'workflows') {
+            return hasActiveWorkflowFilters;
+        }
         const generalActive = Boolean(
             filters.search.trim() ||
             filters.customerId ||
@@ -943,110 +1046,215 @@
 
             <!-- BARRA DE FILTROS PROGRESIVOS -->
             <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-4 rounded-3xl space-y-3 shadow-sm">
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <!-- Buscador rápido -->
-                    <div>
-                        <label for="filter-search" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Buscar Pedido o Cliente</label>
-                        <input
-                            id="filter-search"
-                            type="text"
-                            bind:value={filters.search}
-                            placeholder="Ej. #104 o 'Camila'..."
-                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs placeholder:text-slate-400 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
-                        />
-                    </div>
-
-                    <!-- Selector de Cliente -->
-                    <div>
-                        <label for="filter-cust" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Cliente</label>
-                        <select
-                            id="filter-cust"
-                            bind:value={filters.customerId}
-                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
-                        >
-                            <option value="">Todos los Clientes</option>
-                            {#each customers as cust (cust.id)}
-                                <option value={cust.id}>{cust.name}</option>
-                            {/each}
-                        </select>
-                    </div>
-
-                    <!-- Estado del Pedido (Dinámico con localStatuses) -->
-                    <div>
-                        <label for="filter-status" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Estado del Pedido</label>
-                        <select
-                            id="filter-status"
-                            bind:value={filters.status}
-                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
-                        >
-                            <option value="all">Todos los Estados</option>
-                            {#each localStatuses as st (st.id)}
-                                <option value={st.id}>{st.name}</option>
-                            {/each}
-                        </select>
-                    </div>
-
-                    <!-- Fecha de Entrega -->
-                    <div>
-                        <label for="filter-date" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Fecha de Entrega</label>
-                        <select
-                            id="filter-date"
-                            bind:value={filters.dateRange}
-                            class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
-                        >
-                            <option value="all">Todas las Fechas</option>
-                            <option value="late">⚠️ Atrasados</option>
-                            <option value="today">⚡ Entrega Hoy</option>
-                            <option value="week">📅 Esta Semana</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Nivel 2: Filtros Específicos para Tabla de Producción (Solo visible en 'table') -->
-                {#if generalViewMode === 'table'}
-                    <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex items-center gap-3 w-full flex-wrap text-xs">
-                        <div class="flex items-center gap-2">
-                            <label for="filter-kb-workflow" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</label>
+                {#if generalViewMode === 'workflows'}
+                    <!-- BARRA UNIFICADA DEL TABLERO DE TRABAJO -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                        <!-- 1. Flujo de Trabajo -->
+                        <div>
+                            <label for="wf-filter-workflow" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Flujo de Trabajo</label>
                             <select
-                                id="filter-kb-workflow"
-                                bind:value={filters.workflowId}
-                                class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5]"
+                                id="wf-filter-workflow"
+                                bind:value={selectedWorkflowId}
+                                onchange={handleWorkflowFilterChange}
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                             >
-                                <option value="">Todos los Flujos</option>
                                 {#each workflows as wf (wf.id)}
-                                    <option value={wf.id}>{wf.name}</option>
+                                    <option value={wf.id}>{wf.name}{wf.is_default ? ' (Predeterminado)' : ''}</option>
                                 {/each}
                             </select>
                         </div>
 
-                        <div class="flex items-center gap-2">
-                            <label for="filter-kb-type" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Tipo:</label>
+                        <!-- 2. Buscar -->
+                        <div>
+                            <label for="wf-filter-search" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Buscar</label>
+                            <div class="relative">
+                                <input
+                                    id="wf-filter-search"
+                                    type="text"
+                                    bind:value={workflowSearchQuery}
+                                    placeholder="Producto, SKU, # o cliente..."
+                                    class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl pl-3 pr-7 py-2 text-slate-900 dark:text-slate-100 text-xs placeholder:text-slate-400 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                                />
+                                {#if workflowSearchQuery}
+                                    <button
+                                        type="button"
+                                        onclick={() => workflowSearchQuery = ''}
+                                        class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
+                                        title="Borrar búsqueda"
+                                    >
+                                        ✕
+                                    </button>
+                                {/if}
+                            </div>
+                        </div>
+
+                        <!-- 3. Cliente -->
+                        <div>
+                            <label for="wf-filter-customer" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Cliente</label>
                             <select
-                                id="filter-kb-type"
-                                bind:value={filters.productTypeId}
-                                class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] max-w-[180px] truncate"
+                                id="wf-filter-customer"
+                                bind:value={selectedCustomerId}
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                             >
-                                <option value="">Todos los Tipos</option>
-                                {#each productTypes as pt (pt.id)}
-                                    <option value={pt.id}>{pt.name}</option>
+                                <option value="all">Todos los Clientes</option>
+                                {#each customers as cust (cust.id)}
+                                    <option value={cust.id}>{cust.name}</option>
                                 {/each}
                             </select>
                         </div>
 
-                        <div class="flex items-center gap-2">
-                            <label for="filter-kb-product" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Producto:</label>
+                        <!-- 4. Pedido -->
+                        <div>
+                            <label for="wf-filter-order" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Pedido</label>
                             <select
-                                id="filter-kb-product"
-                                bind:value={filters.productId}
-                                class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] max-w-[200px] truncate"
+                                id="wf-filter-order"
+                                bind:value={selectedOrderIdFilter}
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
                             >
-                                <option value="">Todos los Productos</option>
-                                {#each products as prod (prod.id)}
-                                    <option value={prod.id}>{prod.name}</option>
+                                <option value="all">Todos los Pedidos</option>
+                                {#each localOrders.filter((o) => o.derived_status !== 'delivered') as ord (ord.id)}
+                                    <option value={ord.id}>#{ord.order_number ?? ord.id} — {ord.customer?.name || 'Cliente'}</option>
                                 {/each}
+                            </select>
+                        </div>
+
+                        <!-- 5. Etapa del Flujo (Dinámico con currentWorkflowStages) -->
+                        <div>
+                            <label for="wf-filter-stage" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Etapa del Flujo</label>
+                            <select
+                                id="wf-filter-stage"
+                                bind:value={selectedStageFilter}
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                            >
+                                <option value="all">Todas las Etapas</option>
+                                {#each currentWorkflowStages as stage (stage.id)}
+                                    <option value={stage.id}>{stage.name}</option>
+                                {/each}
+                            </select>
+                        </div>
+
+                        <!-- 6. Fecha de Entrega -->
+                        <div>
+                            <label for="wf-filter-date" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Fecha de Entrega</label>
+                            <select
+                                id="wf-filter-date"
+                                bind:value={selectedDateFilter}
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                            >
+                                <option value="all">Todas las Fechas</option>
+                                <option value="overdue">⚠️ Atrasados</option>
+                                <option value="today">⚡ Entrega Hoy</option>
+                                <option value="week">📅 Próximos 7 días</option>
+                                <option value="month">🗓️ Este Mes</option>
                             </select>
                         </div>
                     </div>
+                {:else}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <!-- Buscador rápido -->
+                        <div>
+                            <label for="filter-search" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Buscar Pedido o Cliente</label>
+                            <input
+                                id="filter-search"
+                                type="text"
+                                bind:value={filters.search}
+                                placeholder="Ej. #104 o 'Camila'..."
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs placeholder:text-slate-400 focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                            />
+                        </div>
+
+                        <!-- Selector de Cliente -->
+                        <div>
+                            <label for="filter-cust" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Cliente</label>
+                            <select
+                                id="filter-cust"
+                                bind:value={filters.customerId}
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                            >
+                                <option value="">Todos los Clientes</option>
+                                {#each customers as cust (cust.id)}
+                                    <option value={cust.id}>{cust.name}</option>
+                                {/each}
+                            </select>
+                        </div>
+
+                        <!-- Estado del Pedido (Dinámico con localStatuses) -->
+                        <div>
+                            <label for="filter-status" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Estado del Pedido</label>
+                            <select
+                                id="filter-status"
+                                bind:value={filters.status}
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                            >
+                                <option value="all">Todos los Estados</option>
+                                {#each localStatuses as st (st.id)}
+                                    <option value={st.id}>{st.name}</option>
+                                {/each}
+                            </select>
+                        </div>
+
+                        <!-- Fecha de Entrega -->
+                        <div>
+                            <label for="filter-date" class="block text-[11px] font-semibold text-[#64748B] dark:text-slate-400 mb-1">Fecha de Entrega</label>
+                            <select
+                                id="filter-date"
+                                bind:value={filters.dateRange}
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20"
+                            >
+                                <option value="all">Todas las Fechas</option>
+                                <option value="late">⚠️ Atrasados</option>
+                                <option value="today">⚡ Entrega Hoy</option>
+                                <option value="week">📅 Esta Semana</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Nivel 2: Filtros Específicos para Tabla de Producción (Solo visible en 'table') -->
+                    {#if generalViewMode === 'table'}
+                        <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex items-center gap-3 w-full flex-wrap text-xs">
+                            <div class="flex items-center gap-2">
+                                <label for="filter-kb-workflow" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Flujo:</label>
+                                <select
+                                    id="filter-kb-workflow"
+                                    bind:value={filters.workflowId}
+                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5]"
+                                >
+                                    <option value="">Todos los Flujos</option>
+                                    {#each workflows as wf (wf.id)}
+                                        <option value={wf.id}>{wf.name}</option>
+                                    {/each}
+                                </select>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <label for="filter-kb-type" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Tipo:</label>
+                                <select
+                                    id="filter-kb-type"
+                                    bind:value={filters.productTypeId}
+                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] max-w-[180px] truncate"
+                                >
+                                    <option value="">Todos los Tipos</option>
+                                    {#each productTypes as pt (pt.id)}
+                                        <option value={pt.id}>{pt.name}</option>
+                                    {/each}
+                                </select>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <label for="filter-kb-product" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px] shrink-0">Producto:</label>
+                                <select
+                                    id="filter-kb-product"
+                                    bind:value={filters.productId}
+                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:border-[#4F46E5] max-w-[200px] truncate"
+                                >
+                                    <option value="">Todos los Productos</option>
+                                    {#each products as prod (prod.id)}
+                                        <option value={prod.id}>{prod.name}</option>
+                                    {/each}
+                                </select>
+                            </div>
+                        </div>
+                    {/if}
                 {/if}
 
                 <!-- Barra Inferior de Conteo y Limpieza de Filtros -->
@@ -1055,7 +1263,7 @@
                         {#if generalViewMode === 'table'}
                             {filteredTableTasks.length} producto(s) en {filteredOrders.length} pedido(s)
                         {:else if generalViewMode === 'workflows'}
-                            {globalWorkflowTasks.length} producto(s) en {currentWorkflowStages.length} etapas del flujo
+                            {globalWorkflowTasks.length} producto(s) en {visibleWorkflowStages.length} {visibleWorkflowStages.length === 1 ? 'etapa' : 'etapas'} del flujo
                         {:else}
                             {filteredOrders.length} pedido(s) encontrado(s) en {localStatuses.length} columnas
                         {/if}
@@ -1224,92 +1432,9 @@
             <!-- VISTA B: KANBAN DE FLUJOS (TODOS LOS PRODUCTOS DE TODOS LOS PEDIDOS ACTIVOS) -->
             {:else if generalViewMode === 'workflows'}
                 <div class="space-y-4">
-                    <!-- BARRA SUPERIOR DE FILTROS EN TIEMPO REAL DEL TABLERO DE TRABAJO -->
-                    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="px-2.5 py-1 rounded-xl text-xs font-bold bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-300 border border-[#4F46E5]/30 flex items-center gap-1.5 shadow-xs">
-                                <span>🔧</span>
-                                <span>Flujo de Trabajo: {currentSelectedWorkflow?.name || 'Flujo de Taller'}</span>
-                            </span>
-                            <span class="text-xs text-[#64748B] dark:text-slate-400 font-mono">
-                                {globalWorkflowTasks.length} producto(s) en {currentWorkflowStages.length} etapas
-                            </span>
-                        </div>
-
-                        <!-- 3 Selectores y Búsqueda en tiempo real del Tablero de Trabajo -->
-                        <div class="flex flex-wrap items-center gap-2.5 text-xs">
-                            <!-- 1. Filtrar por Tipo de Flujo de Trabajo -->
-                            <div class="flex items-center gap-1.5">
-                                <label for="flow-filter-wf" class="font-bold text-slate-700 dark:text-slate-300 shrink-0">
-                                    Flujo:
-                                </label>
-                                <select
-                                    id="flow-filter-wf"
-                                    bind:value={selectedWorkflowId}
-                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-[#4F46E5]"
-                                >
-                                    {#each workflows as wf}
-                                        <option value={wf.id}>{wf.name} {wf.is_default ? '(Predeterminado)' : ''}</option>
-                                    {/each}
-                                </select>
-                            </div>
-
-                            <!-- 2. Filtrar por Pedido -->
-                            <div class="flex items-center gap-1.5">
-                                <label for="flow-filter-order" class="font-bold text-slate-700 dark:text-slate-300 shrink-0">
-                                    Pedido:
-                                </label>
-                                <select
-                                    id="flow-filter-order"
-                                    bind:value={selectedOrderIdFilter}
-                                    class="bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-white font-medium focus:outline-none focus:border-[#4F46E5] max-w-[200px] truncate"
-                                >
-                                    <option value="all">Todos los Pedidos</option>
-                                    {#each localOrders.filter(o => o.derived_status !== 'delivered') as ord}
-                                        <option value={ord.id}>#{ord.order_number} — {ord.customer?.name || 'Cliente'}</option>
-                                    {/each}
-                                </select>
-                            </div>
-
-                            <!-- 3. Búsqueda textual por Producto, Variante, SKU, # Pedido o Cliente -->
-                            <div class="relative min-w-[190px]">
-                                <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 text-xs">
-                                    🔍
-                                </span>
-                                <input
-                                    type="text"
-                                    bind:value={workflowSearchQuery}
-                                    placeholder="Buscar producto, SKU, #..."
-                                    class="w-full pl-7 pr-6 py-1.5 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5]"
-                                />
-                                {#if workflowSearchQuery}
-                                    <button
-                                        type="button"
-                                        onclick={() => workflowSearchQuery = ''}
-                                        class="absolute inset-y-0 right-0 pr-2 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs"
-                                        title="Borrar búsqueda"
-                                    >
-                                        ✕
-                                    </button>
-                                {/if}
-                            </div>
-
-                            {#if selectedOrderIdFilter !== 'all' || workflowSearchQuery.trim() !== ''}
-                                <button
-                                    type="button"
-                                    onclick={() => { selectedOrderIdFilter = 'all'; workflowSearchQuery = ''; }}
-                                    class="px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-xs transition"
-                                    title="Restablecer filtros del Tablero de Trabajo"
-                                >
-                                    Limpiar
-                                </button>
-                            {/if}
-                        </div>
-                    </div>
-
                     <!-- COLUMNAS DEL FLUJO DE TRABAJO -->
                     <div class="flex flex-nowrap items-start gap-4 overflow-x-auto pb-4 w-full min-w-0">
-                        {#each currentWorkflowStages as stage (stage.id)}
+                        {#each visibleWorkflowStages as stage (stage.id)}
                             {@const stageTasks = tasksByStageId.get(Number(stage.id)) || []}
                             {@const isOverThisStage = Number(dragOverStageId) === Number(stage.id)}
                             <div
