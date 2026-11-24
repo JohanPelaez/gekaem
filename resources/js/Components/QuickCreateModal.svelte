@@ -15,6 +15,7 @@
             'lamina', 'pliego', 'gramo', 'kilogramo', 'litro', 'mililitro', 'paquete'
         ],
         onSuccess,
+        onLimitReached = null,
     } = $props();
 
     let loading = $state(false);
@@ -188,6 +189,12 @@
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
+                if (data.limit_reached && typeof onLimitReached === 'function') {
+                    const addonType = data.addon_type || 'workflow';
+                    closeModal();
+                    onLimitReached(addonType, data.message || '');
+                    return;
+                }
                 if (data.errors && typeof data.errors === 'object') {
                     const firstFieldErrors = Object.values(data.errors)[0];
                     errorMessage = Array.isArray(firstFieldErrors)

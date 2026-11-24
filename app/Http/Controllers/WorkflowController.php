@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductionTask;
 use App\Models\Workflow;
 use App\Models\WorkflowStage;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,8 +35,25 @@ class WorkflowController extends Controller
     /**
      * Store a newly created workflow.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|JsonResponse
     {
+        $tenant = $request->user()?->currentTenant();
+        if ($tenant !== null && !$tenant->canAddWorkflow()) {
+            $message = 'Has alcanzado el límite de Flujos de Trabajo incluidos en tu plan.';
+
+            if ($request->expectsJson() && !$request->header('X-Inertia')) {
+                return response()->json([
+                    'limit_reached' => true,
+                    'addon_type' => 'workflow',
+                    'message' => $message,
+                ], 402);
+            }
+
+            return redirect()->back()
+                ->with('error', $message)
+                ->with('limit_reached_addon', 'workflow');
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:255'],

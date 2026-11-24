@@ -48,9 +48,11 @@ class UpdatePaymentMethodAction
         $isDisabled = $isPastDueOrExpired || $isTrialExpiredWithoutActive;
 
         if ($isDisabled) {
-            // Caso Taller Inhabilitado: Ejecutar Cobro Inmediato
-            $monthlyTotal = $tenant->calculateMonthlyTotal();
-            $description = "Reactivación y Suscripción Mensual - {$tenant->name}";
+            // Caso Taller Inhabilitado: Ejecutar Cobro Inmediato según ciclo (Mensual o Anual)
+            $isAnnual = $tenant->isAnnual();
+            $totalAmount = $tenant->calculateSubscriptionTotal();
+            $cycleLabel = $isAnnual ? 'Anual' : 'Mensual';
+            $description = "Reactivación y Suscripción {$cycleLabel} - {$tenant->name}";
 
             // Asignar transitoriamente los datos tokenizados para permitir el cargo en pasarela
             $tenant->payment_method_token = $tokenized['payment_method_token'];
@@ -59,7 +61,7 @@ class UpdatePaymentMethodAction
             $tenant->card_last_four = $tokenized['card_last_four'];
 
             try {
-                $this->boldService->chargeToken($tenant, $monthlyTotal, $description);
+                $this->boldService->chargeToken($tenant, $totalAmount, $description);
             } catch (ValidationException $e) {
                 $messages = $e->errors();
                 $firstMessage = reset($messages)[0] ?? 'La tarjeta fue rechazada durante el cobro de reactivación. Por favor intenta con otra tarjeta.';
@@ -73,14 +75,14 @@ class UpdatePaymentMethodAction
             }
 
             // Cobro exitoso: actualizar y activar la suscripción del taller
-            DB::transaction(function () use ($tenant, $tokenized): void {
+            DB::transaction(function () use ($tenant, $tokenized, $isAnnual): void {
                 $tenant->update([
                     'payment_method_token' => $tokenized['payment_method_token'],
                     'bold_customer_id' => $tokenized['bold_customer_id'],
                     'card_brand' => $tokenized['card_brand'],
                     'card_last_four' => $tokenized['card_last_four'],
                     'subscription_status' => 'active',
-                    'current_period_ends_at' => now()->addMonth(),
+                    'current_period_ends_at' => $isAnnual ? now()->addYear() : now()->addMonth(),
                     'paid_seats' => max($tenant->includedBaseSeats(), $tenant->activeUsersCount()),
                 ]);
             });
@@ -88,7 +90,7 @@ class UpdatePaymentMethodAction
             return [
                 'tenant' => $tenant->refresh(),
                 'charged_immediately' => true,
-                'amount_charged' => $monthlyTotal,
+                'amount_charged' => $totalAmount,
             ];
         }
 

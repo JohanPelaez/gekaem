@@ -1,6 +1,8 @@
 <script>
     import { untrack } from 'svelte';
+    import { page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
+    import AddonPurchaseModal from '../../Components/AddonPurchaseModal.svelte';
     import { csrfFetch } from '../../Utils/csrfFetch.js';
 
     let {
@@ -30,6 +32,28 @@
     let emptyModalOpen = $state(false);
     let isEmptying = $state(false);
     let emptyError = $state('');
+
+    // Control de cupos y modal de compra de adicional al restaurar Flujo de Trabajo
+    let localPlanQuotas = $state(null);
+    $effect(() => {
+        const incomingQuotas = page.props.planQuotas;
+        untrack(() => {
+            if (incomingQuotas) {
+                localPlanQuotas = incomingQuotas;
+            }
+        });
+    });
+    let activePlanQuotas = $derived(localPlanQuotas ?? page.props.planQuotas ?? null);
+    let addonModalOpen = $state(false);
+    let addonModalType = $state('workflow');
+
+    function handleAddonPurchased(data) {
+        if (data?.planQuotas) {
+            localPlanQuotas = data.planQuotas;
+        }
+        addonModalOpen = false;
+        showToast(data?.message || '¡Flujo adicional habilitado! Ya puedes recuperar el flujo desde la papelera.', 'success');
+    }
 
     // Toast de confirmación / error
     let toast = $state({ visible: false, type: 'success', message: '' });
@@ -151,6 +175,11 @@
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok || !data.success) {
+                if (data.limit_reached) {
+                    addonModalType = data.addon_type || 'workflow';
+                    addonModalOpen = true;
+                    return;
+                }
                 throw new Error(data.message || 'No se pudo recuperar el elemento.');
             }
 
@@ -512,5 +541,14 @@
             </div>
         </div>
     {/if}
+
+    <!-- MODAL DE COMPRA DE ADICIONAL AL RESTAURAR FLUJO SIN CUPO -->
+    <AddonPurchaseModal
+        open={addonModalOpen}
+        addonType={addonModalType}
+        planQuotas={activePlanQuotas}
+        onClose={() => addonModalOpen = false}
+        onPurchased={handleAddonPurchased}
+    />
 </AppLayout>
 

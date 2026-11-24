@@ -1,9 +1,60 @@
 <script>
     import { untrack } from "svelte";
-    import { router } from "@inertiajs/svelte";
+    import { router, page } from "@inertiajs/svelte";
     import AppLayout from "../../Layouts/AppLayout.svelte";
+    import AddonPurchaseModal from "../../Components/AddonPurchaseModal.svelte";
 
     let { workflows = [], errors = {} } = $props();
+
+    // Control de cupos de Flujos de Trabajo
+    let localPlanQuotas = $state(null);
+    $effect(() => {
+        const incomingQuotas = page.props.planQuotas;
+        untrack(() => {
+            if (incomingQuotas) {
+                localPlanQuotas = incomingQuotas;
+            }
+        });
+    });
+
+    let activePlanQuotas = $derived(localPlanQuotas ?? page.props.planQuotas ?? null);
+    let workflowQuota = $derived(
+        activePlanQuotas?.quotas?.workflow ?? {
+            used: workflows.length,
+            base: 2,
+            extra: 0,
+            max: 2,
+            can_add: true,
+        },
+    );
+
+    let addonModalOpen = $state(false);
+
+    // Abrir modal automáticamente si el servidor devuelve limit_reached_addon en flash
+    $effect(() => {
+        const flashAddon = page.props.flash?.limit_reached_addon;
+        if (flashAddon === "workflow") {
+            untrack(() => {
+                addonModalOpen = true;
+            });
+        }
+    });
+
+    function handleNewWorkflowClick() {
+        if (activePlanQuotas && !workflowQuota.can_add) {
+            addonModalOpen = true;
+            return;
+        }
+        showCreateWorkflowModal = true;
+    }
+
+    function handleWorkflowAddonPurchased(data) {
+        if (data?.planQuotas) {
+            localPlanQuotas = data.planQuotas;
+        }
+        addonModalOpen = false;
+        showCreateWorkflowModal = true;
+    }
 
     let selectedWorkflowId = $state(null);
     let localWorkflows = $state([]);
@@ -389,11 +440,20 @@
             class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
         >
             <div>
-                <h1
-                    class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white"
-                >
-                    Flujos de Trabajo y Estados Dinámicos
-                </h1>
+                <div class="flex items-center gap-2.5 flex-wrap">
+                    <h1
+                        class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white"
+                    >
+                        Flujos de Trabajo y Estados Dinámicos
+                    </h1>
+                    <span
+                        class="px-2.5 py-0.5 rounded-full text-xs font-extrabold font-mono border {workflowQuota.can_add
+                            ? 'bg-indigo-50 dark:bg-[#4F46E5]/15 text-[#4F46E5] dark:text-indigo-300 border-indigo-200 dark:border-[#4F46E5]/30'
+                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'}"
+                    >
+                        Flujos activos: {workflowQuota.used} de {workflowQuota.max} permitidos
+                    </span>
+                </div>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Configura los flujos de producción del taller, edita
                     títulos, personaliza colores en tiempo real y reordena las
@@ -402,8 +462,8 @@
             </div>
             <button
                 type="button"
-                onclick={() => (showCreateWorkflowModal = true)}
-                class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0 self-start sm:self-auto"
+                onclick={handleNewWorkflowClick}
+                class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0 self-start sm:self-auto cursor-pointer"
             >
                 <span>+</span>
                 <span>Nuevo Flujo</span>
@@ -689,6 +749,15 @@
         </div>
     </div>
 </AppLayout>
+
+<!-- MODAL DE COMPRA DE ADICIONAL: FLUJO DE TRABAJO -->
+<AddonPurchaseModal
+    open={addonModalOpen}
+    addonType="workflow"
+    planQuotas={activePlanQuotas}
+    onClose={() => (addonModalOpen = false)}
+    onPurchased={handleWorkflowAddonPurchased}
+/>
 
 <!-- MODAL NUEVO FLUJO -->
 {#if showCreateWorkflowModal}

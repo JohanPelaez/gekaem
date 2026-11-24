@@ -73,6 +73,14 @@ class TrashController extends Controller
         $tenant = $this->authorizeAndResolveTenant($request);
         $model = $this->findTrashedForTenant($type, $id, (int) $tenant->id);
 
+        if ($type === 'workflow' && !$tenant->canAddWorkflow()) {
+            return response()->json([
+                'limit_reached' => true,
+                'addon_type' => 'workflow',
+                'message' => 'No tienes cupo disponible para recuperar este Flujo de Trabajo. Compra un Flujo adicional o libera uno existente.',
+            ], 402);
+        }
+
         DB::transaction(function () use ($type, $model, $tenant): void {
             if ($type === 'order' && $model instanceof Order) {
                 $model->restore();

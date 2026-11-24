@@ -38,22 +38,23 @@ class UpgradeTenantPlanAction
             return $tenant->refresh();
         }
 
-        // Si la suscripción está activa, cobrar la diferencia restante hasta los 75.000 COP
+        // Si la suscripción está activa, cobrar la diferencia del ciclo hacia Plan Profesional
         if ($tenant->subscription_status === 'active') {
             if (!$tenant->hasValidPaymentMethod()) {
                 throw ValidationException::withMessages([
-                    'plan' => 'Debes registrar un método de pago válido antes de cambiar al Plan Taller Pro.',
+                    'plan' => 'Debes registrar un método de pago válido antes de cambiar al Plan Profesional.',
                 ]);
             }
 
-            $currentPaid = 30000 + (max(0, ((int) $tenant->paid_seats) - 1) * 15000);
-            $difference = max(0, 75000 - $currentPaid);
+            $currentTotal = $tenant->calculateSubscriptionTotal('basic');
+            $proTotal = $tenant->calculateSubscriptionTotal('pro');
+            $difference = max(0, $proTotal - $currentTotal);
 
             if ($difference > 0) {
                 $this->boldService->chargeToken(
                     $tenant,
                     $difference,
-                    "Upgrade a Plan Taller Pro (Diferencia de Ciclo)"
+                    'Upgrade a Plan Profesional (Diferencia de Ciclo)'
                 );
             }
         }
@@ -61,12 +62,14 @@ class UpgradeTenantPlanAction
         DB::transaction(function () use ($tenant): void {
             $settings = $tenant->settings ?? [];
             $settings['plan'] = 'pro';
-            $settings['plan_name'] = 'Plan Taller Pro';
-            $settings['parallel_workers'] = max(5, $settings['parallel_workers'] ?? 1);
+            $settings['plan_name'] = 'Plan Profesional';
+            $settings['parallel_workers'] = max(3, $settings['parallel_workers'] ?? 1);
+
+            $extraSeats = (int) ($tenant->extra_ceo_seats ?? 0) + (int) ($tenant->extra_worker_seats ?? 0);
 
             $tenant->update([
                 'plan_type' => 'pro',
-                'paid_seats' => max(5, (int) $tenant->paid_seats),
+                'paid_seats' => max(4 + $extraSeats, (int) $tenant->paid_seats),
                 'settings' => $settings,
             ]);
         });

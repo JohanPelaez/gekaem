@@ -27,7 +27,11 @@ class Tenant extends Model
         'trial_ends_at',
         'subscription_status',
         'plan_type',
+        'billing_cycle',
         'paid_seats',
+        'extra_ceo_seats',
+        'extra_worker_seats',
+        'extra_workflows',
         'current_period_ends_at',
         'bold_customer_id',
         'payment_method_token',
@@ -48,6 +52,9 @@ class Tenant extends Model
             'settings' => 'array',
             'trial_ends_at' => 'datetime',
             'paid_seats' => 'integer',
+            'extra_ceo_seats' => 'integer',
+            'extra_worker_seats' => 'integer',
+            'extra_workflows' => 'integer',
             'current_period_ends_at' => 'datetime',
         ];
     }
@@ -138,11 +145,210 @@ class Tenant extends Model
     }
 
     /**
-     * Total number of active workshop members (Owner + Workers).
+     * Normalize plan type: 'standard' or null maps to 'basic'.
+     */
+    public function normalizedPlanType(): string
+    {
+        return $this->plan_type === 'pro' ? 'pro' : 'basic';
+    }
+
+    /**
+     * Determine whether the tenant is billed annually.
+     */
+    public function isAnnual(): bool
+    {
+        return ($this->billing_cycle ?? 'monthly') === 'annual';
+    }
+
+    /**
+     * Retrieve the plan configuration array from config/plans.php.
+     *
+     * @return array<string, mixed>
+     */
+    public function planConfig(): array
+    {
+        $key = $this->normalizedPlanType();
+
+        /** @var array<string, mixed> $plan */
+        $plan = config("plans.plans.{$key}", config('plans.plans.basic', []));
+
+        return $plan;
+    }
+
+    /**
+     * Count active CEO/Admin users in the tenant (excluding super_admin).
+     */
+    public function usedCeoSeats(): int
+    {
+        return $this->users()
+            ->where('users.is_super_admin', false)
+            ->whereIn('tenant_user.role', ['owner', 'admin'])
+            ->count();
+    }
+
+    /**
+     * Count active Worker/Operario users in the tenant (excluding super_admin).
+     */
+    public function usedWorkerSeats(): int
+    {
+        return $this->users()
+            ->where('users.is_super_admin', false)
+            ->where('tenant_user.role', 'worker')
+            ->count();
+    }
+
+    /**
+     * Count active (non-trashed) workflows in the tenant.
+     */
+    public function usedWorkflowsCount(): int
+    {
+        return $this->workflows()->count();
+    }
+
+    /**
+     * Maximum allowed CEO/Admin seats (base plan + extra purchased).
+     */
+    public function maxCeoSeats(): int
+    {
+        $base = (int) ($this->planConfig()['limits']['ceo'] ?? 1);
+
+        return $base + (int) ($this->extra_ceo_seats ?? 0);
+    }
+
+    /**
+     * Maximum allowed Worker/Operario seats (base plan + extra purchased).
+     */
+    public function maxWorkerSeats(): int
+    {
+        $base = (int) ($this->planConfig()['limits']['worker'] ?? 0);
+
+        return $base + (int) ($this->extra_worker_seats ?? 0);
+    }
+
+    /**
+     * Maximum allowed active workflows (base plan + extra purchased).
+     */
+    public function maxWorkflows(): int
+    {
+        $base = (int) ($this->planConfig()['limits']['workflows'] ?? 2);
+
+        return $base + (int) ($this->extra_workflows ?? 0);
+    }
+
+    /**
+     * Whether the tenant has available quota to add another CEO/Admin user.
+     */
+    public function canAddCeo(): bool
+    {
+        return $this->usedCeoSeats() < $this->maxCeoSeats();
+    }
+
+    /**
+     * Whether the tenant has available quota to add another Worker user.
+     */
+    public function canAddWorker(): bool
+    {
+        return $this->usedWorkerSeats() < $this->maxWorkerSeats();
+    }
+
+    /**
+     * Whether the tenant has available quota to create or restore another Workflow.
+     */
+    public function canAddWorkflow(): bool
+    {
+        return $this->usedWorkflowsCount() < $this->maxWorkflows();
+    }
+
+    /**
+     * Calculate total recurring subscription amount in COP for the given plan and billing cycle.
+     */
+    public function calculateSubscriptionTotal(?string $plan = null, ?string $cycle = null): int
+    {
+        $planKey = ($plan ?? $this->normalizedPlanType()) === 'pro' ? 'pro' : 'basic';
+        $cycleKey = ($cycle ?? ($this->billing_cycle ?: 'monthly')) === 'annual' ? 'annual' : 'monthly';
+        $priceField = $cycleKey === 'annual' ? 'annual_price' : 'monthly_price';
+
+        $planBase = (int) config("plans.plans.{$planKey}.{$priceField}", 30000);
+        $ceoPrice = (int) config("plans.addons.ceo.{$priceField}", 20000);
+        $workerPrice = (int) config("plans.addons.worker.{$priceField}", 15000);
+        $workflowPrice = (int) config("plans.addons.workflow.{$priceField}", 15000);
+
+        return $planBase
+            + ((int) ($this->extra_ceo_seats ?? 0) * $ceoPrice)
+            + ((int) ($this->extra_worker_seats ?? 0) * $workerPrice)
+            + ((int) ($this->extra_workflows ?? 0) * $workflowPrice);
+    }
+
+    /**
+     * Build a structured quota and plan summary ready for the frontend.
+     *
+     * @return array<string, mixed>
+     */
+    public function getQuotaSummary(): array
+    {
+        $planType = $this->normalizedPlanType();
+        $plan = $this->planConfig();
+        $cycle = $this->isAnnual() ? 'annual' : 'monthly';
+
+        $usedCeo = $this->usedCeoSeats();
+        $baseCeo = (int) ($plan['limits']['ceo'] ?? 1);
+        $extraCeo = (int) ($this->extra_ceo_seats ?? 0);
+        $maxCeo = $baseCeo + $extraCeo;
+
+        $usedWorker = $this->usedWorkerSeats();
+        $baseWorker = (int) ($plan['limits']['worker'] ?? 0);
+        $extraWorker = (int) ($this->extra_worker_seats ?? 0);
+        $maxWorker = $baseWorker + $extraWorker;
+
+        $usedWorkflow = $this->usedWorkflowsCount();
+        $baseWorkflow = (int) ($plan['limits']['workflows'] ?? 2);
+        $extraWorkflow = (int) ($this->extra_workflows ?? 0);
+        $maxWorkflow = $baseWorkflow + $extraWorkflow;
+
+        return [
+            'plan_type' => $planType,
+            'plan_name' => (string) ($plan['name'] ?? 'Plan Básico'),
+            'billing_cycle' => $cycle,
+            'subscription_status' => (string) ($this->subscription_status ?? 'trialing'),
+            'has_payment_method' => $this->hasValidPaymentMethod(),
+            'card_brand' => $this->card_brand,
+            'card_last_four' => $this->card_last_four,
+            'subscription_total' => $this->calculateSubscriptionTotal($planType, $cycle),
+            'quotas' => [
+                'ceo' => [
+                    'used' => $usedCeo,
+                    'base' => $baseCeo,
+                    'extra' => $extraCeo,
+                    'max' => $maxCeo,
+                    'can_add' => $usedCeo < $maxCeo,
+                ],
+                'worker' => [
+                    'used' => $usedWorker,
+                    'base' => $baseWorker,
+                    'extra' => $extraWorker,
+                    'max' => $maxWorker,
+                    'can_add' => $usedWorker < $maxWorker,
+                ],
+                'workflow' => [
+                    'used' => $usedWorkflow,
+                    'base' => $baseWorkflow,
+                    'extra' => $extraWorkflow,
+                    'max' => $maxWorkflow,
+                    'can_add' => $usedWorkflow < $maxWorkflow,
+                ],
+            ],
+            'addons' => config('plans.addons', []),
+        ];
+    }
+
+    /**
+     * Total number of active workshop members (Owner + Workers, excluding super_admin).
      */
     public function activeUsersCount(): int
     {
-        return $this->users()->count();
+        return $this->users()
+            ->where('users.is_super_admin', false)
+            ->count();
     }
 
     /**
@@ -150,7 +356,9 @@ class Tenant extends Model
      */
     public function includedBaseSeats(): int
     {
-        return ($this->plan_type === 'pro') ? 5 : 1;
+        $limits = $this->planConfig()['limits'] ?? [];
+
+        return (int) ($limits['ceo'] ?? 1) + (int) ($limits['worker'] ?? 0);
     }
 
     /**
@@ -158,42 +366,26 @@ class Tenant extends Model
      */
     public function availableSeats(): int
     {
-        $covered = max((int) ($this->paid_seats ?? 1), $this->includedBaseSeats());
+        $covered = $this->maxCeoSeats() + $this->maxWorkerSeats();
 
         return max(0, $covered - $this->activeUsersCount());
     }
 
     /**
-     * Calculate monthly total in COP for a given user count and plan.
+     * Calculate recurring total in COP based on active billing cycle and extras.
+     * Kept for backwards compatibility with existing Bold/SuperAdmin callers.
      */
     public function calculateMonthlyTotal(?int $forUserCount = null, ?string $forPlan = null): int
     {
-        $users = $forUserCount ?? $this->activeUsersCount();
-        $plan = $forPlan ?? $this->plan_type;
-
-        if ($plan === 'pro') {
-            return 75000 + (max(0, $users - 5) * 15000);
-        }
-
-        return 30000 + (max(0, $users - 1) * 15000);
+        return $this->calculateSubscriptionTotal($forPlan, $this->billing_cycle ?: 'monthly');
     }
 
     /**
-     * Determine whether adding the next team member requires an immediate extra seat charge of $15.000 COP.
+     * Determine whether adding the next team member requires an immediate extra seat charge.
      */
     public function requiresImmediateExtraSeatCharge(): bool
     {
-        if ($this->subscription_status === 'trialing') {
-            return false;
-        }
-
-        if ($this->subscription_status === 'active') {
-            $coveredSeats = max((int) ($this->paid_seats ?? 1), $this->includedBaseSeats());
-
-            return ($this->activeUsersCount() + 1) > $coveredSeats;
-        }
-
-        return true;
+        return !$this->canAddWorker() && !$this->canAddCeo();
     }
 
     /**
@@ -398,11 +590,23 @@ class Tenant extends Model
             if (empty($tenant->subscription_status)) {
                 $tenant->subscription_status = 'trialing';
             }
-            if (empty($tenant->plan_type)) {
-                $tenant->plan_type = 'standard';
+            if (empty($tenant->plan_type) || $tenant->plan_type === 'standard') {
+                $tenant->plan_type = 'basic';
+            }
+            if (empty($tenant->billing_cycle)) {
+                $tenant->billing_cycle = 'monthly';
+            }
+            if ($tenant->extra_ceo_seats === null) {
+                $tenant->extra_ceo_seats = 0;
+            }
+            if ($tenant->extra_worker_seats === null) {
+                $tenant->extra_worker_seats = 0;
+            }
+            if ($tenant->extra_workflows === null) {
+                $tenant->extra_workflows = 0;
             }
             if ($tenant->paid_seats === null) {
-                $tenant->paid_seats = ($tenant->plan_type === 'pro') ? 5 : 1;
+                $tenant->paid_seats = ($tenant->plan_type === 'pro') ? 4 : 1;
             }
             if ($tenant->current_period_ends_at === null) {
                 $tenant->current_period_ends_at = $tenant->trial_ends_at ?? now()->addMonth();

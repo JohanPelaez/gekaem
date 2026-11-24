@@ -24,10 +24,13 @@ class RegisteredUserController extends Controller
             return redirect()->route('dashboard');
         }
 
-        $plan = $request->query('plan') === 'pro' ? 'pro' : 'standard';
+        $plan = $request->query('plan') === 'pro' ? 'pro' : 'basic';
+        $cycle = $request->query('cycle') === 'annual' ? 'annual' : 'monthly';
 
         return Inertia::render('Auth/Register', [
             'initialPlan' => $plan,
+            'initialCycle' => $cycle,
+            'plansCatalog' => config('plans'),
         ]);
     }
 

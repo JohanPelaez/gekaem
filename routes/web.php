@@ -53,6 +53,7 @@ Route::middleware('guest')->group(function (): void {
 Route::get('/', fn () => Inertia::render('Welcome', [
     'canLogin' => Route::has('login'),
     'canRegister' => Route::has('register'),
+    'plansCatalog' => config('plans'),
 ]))->name('home');
 
 // Rutas protegidas de la aplicación
@@ -186,8 +187,10 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
             Route::get('/', [PaymentController::class, 'billing'])->name('index');
             Route::post('/payment-method', [PaymentController::class, 'updatePaymentMethod'])->name('payment-method.update');
             Route::post('/upgrade', [PaymentController::class, 'upgradePlan'])->name('upgrade');
+            Route::post('/change-plan', [PaymentController::class, 'changePlan'])->name('change-plan');
         });
         Route::get('/settings/billing', [PaymentController::class, 'billing'])->name('settings.billing');
+        Route::post('/billing/addons/purchase', [PaymentController::class, 'purchaseAddon'])->name('billing.addons.purchase');
 
         // Papelera de Reciclaje (Exclusivo CEO / Super Admin)
         Route::prefix('trash')->name('trash.')->group(function (): void {

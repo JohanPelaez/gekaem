@@ -4,6 +4,7 @@
     import BarcodeViewer from './BarcodeViewer.svelte';
     import CurrencyInput from './CurrencyInput.svelte';
     import QuickCreateModal from './QuickCreateModal.svelte';
+    import AddonPurchaseModal from './AddonPurchaseModal.svelte';
     import { csrfFetch } from '../Utils/csrfFetch.js';
     import { canViewPrices } from '../Utils/permissions.js';
     import {
@@ -209,9 +210,41 @@
     let quickModalType = $state('product-type');
     let quickTargetBOMIndex = $state(null);
 
+    // Control de cupo para creación rápida de Flujo de Trabajo
+    let localPlanQuotas = $state(null);
+    $effect(() => {
+        const incomingQuotas = page.props.planQuotas;
+        untrack(() => {
+            if (incomingQuotas) {
+                localPlanQuotas = incomingQuotas;
+            }
+        });
+    });
+    let activePlanQuotas = $derived(localPlanQuotas ?? page.props.planQuotas ?? null);
+    let addonModalOpen = $state(false);
+
     function openQuickCreate(type, targetIdx = null) {
+        if (type === 'workflow' && activePlanQuotas && !activePlanQuotas.quotas?.workflow?.can_add) {
+            addonModalOpen = true;
+            return;
+        }
         quickModalType = type;
         quickTargetBOMIndex = targetIdx;
+        quickModalOpen = true;
+    }
+
+    function handleQuickLimitReached(addonType) {
+        if (addonType === 'workflow') {
+            addonModalOpen = true;
+        }
+    }
+
+    function handleWorkflowAddonPurchased(data) {
+        if (data?.planQuotas) {
+            localPlanQuotas = data.planQuotas;
+        }
+        addonModalOpen = false;
+        quickModalType = 'workflow';
         quickModalOpen = true;
     }
 
@@ -985,6 +1018,16 @@
     type={quickModalType}
     unitsOfMeasure={sortedUnitsOfMeasure}
     onSuccess={handleQuickSuccess}
+    onLimitReached={handleQuickLimitReached}
+/>
+
+<!-- MODAL DE COMPRA DE ADICIONAL: FLUJO DE TRABAJO -->
+<AddonPurchaseModal
+    open={addonModalOpen}
+    addonType="workflow"
+    planQuotas={activePlanQuotas}
+    onClose={() => addonModalOpen = false}
+    onPurchased={handleWorkflowAddonPurchased}
 />
 
 <!-- SUBMODAL ESTILIZADO GIPPYME PARA EDITAR TIPO DE PRODUCTO (SIN WINDOW.PROMPT) -->

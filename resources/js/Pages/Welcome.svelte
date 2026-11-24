@@ -2,7 +2,135 @@
     import { page, Link } from "@inertiajs/svelte";
     import BrandLogo from "../Components/BrandLogo.svelte";
 
-    let { canLogin = true, canRegister = true } = $props();
+    let { canLogin = true, canRegister = true, plansCatalog = null } = $props();
+
+    // Estado reactivo del ciclo de facturación en la sección de precios
+    let billingCycle = $state("monthly");
+
+    const FALLBACK_CATALOG = {
+        annual_discount_percent: 20,
+        trial_days: 15,
+        plans: {
+            basic: {
+                key: "basic",
+                name: "Plan Básico",
+                monthly_price: 30000,
+                annual_price: 288000,
+                limits: { ceo: 1, worker: 0, workflows: 2 },
+                features: [
+                    "15 días de prueba gratis",
+                    "1 Usuario CEO - Administrador",
+                    "2 Flujos de trabajo",
+                    "Dashboard",
+                    "Tablero Kanban de pedidos",
+                    "2 Tableros Kanban de productos y servicios",
+                    "Gestión de pedidos",
+                    "Gestión de clientes",
+                    "Catálogo de productos y/o servicios",
+                    "Gestión de materias primas",
+                    "Recetas BOM",
+                    "Gestión de proveedores",
+                ],
+            },
+            pro: {
+                key: "pro",
+                name: "Plan Profesional",
+                monthly_price: 65000,
+                annual_price: 624000,
+                limits: { ceo: 1, worker: 3, workflows: 3 },
+                features: [
+                    "15 días de prueba gratis",
+                    "1 Usuario CEO - Administrador",
+                    "3 Usuarios Operario",
+                    "3 Flujos de trabajo",
+                    "Dashboard",
+                    "Tablero Kanban de pedidos",
+                    "3 Tableros Kanban de productos y servicios",
+                    "Gestión de pedidos",
+                    "Gestión de clientes",
+                    "Catálogo de productos y/o servicios",
+                    "Gestión de materias primas",
+                    "Recetas BOM",
+                    "Gestión de proveedores",
+                ],
+            },
+        },
+        addons: {
+            ceo: {
+                key: "ceo",
+                name: "Usuario CEO - Administrador",
+                monthly_price: 20000,
+                annual_price: 192000,
+                features: [
+                    "Acceso a la gestión de todos los módulos de la aplicación",
+                    "Visibilidad de valores de los pedidos y productos",
+                ],
+            },
+            worker: {
+                key: "worker",
+                name: "Usuario Operario",
+                monthly_price: 15000,
+                annual_price: 144000,
+                features: [
+                    "Acceso restringido a la visibilidad de valores y Dashboard",
+                    "No podrá gestionar los módulos de la aplicación",
+                    "Acceso a los tableros de Kanban",
+                    "Solicitud de materias primas",
+                ],
+            },
+            workflow: {
+                key: "workflow",
+                name: "Flujo de Trabajo",
+                monthly_price: 15000,
+                annual_price: 144000,
+                features: [
+                    "Flujo de trabajo para la gestión operativa de un nuevo producto o servicio",
+                ],
+            },
+        },
+    };
+
+    let catalog = $derived(plansCatalog ?? FALLBACK_CATALOG);
+    let basicPlan = $derived(catalog.plans?.basic ?? FALLBACK_CATALOG.plans.basic);
+    let proPlan = $derived(catalog.plans?.pro ?? FALLBACK_CATALOG.plans.pro);
+    let isAnnual = $derived(billingCycle === "annual");
+
+    let addonsCards = $derived([
+        {
+            ...(catalog.addons?.ceo ?? FALLBACK_CATALOG.addons.ceo),
+            icon: "👑",
+            badge: "Control Total",
+            accentClass: "bg-[#4F46E5]/10 text-[#4F46E5] dark:text-[#818CF8] border-[#4F46E5]/25",
+        },
+        {
+            ...(catalog.addons?.worker ?? FALLBACK_CATALOG.addons.worker),
+            icon: "👷",
+            badge: "Producción en Planta",
+            accentClass: "bg-[#06B6D4]/10 text-[#0891B2] dark:text-[#06B6D4] border-[#06B6D4]/25",
+        },
+        {
+            ...(catalog.addons?.workflow ?? FALLBACK_CATALOG.addons.workflow),
+            icon: "🔀",
+            badge: "Nueva Línea",
+            accentClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25",
+        },
+    ]);
+
+    const PRO_HIGHLIGHT_FEATURES = new Set([
+        "1 Usuario CEO - Administrador",
+        "3 Usuarios Operario",
+        "3 Flujos de trabajo",
+        "3 Tableros Kanban de productos y servicios",
+    ]);
+
+    function formatCOP(amount) {
+        return (
+            "$" +
+            new Intl.NumberFormat("es-CO", {
+                maximumFractionDigits: 0,
+            }).format(Number(amount ?? 0))
+        );
+    }
 
     // Usuario autenticado (reactivo vía props de Inertia)
     let authUser = $derived(page.props.auth?.user);
@@ -357,22 +485,22 @@
         {
             question: "¿Qué pasa cuando terminan los 15 días de prueba gratis?",
             answer:
-                "Tu taller se pausa de forma segura hasta que elijas un plan, no perdemos tus datos. Toda tu información de pedidos, clientes, recetas BOM e inventario queda protegida y disponible para reactivarse en cualquier momento cuando decidas continuar.",
+                "Tu taller se pausa de forma segura hasta que elijas un plan, no perdemos tus datos. Puedes continuar con el Plan Básico ($30.000 COP/mes) o el Plan Profesional ($65.000 COP/mes), y si eliges facturación anual ahorras un 20% OFF automático.",
         },
         {
-            question: "¿Puedo agregar más usuarios después?",
+            question: "¿Puedo agregar más usuarios o flujos de trabajo después?",
             answer:
-                "Sí, en el Plan Estándar puedes sumar usuarios extra por solo $15.000 COP/mes cada uno según crezca tu equipo de trabajo. En el Plan Taller Pro ya cuentas con hasta 5 usuarios incluidos en la tarifa base.",
+                "Sí. En cualquier plan puedes sumar adicionales a la medida cuando tu taller crezca: Usuario CEO - Administrador por $20.000 COP/mes ($192.000/año con 20% OFF), Usuario Operario por $15.000 COP/mes ($144.000/año) y Flujo de Trabajo adicional por $15.000 COP/mes ($144.000/año).",
         },
         {
-            question: "¿Cómo se realizan los pagos en Colombia?",
+            question: "¿Cómo funciona el 20% OFF en el pago anual?",
             answer:
-                "Es 100% compatible con transferencias bancarias locales (Bancolombia, Davivienda, etc.), billeteras móviles como Nequi y Daviplata, y pasarelas de pago seguras con tarjetas débito/crédito y PSE en línea.",
+                "Al seleccionar facturación anual obtienes un 20% de descuento directo tanto en tu plan base (Plan Básico a $288.000 COP/año o Plan Profesional a $624.000 COP/año) como en todos los adicionales que contrates durante tu ciclo.",
         },
         {
-            question: "¿Necesito instalar algo en mis computadores?",
+            question: "¿Cómo se realizan los pagos en Colombia y necesito instalar algo?",
             answer:
-                "No, gipPyme funciona 100% en la nube desde cualquier navegador web (Chrome, Edge, Safari, Firefox) en computadores, tablets o teléfonos móviles, sin necesidad de instalaciones técnicas ni servidores locales.",
+                "Los pagos recurrentes se procesan de forma segura mediante pasarela Bold con tarjetas de crédito o débito (Visa, Mastercard, Amex y Diners). Además, gipPyme funciona 100% en la nube desde cualquier navegador web en computadores, tablets o celulares, sin instalaciones técnicas.",
         },
     ];
 
@@ -1994,99 +2122,110 @@
                 >
                     Empieza con 15 días de prueba gratis total. Sin tarjetas de crédito, sin ataduras y con acceso a todos los módulos desde el primer minuto.
                 </p>
+
+                <!-- Toggle Interactivo de Facturación: Mensual vs Anual (20% OFF) -->
+                <div class="mt-8 inline-flex items-center p-1.5 rounded-2xl bg-slate-100 dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-sm">
+                    <button
+                        type="button"
+                        onclick={() => (billingCycle = "monthly")}
+                        class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer {!isAnnual
+                            ? 'bg-white dark:bg-[#4F46E5] text-slate-900 dark:text-white shadow-md'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}"
+                    >
+                        Pago Mensual
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => (billingCycle = "annual")}
+                        class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center gap-2 {isAnnual
+                            ? 'bg-white dark:bg-[#4F46E5] text-slate-900 dark:text-white shadow-md'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}"
+                    >
+                        <span>Pago Anual</span>
+                        <span
+                            class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide {isAnnual
+                                ? 'bg-emerald-500 text-white'
+                                : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'}"
+                        >
+                            Ahorra 20% OFF
+                        </span>
+                    </button>
+                </div>
             </div>
 
             <!-- 2. Grid de Tarjetas de Precios Destacadas -->
             <div
-                class="mt-14 sm:mt-16 max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch text-left"
+                class="mt-12 sm:mt-14 max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch text-left"
             >
-                <!-- Opción A — Plan Flexible (Por Usuario) -->
+                <!-- Opción A — Plan Básico -->
                 <div
                     class="p-8 sm:p-9 rounded-3xl bg-white dark:bg-[#151D2C] border border-slate-200/90 dark:border-[#26334D] shadow-xl shadow-slate-900/5 dark:shadow-black/40 flex flex-col justify-between relative hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover:-translate-y-1"
                 >
                     <div>
-                        <!-- Etiqueta del Plan -->
                         <span
                             class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                         >
-                            Para talleres independientes y pequeños negocios
+                            Para emprendedores y talleres independientes
                         </span>
 
-                        <!-- Título del Plan -->
                         <h3
                             class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1.5"
                         >
-                            Plan Estándar
+                            {basicPlan.name}
                         </h3>
 
                         <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2">
-                            La solución flexible para arrancar con orden absoluto en tus pedidos, catálogo y producción.
+                            Todo lo esencial para organizar pedidos, catálogo, recetas BOM y dos flujos productivos sin enredos.
                         </p>
 
-                        <!-- Precios del Plan -->
+                        <!-- Precios del Plan Básico -->
                         <div class="mt-6 pt-6 border-t border-slate-100 dark:border-[#26334D]/70">
-                            <div class="flex items-baseline gap-2">
+                            <div class="flex items-baseline gap-2 flex-wrap">
                                 <span
                                     class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white"
                                 >
-                                    $30.000 COP
+                                    {formatCOP(isAnnual ? basicPlan.annual_price : basicPlan.monthly_price)} COP
                                 </span>
                                 <span class="text-sm font-bold text-slate-500 dark:text-slate-400">
-                                    / mes
+                                    / {isAnnual ? "año" : "mes"}
                                 </span>
                             </div>
 
-                            <div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium">
-                                <span class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#1E293B] font-semibold text-slate-700 dark:text-slate-300">
-                                    (Dueño)
-                                </span>
-                                <span class="text-slate-400 dark:text-slate-500">+</span>
-                                <span class="text-slate-900 dark:text-white font-bold">
-                                    $15.000 COP
-                                </span>
-                                <span>/ mes (Usuarios extra)</span>
-                            </div>
+                            {#if isAnnual}
+                                <div class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                                    <span>🎉</span>
+                                    <span>Equivale a $24.000/mes · Ahorras $72.000 al año</span>
+                                </div>
+                            {:else}
+                                <p class="mt-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                    O ahorra 20% con pago anual ($288.000 COP / año)
+                                </p>
+                            {/if}
                         </div>
 
-                        <!-- Características Incluidas -->
-                        <ul class="mt-7 space-y-3.5 text-sm text-slate-700 dark:text-slate-200">
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span class="font-medium"><strong>15 días</strong> de prueba gratis</span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span>Módulos de <strong>Pedidos, Clientes y Catálogo</strong></span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span>Tablero <strong>Kanban por flujos</strong></span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span><strong>Recetas BOM</strong> y control de inventario</span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span>Generador de <strong>Códigos de Barras</strong></span>
-                            </li>
+                        <!-- 12 Características Oficiales Plan Básico -->
+                        <ul class="mt-7 space-y-3 text-sm text-slate-700 dark:text-slate-200">
+                            {#each basicPlan.features as feature, idx}
+                                <li class="flex items-start gap-3">
+                                    <span
+                                        class="w-5 h-5 mt-0.5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 {idx === 0
+                                            ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                                            : 'bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4]'}"
+                                    >
+                                        ✓
+                                    </span>
+                                    <span class={idx <= 2 ? "font-semibold text-slate-900 dark:text-white" : ""}>
+                                        {feature}
+                                    </span>
+                                </li>
+                            {/each}
                         </ul>
                     </div>
 
-                    <!-- Botón CTA Plan Estándar -->
+                    <!-- Botón CTA Plan Básico -->
                     <div class="mt-8 pt-4">
                         <Link
-                            href="/register"
+                            href={`/register?plan=basic&cycle=${billingCycle}`}
                             class="w-full py-3.5 rounded-xl font-bold text-sm text-center border-2 border-slate-300 dark:border-[#26334D] text-slate-800 dark:text-white bg-slate-50/80 dark:bg-[#1E293B]/60 hover:bg-slate-100 dark:hover:bg-[#1E293B] hover:border-slate-400 dark:hover:border-slate-500 shadow-sm transition-all duration-200 block cursor-pointer"
                         >
                             Empezar Prueba Gratis
@@ -2094,108 +2233,165 @@
                     </div>
                 </div>
 
-                <!-- Opción B — Plan Taller Pro (El más recomendado / Destacado) -->
+                <!-- Opción B — Plan Profesional (Destacado) -->
                 <div
                     class="p-8 sm:p-9 rounded-3xl bg-gradient-to-b from-indigo-50/60 via-white to-white dark:from-[#172033] dark:via-[#151D2C] dark:to-[#151D2C] border-2 border-[#4F46E5] shadow-2xl shadow-[#4F46E5]/20 dark:shadow-[#4F46E5]/15 ring-4 ring-[#4F46E5]/10 flex flex-col justify-between relative hover:-translate-y-1 transition-all duration-300"
                 >
-                    <!-- Etiqueta Flotante Destacada -->
+                    <!-- Badge Más Popular -->
                     <span
                         class="absolute -top-4 right-6 sm:right-8 px-4 py-1.5 rounded-full text-xs font-extrabold text-white bg-gradient-to-r from-[#4F46E5] via-[#3B82F6] to-[#06B6D4] shadow-lg shadow-[#4F46E5]/30 flex items-center gap-1.5"
                     >
-                        <span>🔥</span>
-                        <span>¡Más Popular / Mayor Ahorro!</span>
+                        <span>⭐</span>
+                        <span>Más Popular</span>
                     </span>
 
                     <div>
-                        <!-- Etiqueta del Plan -->
                         <span
                             class="text-xs font-bold uppercase tracking-wider text-[#4F46E5] dark:text-[#818CF8]"
                         >
-                            Ideal para talleres en crecimiento con equipo operativo
+                            Ideal para talleres con equipo operativo y múltiples líneas
                         </span>
 
-                        <!-- Título del Plan -->
                         <h3
                             class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1.5"
                         >
-                            Plan Taller Pro
+                            {proPlan.name}
                         </h3>
 
                         <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2">
-                            La potencia completa para talleres con múltiples trabajadores y alto volumen de despachos.
+                            Coordina a tus operarios en planta, controla 3 flujos Kanban independientes y entrega siempre a tiempo.
                         </p>
 
-                        <!-- Precios del Plan -->
+                        <!-- Precios del Plan Profesional -->
                         <div class="mt-6 pt-6 border-t border-indigo-100 dark:border-[#26334D]">
-                            <div class="flex items-baseline gap-2">
+                            <div class="flex items-baseline gap-2 flex-wrap">
                                 <span
                                     class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white"
                                 >
-                                    $75.000 COP
+                                    {formatCOP(isAnnual ? proPlan.annual_price : proPlan.monthly_price)} COP
                                 </span>
                                 <span class="text-sm font-bold text-slate-500 dark:text-slate-400">
-                                    / mes
+                                    / {isAnnual ? "año" : "mes"}
                                 </span>
                             </div>
 
-                            <!-- Subtítulo del Precio -->
-                            <div class="mt-2 flex items-center gap-2 text-xs font-semibold text-[#4F46E5] dark:text-[#06B6D4]">
-                                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#4F46E5]/10 dark:bg-[#4F46E5]/20 font-bold border border-[#4F46E5]/20">
-                                    👥 Incluye hasta 5 Usuarios en total
-                                </span>
-                            </div>
+                            {#if isAnnual}
+                                <div class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                                    <span>🎉</span>
+                                    <span>Equivale a $52.000/mes · Ahorras $156.000 al año</span>
+                                </div>
+                            {:else}
+                                <p class="mt-2 text-xs text-[#4F46E5] dark:text-[#06B6D4] font-semibold">
+                                    O ahorra 20% con pago anual ($624.000 COP / año)
+                                </p>
+                            {/if}
                         </div>
 
-                        <!-- Características Incluidas -->
-                        <ul class="mt-7 space-y-3.5 text-sm text-slate-700 dark:text-slate-200">
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span class="font-medium"><strong>15 días</strong> de prueba gratis</span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#4F46E5]/15 border border-[#4F46E5]/40 text-[#4F46E5] dark:text-[#818CF8] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span><strong>Hasta 5 usuarios simultáneos</strong> (Dueño + 4 operarios)</span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span><strong>Ahorro del 50%</strong> en usuarios adicionales</span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span><strong>Tableros Kanban ilimitados</strong> y múltiples flujos</span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span><strong>Kardex de Materia Prima</strong> y Proveedores (Lead Time)</span>
-                            </li>
-                            <li class="flex items-center gap-3">
-                                <span class="w-5 h-5 rounded-full bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4] flex items-center justify-center text-xs font-bold shrink-0">
-                                    ✓
-                                </span>
-                                <span><strong>Soporte prioritario</strong> por WhatsApp</span>
-                            </li>
+                        <!-- Características Oficiales Plan Profesional -->
+                        <ul class="mt-7 space-y-3 text-sm text-slate-700 dark:text-slate-200">
+                            {#each proPlan.features as feature, idx}
+                                {@const isHighlighted = PRO_HIGHLIGHT_FEATURES.has(feature)}
+                                <li class="flex items-start gap-3">
+                                    <span
+                                        class="w-5 h-5 mt-0.5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 {idx === 0
+                                            ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                                            : isHighlighted
+                                                ? 'bg-[#4F46E5]/15 border border-[#4F46E5]/40 text-[#4F46E5] dark:text-[#818CF8]'
+                                                : 'bg-[#06B6D4]/15 border border-[#06B6D4]/40 text-[#06B6D4]'}"
+                                    >
+                                        ✓
+                                    </span>
+                                    <span class={isHighlighted ? "font-extrabold text-slate-900 dark:text-white" : idx === 0 ? "font-semibold" : ""}>
+                                        {feature}
+                                    </span>
+                                </li>
+                            {/each}
                         </ul>
                     </div>
 
-                    <!-- Botón CTA Plan Taller Pro (Gradiente Sólido) -->
+                    <!-- Botón CTA Plan Profesional -->
                     <div class="mt-8 pt-4">
                         <Link
-                            href="/register?plan=pro"
+                            href={`/register?plan=pro&cycle=${billingCycle}`}
                             class="w-full py-3.5 rounded-xl font-bold text-sm text-center text-white bg-gradient-to-r from-[#4F46E5] via-[#4338CA] to-[#06B6D4] hover:from-[#4338CA] hover:to-[#0891B2] shadow-xl shadow-[#4F46E5]/30 hover:shadow-[#4F46E5]/45 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 block cursor-pointer"
                         >
-                            Elegir Taller Pro →
+                            Elegir Plan Profesional →
                         </Link>
                     </div>
+                </div>
+            </div>
+
+            <!-- 2.5. BLOQUE "ADICIONALES A LA MEDIDA" -->
+            <div class="mt-16 sm:mt-20 max-w-5xl mx-auto text-left">
+                <div class="text-center max-w-2xl mx-auto mb-10">
+                    <div
+                        class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#06B6D4]/10 dark:bg-[#06B6D4]/15 border border-[#06B6D4]/30 text-[11px] font-bold text-[#0891B2] dark:text-[#06B6D4] uppercase tracking-wider mb-3"
+                    >
+                        <span>🧩 ADICIONALES A LA MEDIDA</span>
+                    </div>
+                    <h3 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                        ¿Tu taller crece? Agrega solo los adicionales que necesites
+                    </h3>
+                    <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                        Amplía usuarios o flujos de trabajo en cualquier momento desde tu panel de facturación, sincronizados con tu ciclo {isAnnual ? "anual (20% OFF)" : "mensual"}.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {#each addonsCards as addon}
+                        <div
+                            class="p-6 rounded-2xl bg-white dark:bg-[#151D2C] border border-slate-200/90 dark:border-[#26334D] shadow-md hover:border-[#4F46E5]/50 hover:shadow-lg transition-all flex flex-col justify-between"
+                        >
+                            <div>
+                                <div class="flex items-center justify-between gap-2 mb-3">
+                                    <span class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] flex items-center justify-center text-lg">
+                                        {addon.icon}
+                                    </span>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border {addon.accentClass}">
+                                        {addon.badge}
+                                    </span>
+                                </div>
+
+                                <h4 class="text-base font-extrabold text-slate-900 dark:text-white">
+                                    {addon.name}
+                                </h4>
+
+                                <div class="mt-3 pt-3 border-t border-slate-100 dark:border-[#26334D]">
+                                    <div class="flex items-baseline gap-1.5 flex-wrap">
+                                        <span class="text-2xl font-black text-slate-900 dark:text-white font-mono">
+                                            {formatCOP(isAnnual ? addon.annual_price : addon.monthly_price)}
+                                        </span>
+                                        <span class="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                            / {isAnnual ? "año" : "mes"}
+                                        </span>
+                                        {#if isAnnual}
+                                            <span class="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                                20% OFF
+                                            </span>
+                                        {/if}
+                                    </div>
+                                    {#if isAnnual}
+                                        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                            Equivale a {formatCOP(Math.round(addon.annual_price / 12))}/mes
+                                        </p>
+                                    {:else}
+                                        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                            Anual: {formatCOP(addon.annual_price)} / año (20% OFF)
+                                        </p>
+                                    {/if}
+                                </div>
+
+                                <ul class="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                                    {#each addon.features as feat}
+                                        <li class="flex items-start gap-2">
+                                            <span class="text-emerald-600 dark:text-emerald-400 font-bold mt-0.5 shrink-0">✓</span>
+                                            <span>{feat}</span>
+                                        </li>
+                                    {/each}
+                                </ul>
+                            </div>
+                        </div>
+                    {/each}
                 </div>
             </div>
 
@@ -2425,7 +2621,7 @@
                                     href="/register?plan=pro"
                                     class="hover:text-[#4F46E5] dark:hover:text-[#06B6D4] transition-colors"
                                 >
-                                    Elegir Plan Taller Pro
+                                    Elegir Plan Profesional
                                 </Link>
                             </li>
                         {/if}

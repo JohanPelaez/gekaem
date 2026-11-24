@@ -31,36 +31,22 @@ class AddTeamMemberAction
      */
     public function execute(array $data, Tenant $tenant): array
     {
-        // Caso A: Periodo de Prueba (trialing)
-        if ($tenant->subscription_status === 'trialing') {
-            if ($tenant->activeUsersCount() >= 5) {
-                throw ValidationException::withMessages([
-                    'email' => 'Durante el periodo de prueba gratis puedes tener hasta 5 usuarios. Para agregar más usuarios a tu taller, por favor activa tu suscripción registrando una tarjeta de crédito o débito.',
-                ]);
-            }
+        $isCeoRole = in_array($data['role'], ['owner', 'admin'], true);
+
+        if ($isCeoRole && !$tenant->canAddCeo()) {
+            throw ValidationException::withMessages([
+                'role' => 'Has alcanzado el límite de Usuarios CEO incluidos en tu plan.',
+            ]);
         }
 
-        // Caso C: Suscripción Activa sin cupos disponibles (requiere cobro de $15.000 COP)
-        if ($tenant->requiresImmediateExtraSeatCharge()) {
-            if (!$tenant->hasValidPaymentMethod()) {
-                throw ValidationException::withMessages([
-                    'email' => 'Debes registrar un método de pago válido antes de agregar usuarios adicionales a tu plan.',
-                ]);
-            }
-
-            $seatNumber = $tenant->activeUsersCount() + 1;
-            $this->boldService->chargeToken(
-                $tenant,
-                15000,
-                "Cupo Usuario Extra #{$seatNumber} ({$data['name']})"
-            );
-
-            // Incrementar cupos pagados cubiertos en este ciclo
-            $tenant->increment('paid_seats');
+        if (!$isCeoRole && !$tenant->canAddWorker()) {
+            throw ValidationException::withMessages([
+                'role' => 'Has alcanzado el límite de Usuarios Operario incluidos en tu plan.',
+            ]);
         }
 
-        // Caso B y finalización: Registrar o vincular usuario al taller
-        return DB::transaction(function () use ($data, $tenant): array {
+        // Registrar o vincular usuario al taller
+        return DB::transaction(function () use ($data, $tenant, $isCeoRole): array {
             /** @var User|null $user */
             $user = User::where('email', strtolower(trim($data['email'])))->first();
 
@@ -74,10 +60,12 @@ class AddTeamMemberAction
                 ]);
             }
 
+            $pivotRole = $isCeoRole ? 'owner' : 'worker';
+
             if ($tenant->users()->where('users.id', $user->id)->exists()) {
-                $tenant->users()->updateExistingPivot($user->id, ['role' => $data['role']]);
+                $tenant->users()->updateExistingPivot($user->id, ['role' => $pivotRole]);
             } else {
-                $tenant->users()->attach($user->id, ['role' => $data['role']]);
+                $tenant->users()->attach($user->id, ['role' => $pivotRole]);
             }
 
             // Sincronizar parallel_workers si el total de usuarios activos supera la capacidad previa

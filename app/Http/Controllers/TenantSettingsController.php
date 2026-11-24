@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\Team\AddTeamMemberAction;
 use App\Models\Tenant;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -62,7 +63,7 @@ class TenantSettingsController extends Controller
     /**
      * Add a team member (Worker or Co-Owner) to the workshop.
      */
-    public function addMember(Request $request, AddTeamMemberAction $action): RedirectResponse
+    public function addMember(Request $request, AddTeamMemberAction $action): RedirectResponse|JsonResponse
     {
         abort_if(auth()->user()?->currentRole() === 'worker', 403);
 
@@ -70,11 +71,37 @@ class TenantSettingsController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'email' => ['required', 'string', 'email', 'max:150'],
             'password' => ['required', 'string', 'min:6'],
-            'role' => ['required', 'string', 'in:worker,owner'],
+            'role' => ['required', 'string', 'in:worker,owner,admin'],
         ]);
 
         $tenant = $this->resolveTenant();
+        $isCeoRole = in_array($validated['role'], ['owner', 'admin'], true);
+
+        if ($isCeoRole && !$tenant->canAddCeo()) {
+            return $this->limitReachedResponse(
+                $request,
+                'ceo',
+                'Has alcanzado el límite de Usuarios CEO incluidos en tu plan.'
+            );
+        }
+
+        if (!$isCeoRole && !$tenant->canAddWorker()) {
+            return $this->limitReachedResponse(
+                $request,
+                'worker',
+                'Has alcanzado el límite de Usuarios Operario incluidos en tu plan.'
+            );
+        }
+
         $action->execute($validated, $tenant);
+
+        if ($request->expectsJson() && !$request->header('X-Inertia')) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Miembro del equipo registrado con éxito en el taller.',
+                'planQuotas' => $tenant->fresh()->getQuotaSummary(),
+            ], 201);
+        }
 
         return redirect()->back()->with('success', 'Miembro del equipo registrado con éxito en el taller.');
     }
@@ -82,14 +109,14 @@ class TenantSettingsController extends Controller
     /**
      * Update an existing team member's info and role.
      */
-    public function updateMember(Request $request, User $user): RedirectResponse
+    public function updateMember(Request $request, User $user): RedirectResponse|JsonResponse
     {
         abort_if(auth()->user()?->currentRole() === 'worker', 403);
 
         $tenant = $this->resolveTenant();
 
-        $isMember = $tenant->users()->where('users.id', $user->id)->exists();
-        if (!$isMember) {
+        $existingMember = $tenant->users()->where('users.id', $user->id)->first();
+        if ($existingMember === null) {
             abort(404, 'El usuario no pertenece a este taller.');
         }
 
@@ -106,7 +133,29 @@ class TenantSettingsController extends Controller
             'password' => ['nullable', 'string', 'min:6'],
         ]);
 
-        DB::transaction(function () use ($validated, $user, $tenant): void {
+        $currentPivotRole = (string) ($existingMember->pivot->role ?? 'worker');
+        $targetPivotRole = in_array($validated['role'], ['owner', 'admin'], true) ? 'owner' : 'worker';
+        $wasCeo = in_array($currentPivotRole, ['owner', 'admin'], true);
+        $willBeCeo = $targetPivotRole === 'owner';
+
+        if (!$user->isSuperAdmin() && $wasCeo !== $willBeCeo) {
+            if ($willBeCeo && !$tenant->canAddCeo()) {
+                return $this->limitReachedResponse(
+                    $request,
+                    'ceo',
+                    'Has alcanzado el límite de Usuarios CEO incluidos en tu plan.'
+                );
+            }
+            if (!$willBeCeo && !$tenant->canAddWorker()) {
+                return $this->limitReachedResponse(
+                    $request,
+                    'worker',
+                    'Has alcanzado el límite de Usuarios Operario incluidos en tu plan.'
+                );
+            }
+        }
+
+        DB::transaction(function () use ($validated, $user, $tenant, $targetPivotRole): void {
             $updateData = [
                 'name' => \Illuminate\Support\Str::title(trim($validated['name'])),
                 'email' => strtolower(trim($validated['email'])),
@@ -117,12 +166,36 @@ class TenantSettingsController extends Controller
             }
 
             $user->update($updateData);
-
-            $pivotRole = in_array($validated['role'], ['owner', 'admin'], true) ? 'owner' : 'worker';
-            $tenant->users()->updateExistingPivot($user->id, ['role' => $pivotRole]);
+            $tenant->users()->updateExistingPivot($user->id, ['role' => $targetPivotRole]);
         });
 
+        if ($request->expectsJson() && !$request->header('X-Inertia')) {
+            return response()->json([
+                'success' => true,
+                'message' => "Información del miembro '{$user->name}' actualizada con éxito.",
+                'planQuotas' => $tenant->fresh()->getQuotaSummary(),
+            ]);
+        }
+
         return redirect()->back()->with('success', "Información del miembro '{$user->name}' actualizada con éxito.");
+    }
+
+    /**
+     * Return a consistent quota limit response for JSON or Inertia requests.
+     */
+    private function limitReachedResponse(Request $request, string $addonType, string $message): JsonResponse|RedirectResponse
+    {
+        if ($request->expectsJson() && !$request->header('X-Inertia')) {
+            return response()->json([
+                'limit_reached' => true,
+                'addon_type' => $addonType,
+                'message' => $message,
+            ], 402);
+        }
+
+        return redirect()->back()
+            ->with('error', $message)
+            ->with('limit_reached_addon', $addonType);
     }
 
     /**

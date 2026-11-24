@@ -56,7 +56,10 @@ class RegisterTenantAction
         }
 
         return DB::transaction(function () use ($data, $tokenized): array {
-            $isPro = ($data['plan'] ?? 'standard') === 'pro';
+            $rawPlan = $data['plan_type'] ?? $data['plan'] ?? 'basic';
+            $planType = $rawPlan === 'pro' ? 'pro' : 'basic';
+            $billingCycle = ($data['billing_cycle'] ?? 'monthly') === 'annual' ? 'annual' : 'monthly';
+            $isPro = $planType === 'pro';
 
             $workshopName = trim($data['workshop_name']);
             $baseSlug = Str::slug($workshopName);
@@ -73,10 +76,11 @@ class RegisterTenantAction
 
             $settings = [
                 'currency' => 'COP',
-                'parallel_workers' => $isPro ? 5 : 1,
+                'parallel_workers' => $isPro ? 3 : 1,
                 'workdays' => [1, 2, 3, 4, 5, 6],
-                'plan' => $isPro ? 'pro' : 'standard',
-                'plan_name' => $isPro ? 'Plan Taller Pro' : 'Plan Estándar',
+                'plan' => $planType,
+                'plan_name' => $isPro ? 'Plan Profesional' : 'Plan Básico',
+                'billing_cycle' => $billingCycle,
                 'trial_ends_at' => $trialEnds->toIso8601String(),
                 'trial_active' => true,
             ];
@@ -90,7 +94,12 @@ class RegisterTenantAction
                 'settings' => $settings,
                 'trial_ends_at' => $trialEnds,
                 'subscription_status' => 'trialing',
-                'plan_type' => $isPro ? 'pro' : 'standard',
+                'plan_type' => $planType,
+                'billing_cycle' => $billingCycle,
+                'extra_ceo_seats' => 0,
+                'extra_worker_seats' => 0,
+                'extra_workflows' => 0,
+                'paid_seats' => $isPro ? 4 : 1,
                 'payment_method_token' => $tokenized['payment_method_token'] ?? null,
                 'bold_customer_id' => $tokenized['bold_customer_id'] ?? null,
                 'card_brand' => $tokenized['card_brand'] ?? null,

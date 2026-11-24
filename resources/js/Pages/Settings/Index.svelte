@@ -1,7 +1,9 @@
 <script>
     import { untrack } from 'svelte';
-    import { router, Link } from '@inertiajs/svelte';
+    import { router, Link, page } from '@inertiajs/svelte';
     import AppLayout from '../../Layouts/AppLayout.svelte';
+    import AddonPurchaseModal from '../../Components/AddonPurchaseModal.svelte';
+    import { csrfFetch } from '../../Utils/csrfFetch.js';
 
     let {
         profileUser = null,
@@ -31,6 +33,69 @@
     let settingsProcessing = $state(false);
     let memberProcessing = $state(false);
     let showAddMemberModal = $state(false);
+    let memberErrorMessage = $state('');
+    let editMemberErrorMessage = $state('');
+
+    // Control de cupos oficiales (Plan Básico / Pro + Adicionales)
+    let localPlanQuotas = $state(null);
+    $effect(() => {
+        const incomingQuotas = page.props.planQuotas;
+        untrack(() => {
+            if (incomingQuotas) {
+                localPlanQuotas = incomingQuotas;
+            }
+        });
+    });
+
+    let activePlanQuotas = $derived(localPlanQuotas ?? page.props.planQuotas ?? null);
+    let ceoQuota = $derived(activePlanQuotas?.quotas?.ceo ?? { used: 0, base: 1, extra: 0, max: 1, can_add: false });
+    let workerQuota = $derived(activePlanQuotas?.quotas?.worker ?? { used: 0, base: 0, extra: 0, max: 0, can_add: false });
+
+    // Modal de Compra de Adicionales
+    let addonModalOpen = $state(false);
+    let addonModalType = $state('worker');
+    let quotaSuccessToast = $state('');
+
+    function openAddonModal(type) {
+        addonModalType = type === 'ceo' ? 'ceo' : 'worker';
+        addonModalOpen = true;
+    }
+
+    function handleAddonPurchased(data) {
+        if (data?.planQuotas) {
+            localPlanQuotas = data.planQuotas;
+        }
+        quotaSuccessToast = data?.message || '¡Adicional habilitado correctamente! Ya puedes continuar.';
+        setTimeout(() => {
+            quotaSuccessToast = '';
+        }, 6000);
+    }
+
+    function roleHasQuota(role) {
+        const isCeo = role === 'owner' || role === 'admin';
+        return isCeo ? Boolean(ceoQuota.can_add) : Boolean(workerQuota.can_add);
+    }
+
+    function openAddMemberModal() {
+        memberErrorMessage = '';
+        // Preseleccionar un rol que tenga cupo si existe
+        if (workerQuota.can_add) {
+            memberForm.role = 'worker';
+        } else if (ceoQuota.can_add) {
+            memberForm.role = 'owner';
+        } else {
+            memberForm.role = 'worker';
+        }
+        showAddMemberModal = true;
+    }
+
+    function handleNewMemberRoleChange(e) {
+        const selectedRole = e.target.value;
+        memberForm.role = selectedRole;
+        if (!roleHasQuota(selectedRole)) {
+            openAddonModal(selectedRole === 'owner' ? 'ceo' : 'worker');
+        }
+    }
 
     // Estado y modal para editar miembro del equipo
     let showEditMemberModal = $state(false);
@@ -160,21 +225,51 @@
         });
     }
 
-    function submitMember(e) {
+    async function submitMember(e) {
         e.preventDefault();
+        memberErrorMessage = '';
+
+        if (!roleHasQuota(memberForm.role)) {
+            openAddonModal(memberForm.role === 'owner' ? 'ceo' : 'worker');
+            return;
+        }
+
         memberProcessing = true;
-        router.post('/settings/members', memberForm, {
-            preserveScroll: true,
-            onStart: () => { memberProcessing = true; },
-            onFinish: () => { memberProcessing = false; },
-            onSuccess: () => {
-                showAddMemberModal = false;
-                memberForm.name = '';
-                memberForm.email = '';
-                memberForm.password = '';
-                memberForm.role = 'worker';
-            },
-        });
+        try {
+            const res = await csrfFetch('/settings/members', {
+                method: 'POST',
+                body: JSON.stringify(memberForm),
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                if (data.limit_reached) {
+                    openAddonModal(data.addon_type || (memberForm.role === 'owner' ? 'ceo' : 'worker'));
+                    return;
+                }
+                if (data.errors && typeof data.errors === 'object') {
+                    const firstErr = Object.values(data.errors)[0];
+                    memberErrorMessage = Array.isArray(firstErr) ? firstErr[0] : String(firstErr);
+                } else {
+                    memberErrorMessage = data.message || 'No se pudo registrar el miembro.';
+                }
+                return;
+            }
+
+            if (data.planQuotas) {
+                localPlanQuotas = data.planQuotas;
+            }
+            showAddMemberModal = false;
+            memberForm.name = '';
+            memberForm.email = '';
+            memberForm.password = '';
+            memberForm.role = 'worker';
+            router.reload({ preserveScroll: true });
+        } catch (err) {
+            memberErrorMessage = err?.message || 'Error de conexión al registrar el miembro.';
+        } finally {
+            memberProcessing = false;
+        }
     }
 
     function upgradeAndAddMember() {
@@ -207,22 +302,57 @@
         editMemberForm.email = member.email ?? '';
         editMemberForm.role = member.pivot?.role ?? 'worker';
         editMemberForm.password = '';
+        editMemberErrorMessage = '';
         showEditMemberModal = true;
     }
 
-    function submitEditMember(e) {
+    async function submitEditMember(e) {
         e.preventDefault();
         if (!editingMember) return;
+        editMemberErrorMessage = '';
+
+        const prevRole = editingMember.pivot?.role ?? 'worker';
+        const prevIsCeo = prevRole === 'owner' || prevRole === 'admin';
+        const nextIsCeo = editMemberForm.role === 'owner' || editMemberForm.role === 'admin';
+
+        if (prevIsCeo !== nextIsCeo && !roleHasQuota(editMemberForm.role)) {
+            openAddonModal(nextIsCeo ? 'ceo' : 'worker');
+            return;
+        }
+
         editMemberProcessing = true;
-        router.put(`/settings/members/${editingMember.id}`, editMemberForm, {
-            preserveScroll: true,
-            onStart: () => { editMemberProcessing = true; },
-            onFinish: () => { editMemberProcessing = false; },
-            onSuccess: () => {
-                showEditMemberModal = false;
-                editingMember = null;
-            },
-        });
+        try {
+            const res = await csrfFetch(`/settings/members/${editingMember.id}`, {
+                method: 'PUT',
+                body: JSON.stringify(editMemberForm),
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                if (data.limit_reached) {
+                    openAddonModal(data.addon_type || (nextIsCeo ? 'ceo' : 'worker'));
+                    return;
+                }
+                if (data.errors && typeof data.errors === 'object') {
+                    const firstErr = Object.values(data.errors)[0];
+                    editMemberErrorMessage = Array.isArray(firstErr) ? firstErr[0] : String(firstErr);
+                } else {
+                    editMemberErrorMessage = data.message || 'No se pudo actualizar el miembro.';
+                }
+                return;
+            }
+
+            if (data.planQuotas) {
+                localPlanQuotas = data.planQuotas;
+            }
+            showEditMemberModal = false;
+            editingMember = null;
+            router.reload({ preserveScroll: true });
+        } catch (err) {
+            editMemberErrorMessage = err?.message || 'Error de conexión al actualizar el miembro.';
+        } finally {
+            editMemberProcessing = false;
+        }
     }
 
     function removeMember(member) {
@@ -578,64 +708,99 @@
                     </div>
                     <button
                         type="button"
-                        onclick={() => showAddMemberModal = true}
-                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+                        onclick={openAddMemberModal}
+                        class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
                     >
                         <span>+</span>
                         <span>Agregar Miembro</span>
                     </button>
                 </div>
 
-                <!-- BARRA DE CONTROL DE CUPOS PAGADOS Y ESTIMACIÓN MENSUAL -->
-                {#if seatsInfo}
-                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] space-y-3">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div>
-                                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                                    Control de Cupos y Facturación
-                                </span>
-                                <div class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">
-                                    Usuarios activos: <span class="text-[#4F46E5] dark:text-indigo-400">{seatsInfo.active_users_count}</span> de <span class="text-slate-700 dark:text-slate-300">{seatsInfo.paid_seats}</span> cupos cubiertos en tu ciclo actual
+                {#if quotaSuccessToast}
+                    <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+                        ✓ {quotaSuccessToast}
+                    </div>
+                {/if}
+
+                <!-- RESUMEN DE CUPOS SEPARADO: USUARIOS CEO Y USUARIOS OPERARIO -->
+                {#if activePlanQuotas}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Cupo Usuarios CEO -->
+                        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] space-y-2.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <div>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                                        Usuarios CEO - Administrador
+                                    </span>
+                                    <div class="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">
+                                        <span class="text-[#4F46E5] dark:text-indigo-400 font-mono">{ceoQuota.used}</span>
+                                        <span class="text-slate-400 mx-0.5">/</span>
+                                        <span class="font-mono">{ceoQuota.max}</span>
+                                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400 ml-1">permitidos</span>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <div class="text-left sm:text-right">
-                                <span class="text-[10px] uppercase font-bold text-slate-400 block">Próxima factura mensual estimada</span>
-                                <span class="text-sm font-black text-slate-900 dark:text-white">
-                                    {formatCurrency(seatsInfo.estimated_monthly_total)}
-                                </span>
-                                <span class="text-[11px] text-slate-500 dark:text-slate-400">/ mes</span>
-                            </div>
-                        </div>
-
-                        <!-- Barra de Progreso Visual de Cupos -->
-                        <div class="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                            <div
-                                class="h-full rounded-full transition-all duration-300 {seatsInfo.active_users_count > seatsInfo.paid_seats ? 'bg-amber-500' : 'bg-[#4F46E5]'}"
-                                style="width: {Math.min(100, Math.round((seatsInfo.active_users_count / Math.max(1, seatsInfo.paid_seats)) * 100))}%"
-                            ></div>
-                        </div>
-
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-0.5 gap-1">
-                            <div class="flex items-center gap-1.5">
-                                {#if seatsInfo.is_trial}
-                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
-                                        ✨ Prueba Gratis (Hasta 5 cupos sin cobro inmediato)
-                                    </span>
-                                {:else if seatsInfo.available_seats > 0}
-                                    <span class="text-emerald-600 dark:text-emerald-400 font-bold">
-                                        ✓ {seatsInfo.available_seats} {seatsInfo.available_seats === 1 ? 'cupo disponible' : 'cupos disponibles'} sin costo adicional
-                                    </span>
+                                {#if !ceoQuota.can_add}
+                                    <button
+                                        type="button"
+                                        onclick={() => openAddonModal('ceo')}
+                                        class="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-[#4F46E5]/10 hover:bg-[#4F46E5] text-[#4F46E5] hover:text-white border border-[#4F46E5]/30 transition-colors cursor-pointer"
+                                    >
+                                        + Comprar CEO
+                                    </button>
                                 {:else}
-                                    <span class="text-amber-600 dark:text-amber-400 font-bold">
-                                        Cupos base cubiertos. El siguiente usuario cuesta $15.000 COP/mes.
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                        Disponible
                                     </span>
                                 {/if}
                             </div>
+                            <div class="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                <div
+                                    class="h-full rounded-full transition-all duration-300 {ceoQuota.can_add ? 'bg-[#4F46E5]' : 'bg-amber-500'}"
+                                    style="width: {Math.min(100, Math.round((ceoQuota.used / Math.max(1, ceoQuota.max)) * 100))}%"
+                                ></div>
+                            </div>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                                Plan base: {ceoQuota.base} · Adicionales: {ceoQuota.extra} · {activePlanQuotas.plan_name}
+                            </p>
+                        </div>
 
-                            <span class="text-[10px] font-medium text-slate-400">
-                                Plan {seatsInfo.plan_type === 'pro' ? 'Taller Pro (5 base)' : 'Estándar (1 base)'}
-                            </span>
+                        <!-- Cupo Usuarios Operario -->
+                        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] space-y-2.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <div>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                                        Usuarios Operario
+                                    </span>
+                                    <div class="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">
+                                        <span class="text-[#4F46E5] dark:text-indigo-400 font-mono">{workerQuota.used}</span>
+                                        <span class="text-slate-400 mx-0.5">/</span>
+                                        <span class="font-mono">{workerQuota.max}</span>
+                                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400 ml-1">permitidos</span>
+                                    </div>
+                                </div>
+                                {#if !workerQuota.can_add}
+                                    <button
+                                        type="button"
+                                        onclick={() => openAddonModal('worker')}
+                                        class="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-[#4F46E5]/10 hover:bg-[#4F46E5] text-[#4F46E5] hover:text-white border border-[#4F46E5]/30 transition-colors cursor-pointer"
+                                    >
+                                        + Comprar Operario
+                                    </button>
+                                {:else}
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                        Disponible
+                                    </span>
+                                {/if}
+                            </div>
+                            <div class="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                <div
+                                    class="h-full rounded-full transition-all duration-300 {workerQuota.can_add ? 'bg-emerald-500' : 'bg-amber-500'}"
+                                    style="width: {workerQuota.max === 0 ? 100 : Math.min(100, Math.round((workerQuota.used / Math.max(1, workerQuota.max)) * 100))}%"
+                                ></div>
+                            </div>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                                Plan base: {workerQuota.base} · Adicionales: {workerQuota.extra} · {activePlanQuotas.plan_name}
+                            </p>
                         </div>
                     </div>
                 {/if}
@@ -697,50 +862,33 @@
                 <button type="button" onclick={() => showAddMemberModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
             </div>
 
-            <!-- BADGES Y AVISOS DE COBRO SEGÚN REGLAS DE CUPOS -->
-            {#if seatsInfo}
-                {#if seatsInfo.is_trial}
-                    <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center gap-2">
-                        <span class="text-emerald-500">✓</span>
-                        <span>Cupo disponible sin cobro inmediato (Prueba gratis: {seatsInfo.active_users_count}/5 usuarios)</span>
-                    </div>
-                {:else if seatsInfo.available_seats > 0}
-                    <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center gap-2">
-                        <span class="text-emerald-500">✓</span>
-                        <span>Cupo disponible sin cobro inmediato ({seatsInfo.available_seats} {seatsInfo.available_seats === 1 ? 'cupo cubierto' : 'cupos cubiertos'} restantes)</span>
-                    </div>
-                {:else if seatsInfo.requires_charge_for_new}
-                    <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs leading-relaxed space-y-1">
-                        <p class="font-extrabold flex items-center gap-1.5">
-                            <span>💳</span>
-                            <span>Cobro Inmediato de Usuario Extra</span>
-                        </p>
-                        <p>
-                            Agregar este usuario adicional tiene un costo de <strong>$15.000 COP/mes</strong>. Se realizará el cargo de $15.000 COP a tu tarjeta terminada en <strong>{seatsInfo.card_last_four ?? '****'}</strong> y tu cupo quedará activo de inmediato.
-                        </p>
-                    </div>
-                {/if}
+            <!-- AVISO DE CUPO SEGÚN ROL SELECCIONADO -->
+            {#if memberErrorMessage}
+                <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-medium">
+                    {memberErrorMessage}
+                </div>
+            {/if}
 
-                <!-- BANNER AZUL ELÉCTRICO PARA PLAN ESTÁNDAR QUE LLEGA A 4 O 5 MIEMBROS -->
-                {#if seatsInfo.plan_type === 'standard' && seatsInfo.active_users_count >= 3}
-                    <div class="p-4 rounded-2xl bg-gradient-to-br from-[#4F46E5]/20 via-[#4F46E5]/10 to-[#06B6D4]/10 border-2 border-[#4F46E5] text-white space-y-2.5">
-                        <div class="flex items-start gap-2.5">
-                            <span class="text-lg shrink-0">💡</span>
-                            <div>
-                                <h4 class="text-xs font-black text-white">¡Ahorra con el Plan Taller Pro!</h4>
-                                <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">
-                                    Con 4 o 5 usuarios te conviene pasar al Plan Taller Pro por <strong>$75.000 COP/mes</strong> (incluye 5 usuarios).
-                                </p>
-                            </div>
-                        </div>
+            {#if activePlanQuotas}
+                {@const selectedRoleAvailable = roleHasQuota(memberForm.role)}
+                {#if selectedRoleAvailable}
+                    <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center gap-2">
+                        <span class="text-emerald-500">✓</span>
+                        <span>
+                            Cupo disponible para {memberForm.role === 'owner' ? `CEO (${ceoQuota.used}/${ceoQuota.max})` : `Operario (${workerQuota.used}/${workerQuota.max})`}.
+                        </span>
+                    </div>
+                {:else}
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between gap-2">
+                        <span class="font-semibold">
+                            🔒 Límite alcanzado para {memberForm.role === 'owner' ? 'Usuarios CEO' : 'Usuarios Operario'}.
+                        </span>
                         <button
                             type="button"
-                            onclick={upgradeAndAddMember}
-                            disabled={memberProcessing}
-                            class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#4F46E5] to-[#4338CA] hover:from-[#4338CA] hover:to-[#3730A3] text-white font-extrabold text-xs shadow-md shadow-[#4F46E5]/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            onclick={() => openAddonModal(memberForm.role === 'owner' ? 'ceo' : 'worker')}
+                            class="px-2.5 py-1 rounded-lg bg-[#4F46E5] text-white font-bold text-[11px] shrink-0 cursor-pointer"
                         >
-                            <span>🚀</span>
-                            <span>Cambiar a Taller Pro y Agregar Usuario</span>
+                            Comprar Adicional
                         </button>
                     </div>
                 {/if}
@@ -788,11 +936,12 @@
                     <label for="m-role" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Rol en este Taller *</label>
                     <select
                         id="m-role"
-                        bind:value={memberForm.role}
+                        value={memberForm.role}
+                        onchange={handleNewMemberRoleChange}
                         class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                     >
-                        <option value="worker">Trabajador (Módulos Kanban, Pedidos, Productos, Inventario)</option>
-                        <option value="owner">Dueño Co-Administrador (Acceso a configuración)</option>
+                        <option value="worker">Operario ({workerQuota.used}/{workerQuota.max}) — Tableros Kanban y Solicitud de Materiales</option>
+                        <option value="owner">CEO - Administrador ({ceoQuota.used}/{ceoQuota.max}) — Acceso total a gestión y valores</option>
                     </select>
                 </div>
 
@@ -807,15 +956,9 @@
                     <button
                         type="submit"
                         disabled={memberProcessing}
-                        class="px-5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50"
+                        class="px-5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50 cursor-pointer"
                     >
-                        {#if memberProcessing}
-                            <span>Guardando...</span>
-                        {:else if seatsInfo?.requires_charge_for_new}
-                            <span>💳 Pagar $15.000 COP y Guardar</span>
-                        {:else}
-                            <span>Guardar Miembro</span>
-                        {/if}
+                        {memberProcessing ? 'Guardando...' : 'Guardar Miembro'}
                     </button>
                 </div>
             </form>
@@ -831,6 +974,12 @@
                 <h3 class="text-base font-bold text-slate-900 dark:text-white">Editar Miembro del Equipo</h3>
                 <button type="button" onclick={() => showEditMemberModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
             </div>
+
+            {#if editMemberErrorMessage}
+                <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-medium">
+                    {editMemberErrorMessage}
+                </div>
+            {/if}
 
             <form onsubmit={submitEditMember} class="space-y-4 text-xs">
                 <div>
@@ -913,3 +1062,12 @@
         </div>
     </div>
 {/if}
+
+<!-- MODAL DE COMPRA DE ADICIONALES (CEO / OPERARIO) -->
+<AddonPurchaseModal
+    open={addonModalOpen}
+    addonType={addonModalType}
+    planQuotas={activePlanQuotas}
+    onClose={() => addonModalOpen = false}
+    onPurchased={handleAddonPurchased}
+/>

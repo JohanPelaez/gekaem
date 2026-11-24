@@ -63,6 +63,15 @@ class QuickCreateController extends Controller
      */
     public function workflow(Request $request): JsonResponse
     {
+        $tenant = $request->user()?->currentTenant();
+        if ($tenant !== null && !$tenant->canAddWorkflow()) {
+            return response()->json([
+                'limit_reached' => true,
+                'addon_type' => 'workflow',
+                'message' => 'Has alcanzado el límite de Flujos de Trabajo incluidos en tu plan.',
+            ], 402);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:500'],
