@@ -121,7 +121,7 @@
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
     let isOwnerOrAdmin = $derived(authUser?.is_super_admin || authUser?.role === 'owner');
-    let isCeo = $derived(authUser?.role === 'owner');
+    let isCeo = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner'));
 
     function deleteOrder(order) {
         openActionMenuOrderId = null;

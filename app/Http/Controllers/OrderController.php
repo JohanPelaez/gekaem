@@ -179,14 +179,15 @@ class OrderController extends Controller
     }
 
     /**
-     * Display the Order History module (shipped orders) exclusively for CEO (owner).
+     * Display the Order History module (shipped orders) for CEO (owner) and Super Admin.
      */
     public function history(Request $request): Response
     {
         $user = $request->user();
-        abort_if(!$user || $user->currentRole() !== 'owner', 403, 'Acceso exclusivo para el rol CEO.');
+        $isAuthorized = $user !== null && ($user->isSuperAdmin() || $user->currentRole() === 'owner');
+        abort_if(!$isAuthorized, 403, 'Acceso exclusivo para el rol CEO o Super Admin.');
 
-        $tenant = $user->currentTenant();
+        $tenant = $user->currentTenant() ?? $this->resolveTenant();
         if ($tenant) {
             Tenant::ensureDefaultData($tenant->id);
         }
@@ -215,14 +216,15 @@ class OrderController extends Controller
     }
 
     /**
-     * Restore a shipped order from History back to an active board column (CEO only).
+     * Restore a shipped order from History back to an active board column (CEO or Super Admin).
      */
     public function restoreFromHistory(Request $request, Order $order): JsonResponse
     {
         $user = $request->user();
-        abort_if(!$user || $user->currentRole() !== 'owner', 403, 'Acceso exclusivo para el rol CEO.');
+        $isAuthorized = $user !== null && ($user->isSuperAdmin() || $user->currentRole() === 'owner');
+        abort_if(!$isAuthorized, 403, 'Acceso exclusivo para el rol CEO o Super Admin.');
 
-        $tenant = $user->currentTenant();
+        $tenant = $user->currentTenant() ?? $this->resolveTenant();
         abort_if(!$tenant || (int) $order->tenant_id !== (int) $tenant->id, 403, 'El pedido no pertenece a tu taller activo.');
 
         $validated = $request->validate([

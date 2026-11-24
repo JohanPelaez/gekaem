@@ -32,7 +32,7 @@
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
     let isOwnerOrAdmin = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner' || authUser?.role === 'admin'));
-    let isCeo = $derived(authUser?.role === 'owner');
+    let isCeo = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner'));
 
     let localShippedCount = $state(0);
     $effect(() => {

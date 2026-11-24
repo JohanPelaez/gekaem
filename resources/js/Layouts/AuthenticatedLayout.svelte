@@ -113,7 +113,7 @@
                 badge: null,
                 icon: 'kanban',
             },
-            ...(auth?.user?.role === 'owner'
+            ...(auth?.user?.role === 'owner' || auth?.user?.is_super_admin
                 ? [
                       {
                           name: 'Historial de Pedidos',
