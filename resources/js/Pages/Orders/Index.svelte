@@ -9,6 +9,7 @@
     import CalendarView from './CalendarView.svelte';
     import { canViewPrices } from '../../Utils/permissions.js';
     import { getPaymentScheduleAlert } from '../../Utils/paymentScheduleAlerts.js';
+    import { csrfFetch } from '../../Utils/csrfFetch.js';
 
     let {
         orders,
@@ -120,6 +121,7 @@
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
     let isOwnerOrAdmin = $derived(authUser?.is_super_admin || authUser?.role === 'owner');
+    let isCeo = $derived(authUser?.role === 'owner');
 
     function deleteOrder(order) {
         openActionMenuOrderId = null;
@@ -335,11 +337,75 @@
         }
     }
 
+    // Modal estilizado de confirmación "Marcar como Entregado" + Toast
+    let deliverConfirmModal = $state({
+        open: false,
+        order: null,
+        loading: false,
+        error: '',
+    });
+
+    let deliverToast = $state({ visible: false, message: '' });
+    let deliverToastTimer = null;
+
+    function showDeliverToast(message) {
+        if (deliverToastTimer) clearTimeout(deliverToastTimer);
+        deliverToast = { visible: true, message };
+        deliverToastTimer = setTimeout(() => {
+            deliverToast = { visible: false, message: '' };
+        }, 6000);
+    }
+
     function markDelivered(order) {
-        if (confirm(`¿Confirmar entrega final del pedido #${order.order_number}?`)) {
-            router.patch(`/orders/${order.id}/deliver`, {}, {
-                preserveScroll: true,
+        deliverConfirmModal = {
+            open: true,
+            order,
+            loading: false,
+            error: '',
+        };
+    }
+
+    function closeDeliverModal() {
+        if (deliverConfirmModal.loading) return;
+        deliverConfirmModal = {
+            open: false,
+            order: null,
+            loading: false,
+            error: '',
+        };
+    }
+
+    async function confirmMarkDelivered() {
+        const order = deliverConfirmModal.order;
+        if (!order) return;
+
+        deliverConfirmModal.loading = true;
+        deliverConfirmModal.error = '';
+
+        try {
+            const res = await csrfFetch(`/orders/${order.id}/deliver`, {
+                method: 'PATCH',
+                headers: { Accept: 'application/json' },
             });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || 'No se pudo marcar el pedido como entregado.');
+            }
+
+            const orderNum = order.order_number;
+            deliverConfirmModal = {
+                open: false,
+                order: null,
+                loading: false,
+                error: '',
+            };
+
+            showDeliverToast(`📦 Pedido #${orderNum} marcado como entregado y movido a Historial de Pedidos`);
+            router.reload({ preserveScroll: true });
+        } catch (err) {
+            deliverConfirmModal.error = err.message || 'Error al marcar el pedido como entregado.';
+            deliverConfirmModal.loading = false;
         }
     }
 
@@ -1536,6 +1602,97 @@
                 </button>
             </div>
         </div>
+    </div>
+{/if}
+
+<!-- MODAL DE CONFIRMACIÓN: MARCAR COMO ENTREGADO -->
+{#if deliverConfirmModal.open && deliverConfirmModal.order}
+    {@const targetOrder = deliverConfirmModal.order}
+    {@const pendingAmount = Math.max(0, Number(targetOrder.pending_balance ?? 0))}
+    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 text-slate-900 dark:text-slate-100">
+            <div class="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-[#26334D] pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base shrink-0">
+                        📦
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                            Marcar como Entregado
+                        </h3>
+                        <p class="text-xs text-[#64748B] dark:text-slate-400">
+                            Pedido <strong class="font-mono text-[#4F46E5] dark:text-sky-400">#{targetOrder.order_number}</strong> — {targetOrder.customer?.name ?? 'Cliente'}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onclick={closeDeliverModal}
+                    class="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg"
+                    aria-label="Cerrar modal"
+                >
+                    ✕
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                ¿Confirmas la entrega final de este pedido? Saldrá del Tablero de Pedidos y quedará registrado en el <strong>Historial de Pedidos</strong>.
+            </p>
+
+            {#if hasFinancialAccess && pendingAmount > 0}
+                <div class="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                    ⚠️ Este pedido tiene un saldo pendiente de <strong class="font-mono">{formatCurrency(pendingAmount)}</strong> (ej. Contraentrega). Al marcarlo como entregado pasará al Historial de Pedidos, donde podrás seguir registrando su cobro.
+                </div>
+            {/if}
+
+            {#if deliverConfirmModal.error}
+                <p class="text-xs text-rose-600 dark:text-rose-400 font-semibold">{deliverConfirmModal.error}</p>
+            {/if}
+
+            <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-[#26334D]">
+                <button
+                    type="button"
+                    onclick={closeDeliverModal}
+                    disabled={deliverConfirmModal.loading}
+                    class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-semibold transition"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    onclick={confirmMarkDelivered}
+                    disabled={deliverConfirmModal.loading}
+                    class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
+                >
+                    {deliverConfirmModal.loading ? 'Guardando...' : 'Confirmar Entrega'}
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}
+
+<!-- TOAST FLOTANTE DE ENTREGA -->
+{#if deliverToast.visible}
+    <div class="fixed bottom-5 right-5 z-50 max-w-md bg-slate-900 dark:bg-[#151D2C] text-white border border-slate-700 dark:border-[#26334D] rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3">
+        <span class="text-xs font-semibold leading-snug flex-1">
+            {deliverToast.message}
+        </span>
+        {#if isCeo}
+            <Link
+                href="/orders/history"
+                class="px-2.5 py-1 rounded-lg bg-[#4F46E5] hover:bg-[#4338CA] text-white text-[11px] font-bold shrink-0 transition"
+            >
+                Ver Historial
+            </Link>
+        {/if}
+        <button
+            type="button"
+            onclick={() => deliverToast = { visible: false, message: '' }}
+            class="text-slate-400 hover:text-white text-xs font-bold px-1 shrink-0"
+            aria-label="Cerrar notificación"
+        >
+            ✕
+        </button>
     </div>
 {/if}
 

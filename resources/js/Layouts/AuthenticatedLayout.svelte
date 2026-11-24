@@ -113,6 +113,16 @@
                 badge: null,
                 icon: 'kanban',
             },
+            ...(auth?.user?.role === 'owner'
+                ? [
+                      {
+                          name: 'Historial de Pedidos',
+                          href: '/orders/history',
+                          badge: null,
+                          icon: 'history',
+                      },
+                  ]
+                : []),
             {
                 name: 'Tablero de Trabajo',
                 href: '/kanban?view=workflows',
@@ -192,6 +202,12 @@
         }
         if (href === '/kanban') {
             return currentUrl.startsWith('/kanban') && !currentUrl.includes('view=workflows');
+        }
+        if (href === '/orders/history') {
+            return currentUrl.startsWith('/orders/history');
+        }
+        if (href === '/orders') {
+            return currentUrl.startsWith('/orders') && !currentUrl.startsWith('/orders/history');
         }
         if (href !== '/dashboard' && !href.startsWith('/kanban') && currentUrl.startsWith(href)) {
             return true;
@@ -333,6 +349,10 @@
                             {:else if item.icon === 'kanban'}
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+                                </svg>
+                            {:else if item.icon === 'history'}
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
                                 </svg>
                             {:else if item.icon === 'workflows_kanban'}
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">

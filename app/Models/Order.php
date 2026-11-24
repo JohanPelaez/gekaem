@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Traits\BelongsToTenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,6 +32,7 @@ class Order extends Model
         'predicted_delivery_at',
         'committed_delivery_at',
         'delivered_at',
+        'shipped_at',
         'kanban_swimlane_position',
         'total_amount',
         'notes',
@@ -65,6 +67,7 @@ class Order extends Model
             'predicted_delivery_at' => 'datetime',
             'committed_delivery_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'shipped_at' => 'datetime',
             'kanban_swimlane_position' => 'integer',
             'total_amount' => 'decimal:2',
         ];
@@ -248,5 +251,82 @@ class Order extends Model
     public function orderStatus(): BelongsTo
     {
         return $this->belongsTo(OrderStatus::class);
+    }
+
+    /**
+     * Scope orders that are active on the Kanban board (exact complement of inHistory).
+     *
+     * @param  Builder<Order>  $query
+     * @return Builder<Order>
+     */
+    public function scopeActiveOnBoard(Builder $query): Builder
+    {
+        return $query
+            ->where(function (Builder $q): void {
+                $q->whereNull('order_status_id')
+                    ->orWhereHas('orderStatus', fn (Builder $statusQuery) => $statusQuery->where('is_history_status', false));
+            })
+            ->where('derived_status', '!=', 'delivered')
+            ->whereNull('shipped_at');
+    }
+
+    /**
+     * Scope orders that belong to the Order History (shipped, delivered, or in a history status).
+     *
+     * @param  Builder<Order>  $query
+     * @return Builder<Order>
+     */
+    public function scopeInHistory(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q): void {
+            $q->whereHas('orderStatus', fn (Builder $statusQuery) => $statusQuery->where('is_history_status', true))
+                ->orWhere('derived_status', 'delivered')
+                ->orWhereNotNull('shipped_at');
+        });
+    }
+
+    /**
+     * Resolve (or automatically create) the history OrderStatus for a given tenant.
+     */
+    public static function resolveHistoryStatusForTenant(int $tenantId): OrderStatus
+    {
+        $historyStatus = OrderStatus::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenantId)
+            ->where('is_history_status', true)
+            ->orderBy('position')
+            ->first();
+
+        if ($historyStatus !== null) {
+            return $historyStatus;
+        }
+
+        $matchingByName = OrderStatus::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenantId)
+            ->where(function (Builder $q): void {
+                $q->whereRaw('LOWER(TRIM(name)) LIKE ?', ['%enviado%'])
+                    ->orWhereRaw('LOWER(TRIM(name)) LIKE ?', ['%entregado%']);
+            })
+            ->orderBy('position')
+            ->first();
+
+        if ($matchingByName !== null) {
+            $matchingByName->is_history_status = true;
+            $matchingByName->save();
+
+            return $matchingByName;
+        }
+
+        $maxPosition = (int) (OrderStatus::withoutGlobalScope('tenant')
+            ->where('tenant_id', $tenantId)
+            ->max('position') ?? 0);
+
+        return OrderStatus::withoutGlobalScope('tenant')->create([
+            'tenant_id' => $tenantId,
+            'name' => 'Enviado',
+            'system_key' => 'custom',
+            'color' => '#10b981',
+            'position' => $maxPosition + 1,
+            'is_history_status' => true,
+        ]);
     }
 }

@@ -21,6 +21,7 @@
     // Formulario de creación
     let newName = $state('');
     let newColor = $state('#6366f1');
+    let newIsHistoryStatus = $state(false);
     let isCreating = $state(false);
     let createError = $state('');
 
@@ -28,7 +29,11 @@
     let editingStatusId = $state(null);
     let editName = $state('');
     let editColor = $state('');
+    let editIsHistoryStatus = $state(false);
     let isSavingEdit = $state(false);
+    let actionError = $state('');
+    let confirmingDeleteId = $state(null);
+    let isDeleting = $state(false);
 
     // Estado de Drag & Drop para reordenar
     let draggedIndex = $state(null);
@@ -62,6 +67,7 @@
                 body: JSON.stringify({
                     name: newName.trim(),
                     color: newColor,
+                    is_history_status: Boolean(newIsHistoryStatus),
                 }),
             });
 
@@ -76,6 +82,7 @@
             }
             newName = '';
             newColor = '#6366f1';
+            newIsHistoryStatus = false;
             onStatusesChanged();
         } catch (err) {
             createError = err.message || 'No se pudo crear el estado.';
@@ -85,21 +92,26 @@
     }
 
     function startEdit(status) {
+        actionError = '';
+        confirmingDeleteId = null;
         editingStatusId = status.id;
         editName = status.name;
         editColor = status.color || '#64748b';
+        editIsHistoryStatus = Boolean(status.is_history_status);
     }
 
     function cancelEdit() {
         editingStatusId = null;
         editName = '';
         editColor = '';
+        editIsHistoryStatus = false;
     }
 
     async function saveEdit(statusId) {
         if (!editName.trim()) return;
 
         isSavingEdit = true;
+        actionError = '';
         try {
             const res = await csrfFetch(`/order-statuses/${statusId}`, {
                 method: 'PUT',
@@ -107,35 +119,33 @@
                 body: JSON.stringify({
                     name: editName.trim(),
                     color: editColor,
+                    is_history_status: Boolean(editIsHistoryStatus),
                 }),
             });
 
             if (!res.ok) {
-                throw new Error('Error al actualizar el estado.');
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || 'Error al actualizar el estado.');
             }
 
             const found = localStatuses.find((s) => s.id === statusId);
             if (found) {
                 found.name = editName.trim();
                 found.color = editColor;
+                found.is_history_status = Boolean(editIsHistoryStatus);
             }
             cancelEdit();
             onStatusesChanged();
         } catch (err) {
-            alert(err.message || 'Error al guardar cambios.');
+            actionError = err.message || 'Error al guardar cambios.';
         } finally {
             isSavingEdit = false;
         }
     }
 
-    async function handleDelete(status) {
-        const isSystem = status.system_key && status.system_key !== 'custom';
-        const msg = isSystem
-            ? `¿Estás seguro de eliminar el estado del sistema "${status.name}"? Los pedidos asignados pasarán al primer estado disponible.`
-            : `¿Eliminar el estado "${status.name}"? Los pedidos que estén en esta columna se reasignarán automáticamente.`;
-
-        if (!confirm(msg)) return;
-
+    async function confirmDelete(status) {
+        isDeleting = true;
+        actionError = '';
         try {
             const res = await csrfFetch(`/order-statuses/${status.id}`, {
                 method: 'DELETE',
@@ -146,9 +156,12 @@
             }
 
             localStatuses = localStatuses.filter((s) => s.id !== status.id);
+            confirmingDeleteId = null;
             onStatusesChanged();
         } catch (err) {
-            alert(err.message || 'Error al eliminar el estado.');
+            actionError = err.message || 'Error al eliminar el estado.';
+        } finally {
+            isDeleting = false;
         }
     }
 
@@ -286,10 +299,32 @@
                     {/each}
                 </div>
 
+                <!-- Opción de mover al Historial de Pedidos -->
+                <div class="pt-1.5 border-t border-slate-200/70 dark:border-[#26334D]/70">
+                    <label for="new-status-history" class="flex items-start gap-2.5 cursor-pointer select-none">
+                        <input
+                            id="new-status-history"
+                            type="checkbox"
+                            bind:checked={newIsHistoryStatus}
+                            class="mt-0.5 rounded border-slate-300 dark:border-slate-600 text-[#4F46E5] focus:ring-[#4F46E5] bg-white dark:bg-[#151D2C]"
+                        />
+                        <span class="text-[11px] font-medium text-slate-700 dark:text-slate-300 leading-snug">
+                            📦 Mover pedidos de este estado a Historial de Pedidos (evita que se acumulen en el tablero)
+                        </span>
+                    </label>
+                </div>
+
                 {#if createError}
                     <p class="text-[11px] text-rose-600 dark:text-rose-400">{createError}</p>
                 {/if}
             </form>
+
+            {#if actionError}
+                <div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 text-xs text-rose-700 dark:text-rose-300 flex items-center justify-between gap-2">
+                    <span>{actionError}</span>
+                    <button type="button" onclick={() => actionError = ''} class="font-bold">✕</button>
+                </div>
+            {/if}
 
             <!-- Lista de Estados Reordenables -->
             <div class="space-y-2">
@@ -315,45 +350,85 @@
                             >
                                 {#if editingStatusId === status.id}
                                     <!-- Modo Edición Inline -->
-                                    <div class="flex-1 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                                        <div class="sm:col-span-6">
-                                            <label for="edit-status-name-{status.id}" class="sr-only">Nombre</label>
-                                            <input
-                                                id="edit-status-name-{status.id}"
-                                                type="text"
-                                                bind:value={editName}
-                                                class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
-                                            />
+                                    <div class="flex-1 space-y-2.5">
+                                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                                            <div class="sm:col-span-6">
+                                                <label for="edit-status-name-{status.id}" class="block text-[10px] font-semibold text-[#64748B] dark:text-slate-400 mb-0.5">Nombre del Estado</label>
+                                                <input
+                                                    id="edit-status-name-{status.id}"
+                                                    type="text"
+                                                    bind:value={editName}
+                                                    class="w-full bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
+                                                />
+                                            </div>
+                                            <div class="sm:col-span-6 flex items-center gap-1.5">
+                                                <div class="flex items-center gap-1.5 flex-1">
+                                                    <label for="edit-color-picker-{status.id}" class="sr-only">Selector de Color</label>
+                                                    <input
+                                                        id="edit-color-picker-{status.id}"
+                                                        type="color"
+                                                        bind:value={editColor}
+                                                        class="w-6 h-6 rounded border-0 cursor-pointer bg-transparent shrink-0"
+                                                    />
+                                                    <label for="edit-color-text-{status.id}" class="sr-only">Color Hex</label>
+                                                    <input
+                                                        id="edit-color-text-{status.id}"
+                                                        type="text"
+                                                        bind:value={editColor}
+                                                        class="w-20 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-900 dark:text-white font-mono text-xs"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onclick={() => saveEdit(status.id)}
+                                                    disabled={isSavingEdit || !editName.trim()}
+                                                    class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs"
+                                                >
+                                                    ✓
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onclick={cancelEdit}
+                                                    class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-lg text-xs"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div class="sm:col-span-6 flex items-center gap-1.5">
-                                            <label for="edit-color-picker-{status.id}" class="sr-only">Color</label>
+
+                                        <label for="edit-status-history-{status.id}" class="flex items-start gap-2 cursor-pointer select-none pt-1">
                                             <input
-                                                id="edit-color-picker-{status.id}"
-                                                type="color"
-                                                bind:value={editColor}
-                                                class="w-6 h-6 rounded border-0 cursor-pointer bg-transparent shrink-0"
+                                                id="edit-status-history-{status.id}"
+                                                type="checkbox"
+                                                bind:checked={editIsHistoryStatus}
+                                                class="mt-0.5 rounded border-slate-300 dark:border-slate-600 text-[#4F46E5] focus:ring-[#4F46E5] bg-white dark:bg-[#151D2C]"
                                             />
-                                            <label for="edit-color-text-{status.id}" class="sr-only">Color Hex</label>
-                                            <input
-                                                id="edit-color-text-{status.id}"
-                                                type="text"
-                                                bind:value={editColor}
-                                                class="w-20 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-900 dark:text-white font-mono text-xs"
-                                            />
+                                            <span class="text-[11px] font-medium text-slate-700 dark:text-slate-300 leading-snug">
+                                                📦 Mover pedidos de este estado a Historial de Pedidos (evita que se acumulen en el tablero)
+                                            </span>
+                                        </label>
+                                    </div>
+                                {:else if confirmingDeleteId === status.id}
+                                    <!-- Confirmación Inline de Eliminación -->
+                                    <div class="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                        <span class="text-rose-700 dark:text-rose-300 font-medium">
+                                            ¿Eliminar <strong>"{status.name}"</strong>? Los pedidos pasarán a la primera columna disponible.
+                                        </span>
+                                        <div class="flex items-center gap-1.5 shrink-0">
                                             <button
                                                 type="button"
-                                                onclick={() => saveEdit(status.id)}
-                                                disabled={isSavingEdit || !editName.trim()}
-                                                class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-xs"
+                                                onclick={() => confirmingDeleteId = null}
+                                                class="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold"
                                             >
-                                                ✓
+                                                Cancelar
                                             </button>
                                             <button
                                                 type="button"
-                                                onclick={cancelEdit}
-                                                class="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-lg text-xs"
+                                                disabled={isDeleting}
+                                                onclick={() => confirmDelete(status)}
+                                                class="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold disabled:opacity-50"
                                             >
-                                                ✕
+                                                {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
                                             </button>
                                         </div>
                                     </div>
@@ -379,14 +454,19 @@
                                             style="background-color: {status.color || '#64748b'};"
                                         ></span>
 
-                                        <!-- Nombre y badge -->
-                                        <div class="flex items-center gap-2 truncate">
+                                        <!-- Nombre y badges -->
+                                        <div class="flex items-center gap-1.5 flex-wrap min-w-0">
                                             <span class="font-bold text-slate-900 dark:text-white text-xs truncate">
                                                 {status.name}
                                             </span>
                                             {#if status.system_key && status.system_key !== 'custom'}
                                                 <span class="px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 shrink-0">
                                                     Sistema
+                                                </span>
+                                            {/if}
+                                            {#if status.is_history_status}
+                                                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase bg-indigo-50 dark:bg-[#4F46E5]/20 text-[#4F46E5] dark:text-indigo-300 border border-indigo-200 dark:border-[#4F46E5]/40 shrink-0">
+                                                    📦 Historial
                                                 </span>
                                             {/if}
                                         </div>
@@ -398,13 +478,13 @@
                                             type="button"
                                             onclick={() => startEdit(status)}
                                             class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold border border-slate-200 dark:border-[#26334D] transition-colors"
-                                            title="Editar nombre y color"
+                                            title="Editar nombre, color y comportamiento"
                                         >
                                             ✏️ Editar
                                         </button>
                                         <button
                                             type="button"
-                                            onclick={() => handleDelete(status)}
+                                            onclick={() => { confirmingDeleteId = status.id; editingStatusId = null; }}
                                             class="p-1 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                                             title="Eliminar estado"
                                         >

@@ -42,8 +42,9 @@ class KanbanController extends Controller
         }
 
         $orderStatuses = OrderStatus::orderBy('position')->get();
+        $shippedOrdersCount = Order::inHistory()->count();
 
-        $orders = Order::where('derived_status', '!=', 'delivered')
+        $orders = Order::activeOnBoard()
             ->with([
                 'customer',
                 'orderStatus',
@@ -60,11 +61,10 @@ class KanbanController extends Controller
             ->orderBy('committed_delivery_at')
             ->get();
 
-        $allScheduledOrders = Order::query()
+        $allScheduledOrders = Order::activeOnBoard()
             ->where(function ($q): void {
                 $q->whereNotNull('committed_delivery_at')->orWhereNotNull('predicted_delivery_at');
             })
-            ->where('derived_status', '!=', 'delivered')
             ->with([
                 'customer:id,name',
                 'orderStatus',
@@ -75,11 +75,10 @@ class KanbanController extends Controller
             ->orderByRaw('COALESCE(committed_delivery_at, predicted_delivery_at) ASC')
             ->get();
 
-        $ordersCountByDate = Order::query()
+        $ordersCountByDate = Order::activeOnBoard()
             ->where(function ($q): void {
                 $q->whereNotNull('committed_delivery_at')->orWhereNotNull('predicted_delivery_at');
             })
-            ->where('derived_status', '!=', 'delivered')
             ->selectRaw('DATE(COALESCE(committed_delivery_at, predicted_delivery_at)) as date_key, COUNT(*) as aggregate_count')
             ->groupBy('date_key')
             ->pluck('aggregate_count', 'date_key')
@@ -89,6 +88,7 @@ class KanbanController extends Controller
             'workflows' => $workflows,
             'orders' => $orders,
             'orderStatuses' => $orderStatuses,
+            'shippedOrdersCount' => $shippedOrdersCount,
             'allScheduledOrders' => $allScheduledOrders,
             'ordersCountByDate' => $ordersCountByDate,
             'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone', 'email', 'document_number', 'tax_id', 'department', 'city', 'neighborhood', 'address']),
@@ -224,18 +224,30 @@ class KanbanController extends Controller
         DB::transaction(function () use ($order, $orderStatus, $moveAction): void {
             $order->order_status_id = $orderStatus->id;
 
-            if ($orderStatus->system_key && in_array($orderStatus->system_key, ['pending', 'in_progress', 'blocked', 'ready'], true)) {
-                $targetStatus = $orderStatus->system_key;
-                $targetCategory = ($targetStatus === 'ready') ? 'done' : $targetStatus;
+            if ($orderStatus->is_history_status) {
+                $now = now();
+                $order->derived_status = 'delivered';
+                $order->shipped_at = $now;
+                $order->delivered_at = $order->delivered_at ?? $now;
+            } else {
+                $order->shipped_at = null;
+                $order->delivered_at = null;
 
-                $tasks = $order->productionTasks()->with('workflow.stages')->get();
-                foreach ($tasks as $task) {
-                    $stage = $task->workflow?->stages->firstWhere('stage_category', $targetCategory);
-                    if ($stage && $task->current_stage_id !== $stage->id) {
-                        $moveAction->execute($task, $stage->id, 0);
+                if ($orderStatus->system_key && in_array($orderStatus->system_key, ['pending', 'in_progress', 'blocked', 'ready'], true)) {
+                    $targetStatus = $orderStatus->system_key;
+                    $targetCategory = ($targetStatus === 'ready') ? 'done' : $targetStatus;
+
+                    $tasks = $order->productionTasks()->with('workflow.stages')->get();
+                    foreach ($tasks as $task) {
+                        $stage = $task->workflow?->stages->firstWhere('stage_category', $targetCategory);
+                        if ($stage && $task->current_stage_id !== $stage->id) {
+                            $moveAction->execute($task, $stage->id, 0);
+                        }
                     }
+                    $order->derived_status = $targetStatus;
+                } elseif ($order->derived_status === 'delivered') {
+                    $order->derived_status = 'in_progress';
                 }
-                $order->derived_status = $targetStatus;
             }
 
             $order->save();
@@ -244,7 +256,10 @@ class KanbanController extends Controller
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => "Estado del pedido #{$order->order_number} actualizado.",
+                'moved_to_history' => (bool) $orderStatus->is_history_status,
+                'message' => $orderStatus->is_history_status
+                    ? "Pedido #{$order->order_number} enviado al Historial de Pedidos."
+                    : "Estado del pedido #{$order->order_number} actualizado.",
                 'order' => $order->fresh(['orderStatus', 'customer', 'payments']),
             ]);
         }

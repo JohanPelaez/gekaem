@@ -88,8 +88,10 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
         // Módulo 1: Pedidos, Calculadora Predictiva de Entrega y Cierre Kanban
         Route::prefix('orders')->name('orders.')->group(function (): void {
             Route::get('/', [OrderController::class, 'index'])->name('index');
+            Route::get('/history', [OrderController::class, 'history'])->name('history');
             Route::post('/', [OrderController::class, 'store'])->name('store');
             Route::put('/{order}', [OrderController::class, 'update'])->name('update');
+            Route::post('/{order}/restore', [OrderController::class, 'restoreFromHistory'])->name('restore');
             Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
             Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
             Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');

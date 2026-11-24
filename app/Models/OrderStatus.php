@@ -31,6 +31,7 @@ class OrderStatus extends Model
         'system_key',
         'color',
         'position',
+        'is_history_status',
     ];
 
     /**
@@ -42,6 +43,7 @@ class OrderStatus extends Model
     {
         return [
             'position' => 'integer',
+            'is_history_status' => 'boolean',
         ];
     }
 

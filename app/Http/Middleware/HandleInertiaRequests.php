@@ -57,7 +57,7 @@ class HandleInertiaRequests extends Middleware
         $pendingMaterialRequestsCount = 0;
 
         if ($tenant !== null) {
-            $activeOrdersCount = Order::where('derived_status', '!=', 'delivered')->count();
+            $activeOrdersCount = Order::activeOnBoard()->where('derived_status', '!=', 'delivered')->count();
             $materialAlertsCount = RawMaterial::whereColumn('current_stock', '<=', 'min_stock_alert')->count();
             $pendingMaterialRequestsCount = MaterialRequest::where('status', 'pending')->count();
         }

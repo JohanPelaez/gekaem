@@ -14,6 +14,7 @@
         workflows = [],
         orders = [],
         orderStatuses = [],
+        shippedOrdersCount = 0,
         allScheduledOrders = [],
         ordersCountByDate = {},
         customers = [],
@@ -31,6 +32,26 @@
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
     let isOwnerOrAdmin = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner' || authUser?.role === 'admin'));
+    let isCeo = $derived(authUser?.role === 'owner');
+
+    let localShippedCount = $state(0);
+    $effect(() => {
+        const incoming = shippedOrdersCount;
+        untrack(() => {
+            localShippedCount = Number(incoming || 0);
+        });
+    });
+
+    // Toast de confirmación al enviar pedido al Historial
+    let historyToast = $state({ visible: false, message: '' });
+    let historyToastTimer = null;
+    function showHistoryToast(message) {
+        if (historyToastTimer) clearTimeout(historyToastTimer);
+        historyToast = { visible: true, message };
+        historyToastTimer = setTimeout(() => {
+            historyToast = { visible: false, message: '' };
+        }, 6000);
+    }
 
     // Copia local de pedidos para optimismo reactivo
     let localOrders = $state([]);
@@ -728,16 +749,34 @@
         const targetStatus = localStatuses.find((s) => s.id === Number(newStatusId));
         if (!targetStatus) return;
 
-        // Actualización optimista
-        order.order_status_id = targetStatus.id;
-        if (targetStatus.system_key && targetStatus.system_key !== 'custom') {
-            order.derived_status = targetStatus.system_key;
-        }
+        const movingToHistory = Boolean(targetStatus.is_history_status);
+        const orderNumberSnapshot = order.order_number;
 
-        if (selectedOrderForDetail && selectedOrderForDetail.id === orderId) {
-            selectedOrderForDetail.order_status_id = targetStatus.id;
+        if (movingToHistory) {
+            // Remover inmediatamente del tablero activo y notificar
+            localOrders = localOrders.filter((o) => o.id !== orderId);
+            localShippedCount = localShippedCount + 1;
+            if (selectedOrderForDetail && selectedOrderForDetail.id === orderId) {
+                isDetailModalOpen = false;
+                selectedOrderForDetail = null;
+            }
+            if (activeOrderId && Number(activeOrderId) === Number(orderId)) {
+                activeOrderId = null;
+                selectedOrderWorkflowId = null;
+            }
+            showHistoryToast(`📦 Pedido #${orderNumberSnapshot} enviado al Historial de Pedidos`);
+        } else {
+            // Actualización optimista normal
+            order.order_status_id = targetStatus.id;
             if (targetStatus.system_key && targetStatus.system_key !== 'custom') {
-                selectedOrderForDetail.derived_status = targetStatus.system_key;
+                order.derived_status = targetStatus.system_key;
+            }
+
+            if (selectedOrderForDetail && selectedOrderForDetail.id === orderId) {
+                selectedOrderForDetail.order_status_id = targetStatus.id;
+                if (targetStatus.system_key && targetStatus.system_key !== 'custom') {
+                    selectedOrderForDetail.derived_status = targetStatus.system_key;
+                }
             }
         }
 
@@ -754,7 +793,7 @@
             }
 
             const data = await res.json().catch(() => null);
-            if (data?.order) {
+            if (!movingToHistory && data?.order) {
                 const idx = localOrders.findIndex((o) => o.id === orderId);
                 if (idx !== -1) {
                     localOrders[idx] = { ...localOrders[idx], ...data.order };
@@ -1284,34 +1323,78 @@
             {#if generalViewMode === 'kanban'}
                 <div class="flex flex-nowrap items-start gap-4 overflow-x-auto pb-4 w-full min-w-0">
                     {#each localStatuses as col (col.id)}
-                        {@const colOrders = ordersByStatusId.get(col.id) || []}
+                        {@const colOrders = col.is_history_status ? [] : (ordersByStatusId.get(col.id) || [])}
+                        {@const isDragOverCol = dragOverMacroStatusId === col.id}
                         <div
-                            class="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {dragOverMacroStatusId === col.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
+                            class="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {isDragOverCol ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
                             style="border-top: 4px solid {col.color || '#64748b'};"
                             ondragover={(e) => handleMacroDragOver(e, col.id)}
+                            ondragleave={() => { if (dragOverMacroStatusId === col.id) dragOverMacroStatusId = null; }}
                             ondrop={(e) => handleMacroDrop(e, col.id)}
                             role="region"
                             aria-label={`Columna ${col.name}`}
                         >
                             <!-- Cabecera de la Columna Dinámica -->
-                            <div class="p-4 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between">
+                            <div class="p-4 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between gap-2">
                                 <div class="flex items-center gap-2 min-w-0">
                                     <div class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background-color: {col.color || '#64748b'};"></div>
                                     <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide truncate" title={col.name}>
                                         {col.name}
                                     </h3>
                                 </div>
-                                <span
-                                    class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold shrink-0 shadow-sm"
-                                    style="background-color: {col.color || '#64748b'}18; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}35;"
-                                >
-                                    {colOrders.length}
-                                </span>
+                                {#if col.is_history_status}
+                                    <span
+                                        class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold shrink-0 shadow-sm"
+                                        style="background-color: {col.color || '#64748b'}18; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}35;"
+                                        title="Pedidos archivados en el Historial de Pedidos"
+                                    >
+                                        📦 {localShippedCount}
+                                    </span>
+                                {:else}
+                                    <span
+                                        class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold shrink-0 shadow-sm"
+                                        style="background-color: {col.color || '#64748b'}18; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}35;"
+                                    >
+                                        {colOrders.length}
+                                    </span>
+                                {/if}
                             </div>
 
-                            <!-- Lista de Tarjetas de Pedido en esta Columna -->
-                            <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[780px]">
-                                {#if colOrders.length === 0}
+                            <!-- Lista de Tarjetas o Zona de Envío (Drop Zone) para Historial -->
+                            <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[780px] {col.is_history_status ? 'flex flex-col' : ''}">
+                                {#if col.is_history_status}
+                                    <div
+                                        class="flex-1 rounded-2xl border-2 border-dashed p-6 flex flex-col items-center justify-center text-center gap-3 transition-all {isDragOverCol
+                                            ? 'border-[#4F46E5] bg-indigo-50/80 dark:bg-[#4F46E5]/15 scale-[1.01]'
+                                            : 'border-slate-300 dark:border-[#26334D] bg-white/60 dark:bg-[#0B0F17]/50'}"
+                                    >
+                                        <div
+                                            class="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-transform {isDragOverCol ? 'scale-110' : ''}"
+                                            style="background-color: {col.color || '#10b981'}18; color: {col.color || '#10b981'}; border: 1px solid {col.color || '#10b981'}35;"
+                                        >
+                                            <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m8.25 3v6.75m0 0l-3-3m3 3l3-3M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                                            </svg>
+                                        </div>
+                                        <div class="space-y-1.5 max-w-[220px]">
+                                            <p class="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                Zona de Envío / Archivo
+                                            </p>
+                                            <p class="text-[11px] text-[#64748B] dark:text-slate-400 leading-relaxed">
+                                                Arrastra aquí un pedido para marcarlo como Enviado y moverlo al Historial de Pedidos
+                                            </p>
+                                        </div>
+                                        {#if isCeo}
+                                            <Link
+                                                href="/orders/history"
+                                                class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-white dark:bg-[#151D2C] text-[#4F46E5] dark:text-indigo-300 border border-slate-200 dark:border-[#26334D] hover:border-[#4F46E5] shadow-xs transition"
+                                            >
+                                                <span>Ver Historial ({localShippedCount})</span>
+                                                <span>➔</span>
+                                            </Link>
+                                        {/if}
+                                    </div>
+                                {:else if colOrders.length === 0}
                                     <div class="py-12 text-center text-[#64748B] dark:text-slate-500 text-xs italic">
                                         No hay pedidos en este estado.
                                     </div>
@@ -1825,9 +1908,34 @@
     bind:isOpen={isStatusModalOpen}
     {orderStatuses}
     onStatusesChanged={() => {
-        router.reload({ preserveScroll: true, only: ['orderStatuses', 'orders'] });
+        router.reload({ preserveScroll: true, only: ['orderStatuses', 'orders', 'shippedOrdersCount'] });
     }}
 />
+
+<!-- TOAST FLOTANTE AL ENVIAR PEDIDO AL HISTORIAL -->
+{#if historyToast.visible}
+    <div class="fixed bottom-5 right-5 z-50 max-w-md bg-slate-900 dark:bg-[#151D2C] text-white border border-slate-700 dark:border-[#26334D] rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-150">
+        <span class="text-xs font-semibold leading-snug flex-1">
+            {historyToast.message}
+        </span>
+        {#if isCeo}
+            <Link
+                href="/orders/history"
+                class="px-2.5 py-1 rounded-lg bg-[#4F46E5] hover:bg-[#4338CA] text-white text-[11px] font-bold shrink-0 transition"
+            >
+                Ver Historial
+            </Link>
+        {/if}
+        <button
+            type="button"
+            onclick={() => historyToast = { visible: false, message: '' }}
+            class="text-slate-400 hover:text-white text-xs font-bold px-1 shrink-0"
+            aria-label="Cerrar notificación"
+        >
+            ✕
+        </button>
+    </div>
+{/if}
 
 <!-- MODAL DE DETALLE COMPLETO AL TOCAR CUALQUIER CARD EN EL TABLERO (PUNTO 18) -->
 <OrderDetailModal

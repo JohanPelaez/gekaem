@@ -48,12 +48,13 @@ class SyncOrderDerivedStatusAction
                 $needsSave = true;
             }
 
-            // Si el pedido no está en un estado personalizado del usuario, sincronizar su order_status_id
+            // Si el pedido no está en un estado personalizado ni en historial, sincronizar su order_status_id
             $currentStatus = $order->orderStatus;
             $isCustom = $currentStatus && $currentStatus->system_key === 'custom';
+            $isHistory = $currentStatus && $currentStatus->is_history_status;
             $targetKey = ($newStatus === 'delivered') ? 'ready' : $newStatus;
 
-            if (!$isCustom && in_array($targetKey, ['pending', 'in_progress', 'blocked', 'ready'], true)) {
+            if (!$isCustom && !$isHistory && in_array($targetKey, ['pending', 'in_progress', 'blocked', 'ready'], true)) {
                 $matchingStatus = \App\Models\OrderStatus::withoutGlobalScope('tenant')
                     ->where('tenant_id', $order->tenant_id)
                     ->where('system_key', $targetKey)

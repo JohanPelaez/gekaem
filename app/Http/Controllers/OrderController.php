@@ -12,6 +12,7 @@ use App\Actions\Orders\UpdateOrderAction;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderPayment;
+use App\Models\OrderStatus;
 use App\Models\OrthogonalAttribute;
 use App\Models\Product;
 use App\Models\ProductType;
@@ -159,13 +160,106 @@ class OrderController extends Controller
     }
 
     /**
-     * Mark an order as delivered when it is ready.
+     * Mark an order as delivered and move it to Order History.
      */
-    public function markDelivered(Order $order): RedirectResponse
+    public function markDelivered(Request $request, Order $order): JsonResponse|RedirectResponse
     {
-        $this->markOrderDeliveredAction->execute($order);
+        $updatedOrder = $this->markOrderDeliveredAction->execute($order);
+        $message = "📦 Pedido #{$order->order_number} marcado como entregado y movido a Historial de Pedidos.";
 
-        return redirect()->back()->with('success', "Pedido #{$order->order_number} marcado como entregado con éxito.");
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'order' => $updatedOrder,
+            ]);
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Display the Order History module (shipped orders) exclusively for CEO (owner).
+     */
+    public function history(Request $request): Response
+    {
+        $user = $request->user();
+        abort_if(!$user || $user->currentRole() !== 'owner', 403, 'Acceso exclusivo para el rol CEO.');
+
+        $tenant = $user->currentTenant();
+        if ($tenant) {
+            Tenant::ensureDefaultData($tenant->id);
+        }
+
+        $orders = Order::inHistory()
+            ->with([
+                'customer',
+                'orderStatus',
+                'payments.creator',
+                'paymentSchedules',
+                'productionTasks.productVariant.product',
+            ])
+            ->orderByDesc('shipped_at')
+            ->orderByDesc('updated_at')
+            ->get();
+
+        $activeStatuses = OrderStatus::where('is_history_status', false)
+            ->orderBy('position')
+            ->get();
+
+        return Inertia::render('Orders/History', [
+            'orders' => $orders,
+            'activeStatuses' => $activeStatuses,
+            'customers' => Customer::orderBy('name')->get(['id', 'name', 'phone']),
+        ]);
+    }
+
+    /**
+     * Restore a shipped order from History back to an active board column (CEO only).
+     */
+    public function restoreFromHistory(Request $request, Order $order): JsonResponse
+    {
+        $user = $request->user();
+        abort_if(!$user || $user->currentRole() !== 'owner', 403, 'Acceso exclusivo para el rol CEO.');
+
+        $tenant = $user->currentTenant();
+        abort_if(!$tenant || (int) $order->tenant_id !== (int) $tenant->id, 403, 'El pedido no pertenece a tu taller activo.');
+
+        $validated = $request->validate([
+            'order_status_id' => ['required', 'integer', 'exists:order_statuses,id'],
+        ]);
+
+        /** @var OrderStatus|null $targetStatus */
+        $targetStatus = OrderStatus::where('tenant_id', $tenant->id)
+            ->where('id', (int) $validated['order_status_id'])
+            ->where('is_history_status', false)
+            ->first();
+
+        if (!$targetStatus) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El estado de destino seleccionado no es válido o pertenece al historial.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($order, $targetStatus): void {
+            $order->order_status_id = $targetStatus->id;
+            $order->shipped_at = null;
+            $order->delivered_at = null;
+
+            $order->derived_status = ($targetStatus->system_key && in_array($targetStatus->system_key, ['pending', 'in_progress', 'blocked', 'ready'], true))
+                ? $targetStatus->system_key
+                : 'in_progress';
+
+            $order->save();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => "Pedido #{$order->order_number} devuelto a la columna \"{$targetStatus->name}\".",
+            'order' => $order->fresh(['customer', 'orderStatus']),
+            'target_status' => $targetStatus,
+        ]);
     }
 
     /**

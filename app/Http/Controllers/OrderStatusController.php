@@ -22,6 +22,7 @@ class OrderStatusController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'color' => ['required', 'regex:/^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/'],
+            'is_history_status' => ['nullable', 'boolean'],
         ]);
 
         $tenant = auth()->user()?->currentTenant();
@@ -33,6 +34,7 @@ class OrderStatusController extends Controller
             'color' => $validated['color'],
             'system_key' => 'custom',
             'position' => $nextPos,
+            'is_history_status' => (bool) ($validated['is_history_status'] ?? false),
         ]);
 
         if ($request->wantsJson()) {
@@ -43,22 +45,51 @@ class OrderStatusController extends Controller
     }
 
     /**
-     * Update the specified order status name and color.
+     * Update the specified order status name, color and history behavior.
      */
     public function update(Request $request, OrderStatus $orderStatus): JsonResponse|RedirectResponse
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'color' => ['required', 'regex:/^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/'],
+            'is_history_status' => ['nullable', 'boolean'],
         ]);
+
+        $isHistoryStatus = array_key_exists('is_history_status', $validated)
+            ? (bool) $validated['is_history_status']
+            : (bool) $orderStatus->is_history_status;
 
         $orderStatus->update([
             'name' => Str::title(trim($validated['name'])),
             'color' => $validated['color'],
+            'is_history_status' => $isHistoryStatus,
         ]);
 
+        if ($isHistoryStatus) {
+            Order::where('order_status_id', $orderStatus->id)
+                ->update([
+                    'derived_status' => 'delivered',
+                    'shipped_at' => DB::raw('COALESCE(shipped_at, NOW())'),
+                    'delivered_at' => DB::raw('COALESCE(delivered_at, NOW())'),
+                ]);
+        } else {
+            $activeDerived = ($orderStatus->system_key && in_array($orderStatus->system_key, ['pending', 'in_progress', 'blocked', 'ready'], true))
+                ? $orderStatus->system_key
+                : 'in_progress';
+
+            Order::where('order_status_id', $orderStatus->id)
+                ->where(function ($q): void {
+                    $q->whereNotNull('shipped_at')->orWhere('derived_status', 'delivered');
+                })
+                ->update([
+                    'shipped_at' => null,
+                    'delivered_at' => null,
+                    'derived_status' => $activeDerived,
+                ]);
+        }
+
         if ($request->wantsJson()) {
-            return response()->json(['success' => true, 'status' => $orderStatus]);
+            return response()->json(['success' => true, 'status' => $orderStatus->fresh()]);
         }
 
         return redirect()->back()->with('success', 'Estado de pedido actualizado.');
@@ -94,7 +125,10 @@ class OrderStatusController extends Controller
     {
         $fallback = OrderStatus::where('id', '!=', $orderStatus->id)->orderBy('position')->first();
         if ($fallback) {
-            Order::where('order_status_id', $orderStatus->id)->update(['order_status_id' => $fallback->id]);
+            Order::where('order_status_id', $orderStatus->id)->update([
+                'order_status_id' => $fallback->id,
+                'shipped_at' => $fallback->is_history_status ? now() : null,
+            ]);
         }
 
         $orderStatus->delete();
