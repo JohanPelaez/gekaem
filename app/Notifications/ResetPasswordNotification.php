@@ -38,11 +38,13 @@ class ResetPasswordNotification extends Notification
 
         return (new MailMessage)
             ->subject('Restablece tu contraseña — gipPyme')
-            ->greeting('Hola ' . ($notifiable->name ?? '') . ',')
-            ->line('Recibimos una solicitud para restablecer la contraseña de tu cuenta en gipPyme.')
-            ->action('Restablecer Contraseña', $url)
-            ->line('Este enlace expirará en 60 minutos por motivos de seguridad.')
-            ->line('Si no realizaste esta solicitud, puedes ignorar este correo de forma segura; tu contraseña actual no sufrirá cambios.')
-            ->salutation('Saludos, el equipo de gipPyme');
+            ->view(
+                ['emails.reset-password', 'emails.reset-password-text'],
+                [
+                    'userName' => $notifiable->name ?? 'Usuario',
+                    'resetUrl' => $url,
+                    'expireMinutes' => config('auth.passwords.' . config('auth.defaults.passwords') . '.expire', 60),
+                ],
+            );
     }
 }

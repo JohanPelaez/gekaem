@@ -42,10 +42,18 @@ class PasswordResetFlowTest extends TestCase
 
         Notification::assertSentTo($user, ResetPasswordNotification::class, function (ResetPasswordNotification $notification) use ($user): bool {
             $mail = $notification->toMail($user);
+            $html = view($mail->view[0], $mail->viewData)->render();
+            $text = view($mail->view[1], $mail->viewData)->render();
 
             return $mail->subject === 'Restablece tu contraseña — gipPyme'
-                && $mail->greeting === 'Hola María Gómez,'
-                && str_contains((string) $mail->actionUrl, '/reset-password/' . $notification->token);
+                && $mail->view === ['emails.reset-password', 'emails.reset-password-text']
+                && str_contains($html, 'Hola María Gómez,')
+                && str_contains($html, 'SEGURIDAD DE CUENTA')
+                && str_contains($html, '/reset-password/' . $notification->token)
+                && str_contains($html, 'soporte@gippyme.com')
+                && !str_contains($html, '<svg')
+                && str_contains($text, 'Hola María Gómez,')
+                && str_contains($text, '/reset-password/' . $notification->token);
         });
 
         // Non-existing user returns same generic message without exposing existence
