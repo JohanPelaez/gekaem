@@ -57,7 +57,7 @@ class OrderController extends Controller
             'orthogonalAttributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
             'attributes' => OrthogonalAttribute::with('options')->orderBy('name')->get(),
             'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
-            'wipQueueMinutes' => (int) ProductionTask::whereHas('currentStage', fn ($q) => $q->whereIn('stage_category', ['pending', 'in_progress']))->sum('estimated_minutes'),
+            'wipQueueMinutes' => (int) ProductionTask::whereHas('order')->whereHas('currentStage', fn ($q) => $q->whereIn('stage_category', ['pending', 'in_progress']))->sum('estimated_minutes'),
             'dailyProductiveMinutes' => $tenant->daily_productive_minutes ?? 480,
             'defaultBufferPercent' => $tenant->default_buffer_percent ?? 20,
         ]);
@@ -265,17 +265,16 @@ class OrderController extends Controller
     }
 
     /**
-     * Delete an order and its associated tasks/payments.
+     * Soft-delete an order and move it to the Recycle Bin for 8 calendar days.
      */
     public function destroy(Order $order): RedirectResponse
     {
-        DB::transaction(function () use ($order): void {
-            $order->payments()->delete();
-            $order->productionTasks()->delete();
-            $order->delete();
-        });
+        $orderNumber = $order->order_number;
+        $order->delete();
 
-        return redirect()->route('orders.index')->with('success', "Pedido #{$order->order_number} eliminado correctamente.");
+        return redirect()->route('orders.index')
+            ->with('success', "Pedido #{$orderNumber} enviado a la Papelera de Reciclaje. Estará disponible para recuperación durante 8 días calendario.")
+            ->with('trashed', true);
     }
 
     /**

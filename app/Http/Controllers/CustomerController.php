@@ -114,6 +114,8 @@ class CustomerController extends Controller
 
         $customer->delete();
 
-        return redirect()->back()->with('success', 'Cliente eliminado con éxito.');
+        return redirect()->back()
+            ->with('success', 'Elemento enviado a la Papelera de Reciclaje. Estará disponible para recuperación durante 8 días calendario.')
+            ->with('trashed', true);
     }
 }

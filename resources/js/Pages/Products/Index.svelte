@@ -1,20 +1,21 @@
 <script>
-    import { untrack } from 'svelte';
-    import { router, Link, page } from '@inertiajs/svelte';
-    import AppLayout from '../../Layouts/AppLayout.svelte';
-    import ViewToggle from '../../Components/ViewToggle.svelte';
-    import BarcodeViewer from '../../Components/BarcodeViewer.svelte';
-    import CurrencyInput from '../../Components/CurrencyInput.svelte';
-    import QuickCreateModal from '../../Components/QuickCreateModal.svelte';
-    import ProductFormModal from '../../Components/ProductFormModal.svelte';
-    import { csrfFetch } from '../../Utils/csrfFetch.js';
-    import { canViewPrices } from '../../Utils/permissions.js';
+    import { untrack } from "svelte";
+    import { router, Link, page } from "@inertiajs/svelte";
+    import AppLayout from "../../Layouts/AppLayout.svelte";
+    import ViewToggle from "../../Components/ViewToggle.svelte";
+    import BarcodeViewer from "../../Components/BarcodeViewer.svelte";
+    import CurrencyInput from "../../Components/CurrencyInput.svelte";
+    import QuickCreateModal from "../../Components/QuickCreateModal.svelte";
+    import ProductFormModal from "../../Components/ProductFormModal.svelte";
+    import ConfirmTrashModal from "../../Components/ConfirmTrashModal.svelte";
+    import { csrfFetch } from "../../Utils/csrfFetch.js";
+    import { canViewPrices } from "../../Utils/permissions.js";
     import {
         BARCODE_FORMATS,
         generateSequentialBarcode,
         validateBarcodeForFormat,
         downloadBarcodeAsPng,
-    } from '../../Utils/barcodeHelper.js';
+    } from "../../Utils/barcodeHelper.js";
 
     let {
         products,
@@ -23,31 +24,40 @@
         rawMaterials = [],
         orthogonalAttributes = [],
         unitsOfMeasure = [],
-        filters = { search: '', product_type_id: '', workflow_id: '' },
+        filters = { search: "", product_type_id: "", workflow_id: "" },
         errors = {},
     } = $props();
 
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
 
-    let search = $state('');
-    let productTypeFilter = $state('');
-    let workflowFilter = $state('');
+    let search = $state("");
+    let productTypeFilter = $state("");
+    let workflowFilter = $state("");
 
     $effect(() => {
         const incoming = filters;
         untrack(() => {
-            search = incoming.search ?? '';
-            productTypeFilter = incoming.product_type_id ? String(incoming.product_type_id) : '';
-            workflowFilter = incoming.workflow_id ? String(incoming.workflow_id) : '';
+            search = incoming.search ?? "";
+            productTypeFilter = incoming.product_type_id
+                ? String(incoming.product_type_id)
+                : "";
+            workflowFilter = incoming.workflow_id
+                ? String(incoming.workflow_id)
+                : "";
         });
     });
 
-    let viewMode = $state('table'); // 'table' | 'cards'
-    let activeTab = $state('products'); // 'products' | 'types' | 'attributes'
+    let viewMode = $state("table"); // 'table' | 'cards'
+    let activeTab = $state("products"); // 'products' | 'types' | 'attributes'
     let expandedRows = $state(new Set());
     let openActionMenuProdId = $state(null);
-    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+    let menuCoords = $state({
+        top: 0,
+        right: 0,
+        openUpwards: false,
+        rectTop: 0,
+    });
 
     function toggleActionMenu(e, prodId) {
         e.stopPropagation();
@@ -99,36 +109,52 @@
 
     // Listas ordenadas alfabéticamente (A-Z) mediante $derived
     let sortedRawMaterials = $derived(
-        localRawMaterials.toSorted((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
+        localRawMaterials.toSorted((a, b) =>
+            (a.name || "").localeCompare(b.name || "", "es"),
+        ),
     );
     let sortedUnitsOfMeasure = $derived(
         unitsOfMeasure.toSorted((a, b) => {
-            const nameA = typeof a === 'object' && a !== null ? (a.name || '') : String(a || '');
-            const nameB = typeof b === 'object' && b !== null ? (b.name || '') : String(b || '');
-            return nameA.localeCompare(nameB, 'es');
-        })
+            const nameA =
+                typeof a === "object" && a !== null
+                    ? a.name || ""
+                    : String(a || "");
+            const nameB =
+                typeof b === "object" && b !== null
+                    ? b.name || ""
+                    : String(b || "");
+            return nameA.localeCompare(nameB, "es");
+        }),
     );
     let sortedWorkflows = $derived(
-        localWorkflows.toSorted((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
+        localWorkflows.toSorted((a, b) =>
+            (a.name || "").localeCompare(b.name || "", "es"),
+        ),
     );
 
     // Estado para agregar opciones inline a atributos
     let activeAddOptionAttrId = $state(null);
-    let newOptionValue = $state('');
+    let newOptionValue = $state("");
     let optionInlineLoading = $state(false);
 
     async function handleSaveOptionInline(attr) {
         if (!newOptionValue.trim()) return;
         optionInlineLoading = true;
         try {
-            const rawOptions = newOptionValue.split(',').map((opt) => opt.trim()).filter(Boolean);
+            const rawOptions = newOptionValue
+                .split(",")
+                .map((opt) => opt.trim())
+                .filter(Boolean);
             if (rawOptions.length === 0) return;
 
             for (const val of rawOptions) {
-                const res = await csrfFetch(`/quick/attributes/${attr.id}/options`, {
-                    method: 'POST',
-                    body: JSON.stringify({ value: val }),
-                });
+                const res = await csrfFetch(
+                    `/quick/attributes/${attr.id}/options`,
+                    {
+                        method: "POST",
+                        body: JSON.stringify({ value: val }),
+                    },
+                );
                 const created = await res.json().catch(() => ({}));
                 if (res.ok && created.id) {
                     localAttributes = localAttributes.map((a) => {
@@ -142,10 +168,10 @@
                     });
                 }
             }
-            newOptionValue = '';
+            newOptionValue = "";
             activeAddOptionAttrId = null;
         } catch (e) {
-            console.error('Error creating inline option:', e);
+            console.error("Error creating inline option:", e);
         } finally {
             optionInlineLoading = false;
         }
@@ -153,7 +179,7 @@
 
     // Modales secundarios de Quick Create
     let quickModalOpen = $state(false);
-    let quickModalType = $state('product-type');
+    let quickModalType = $state("product-type");
     let quickTargetBOMIndex = $state(null);
 
     function openQuickCreate(type) {
@@ -162,58 +188,73 @@
     }
 
     function handleQuickSuccess(created) {
-        if (quickModalType === 'product-type') {
+        if (quickModalType === "product-type") {
             localProductTypes = [...localProductTypes, created];
-        } else if (quickModalType === 'workflow') {
+        } else if (quickModalType === "workflow") {
             localWorkflows = [...localWorkflows, created];
-        } else if (quickModalType === 'raw-material') {
+        } else if (quickModalType === "raw-material") {
             localRawMaterials = [...localRawMaterials, created];
-        } else if (quickModalType === 'attribute') {
+        } else if (quickModalType === "attribute") {
             localAttributes = [...localAttributes, created];
         }
         quickModalOpen = false;
-        router.reload({ only: ['products', 'productTypes', 'workflows', 'rawMaterials', 'orthogonalAttributes'] });
+        router.reload({
+            only: [
+                "products",
+                "productTypes",
+                "workflows",
+                "rawMaterials",
+                "orthogonalAttributes",
+            ],
+        });
     }
 
     let showEditTypeModal = $state(false);
-    let editTypeName = $state('');
+    let editTypeName = $state("");
     let editingTypeId = $state(null);
-    let editTypeErrorMessage = $state('');
+    let editTypeErrorMessage = $state("");
     let editTypeProcessing = $state(false);
 
     function openEditProductTypeModal(pt) {
         if (!pt) return;
         editingTypeId = pt.id;
         editTypeName = pt.name;
-        editTypeErrorMessage = '';
+        editTypeErrorMessage = "";
         showEditTypeModal = true;
     }
 
     async function handleSaveEditedProductType() {
         if (!editTypeName.trim() || !editingTypeId) return;
         editTypeProcessing = true;
-        editTypeErrorMessage = '';
+        editTypeErrorMessage = "";
 
         try {
-            const res = await csrfFetch(`/quick/product-types/${editingTypeId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ name: editTypeName.trim() }),
-            });
+            const res = await csrfFetch(
+                `/quick/product-types/${editingTypeId}`,
+                {
+                    method: "PUT",
+                    body: JSON.stringify({ name: editTypeName.trim() }),
+                },
+            );
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.id) {
                 localProductTypes = localProductTypes.map((t) =>
-                    Number(t.id) === Number(data.id) ? { ...t, name: data.name } : t
+                    Number(t.id) === Number(data.id)
+                        ? { ...t, name: data.name }
+                        : t,
                 );
                 showEditTypeModal = false;
                 editingTypeId = null;
-                editTypeName = '';
-                router.reload({ only: ['productTypes', 'products'] });
+                editTypeName = "";
+                router.reload({ only: ["productTypes", "products"] });
             } else {
-                editTypeErrorMessage = data.message || 'Error al actualizar el Tipo de Producto.';
+                editTypeErrorMessage =
+                    data.message || "Error al actualizar el Tipo de Producto.";
             }
         } catch (e) {
-            console.error('Error updating product type:', e);
-            editTypeErrorMessage = 'Error de conexión al actualizar el Tipo de Producto.';
+            console.error("Error updating product type:", e);
+            editTypeErrorMessage =
+                "Error de conexión al actualizar el Tipo de Producto.";
         } finally {
             editTypeProcessing = false;
         }
@@ -233,31 +274,31 @@
 
     // Formulario de Tipo de Producto en Svelte 5 Rune
     let typeForm = $state({
-        name: '',
+        name: "",
     });
 
     function resetTypeForm() {
-        typeForm.name = '';
+        typeForm.name = "";
     }
 
     // Formulario de Atributo Ortogonal en Svelte 5 Rune
     let attributeForm = $state({
-        name: '',
+        name: "",
     });
 
     function resetAttributeForm() {
-        attributeForm.name = '';
+        attributeForm.name = "";
     }
 
     // Formulario de Opción de Atributo en Svelte 5 Rune
     let optionForm = $state({
-        value: '',
-        sku_suffix: '',
+        value: "",
+        sku_suffix: "",
     });
 
     function resetOptionForm() {
-        optionForm.value = '';
-        optionForm.sku_suffix = '';
+        optionForm.value = "";
+        optionForm.sku_suffix = "";
     }
 
     let searchTimeout;
@@ -270,7 +311,7 @@
 
     function applyFilters() {
         router.get(
-            '/products',
+            "/products",
             {
                 search,
                 product_type_id: productTypeFilter,
@@ -281,9 +322,9 @@
     }
 
     function clearFilters() {
-        search = '';
-        productTypeFilter = '';
-        workflowFilter = '';
+        search = "";
+        productTypeFilter = "";
+        workflowFilter = "";
         applyFilters();
     }
 
@@ -309,10 +350,14 @@
 
     function submitType(e) {
         e.preventDefault();
-        router.post('/product-types', typeForm, {
+        router.post("/product-types", typeForm, {
             preserveScroll: true,
-            onStart: () => { typeProcessing = true; },
-            onFinish: () => { typeProcessing = false; },
+            onStart: () => {
+                typeProcessing = true;
+            },
+            onFinish: () => {
+                typeProcessing = false;
+            },
             onSuccess: () => {
                 showTypeModal = false;
                 resetTypeForm();
@@ -322,10 +367,14 @@
 
     function submitAttribute(e) {
         e.preventDefault();
-        router.post('/orthogonal-attributes', attributeForm, {
+        router.post("/orthogonal-attributes", attributeForm, {
             preserveScroll: true,
-            onStart: () => { attributeProcessing = true; },
-            onFinish: () => { attributeProcessing = false; },
+            onStart: () => {
+                attributeProcessing = true;
+            },
+            onFinish: () => {
+                attributeProcessing = false;
+            },
             onSuccess: () => {
                 showAttributeModal = false;
                 resetAttributeForm();
@@ -342,58 +391,93 @@
     function submitOption(e) {
         e.preventDefault();
         if (!selectedAttributeForOption) return;
-        router.post(`/orthogonal-attributes/${selectedAttributeForOption.id}/options`, optionForm, {
+        router.post(
+            `/orthogonal-attributes/${selectedAttributeForOption.id}/options`,
+            optionForm,
+            {
+                preserveScroll: true,
+                onStart: () => {
+                    optionProcessing = true;
+                },
+                onFinish: () => {
+                    optionProcessing = false;
+                },
+                onSuccess: () => {
+                    showOptionModal = false;
+                    resetOptionForm();
+                },
+            },
+        );
+    }
+
+    let productToDelete = $state(null);
+    let deleteProductProcessing = $state(false);
+
+    function destroyProduct(prod) {
+        openActionMenuProdId = null;
+        productToDelete = prod;
+    }
+
+    function confirmDeleteProduct() {
+        if (!productToDelete || deleteProductProcessing) return;
+        router.delete(`/products/${productToDelete.id}`, {
             preserveScroll: true,
-            onStart: () => { optionProcessing = true; },
-            onFinish: () => { optionProcessing = false; },
-            onSuccess: () => {
-                showOptionModal = false;
-                resetOptionForm();
+            onStart: () => {
+                deleteProductProcessing = true;
+            },
+            onFinish: () => {
+                deleteProductProcessing = false;
+                productToDelete = null;
             },
         });
     }
 
-    function destroyProduct(prod) {
-        if (confirm(`¿Estás seguro de eliminar el producto "${prod.name}"?`)) {
-            router.delete(`/products/${prod.id}`, {
-                preserveScroll: true,
-            });
-        }
-    }
-
     function formatCurrency(amount) {
-        return new Intl.NumberFormat('es-CO', {
-            style: 'currency',
-            currency: 'COP',
+        return new Intl.NumberFormat("es-CO", {
+            style: "currency",
+            currency: "COP",
             maximumFractionDigits: 0,
         }).format(Number(amount || 0));
     }
 </script>
 
-<svelte:window onclick={() => openActionMenuProdId = null} onscroll={() => openActionMenuProdId = null} />
+<svelte:window
+    onclick={() => (openActionMenuProdId = null)}
+    onscroll={() => (openActionMenuProdId = null)}
+/>
 
 <AppLayout title="Catálogo de Productos">
     <div class="space-y-4 w-full max-w-none">
         <!-- HEADER -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 text-slate-900 dark:text-slate-100">
+        <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 text-slate-900 dark:text-slate-100"
+        >
             <div>
-                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Catálogo de Productos</h1>
+                <h1
+                    class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white"
+                >
+                    Catálogo de Productos
+                </h1>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Productos maestros, recetas de materiales (BOM) y variantes ortogonales.
+                    Productos maestros, recetas de materiales (BOM) y variantes
+                    ortogonales.
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2 shrink-0">
-                <ViewToggle bind:mode={viewMode} storageKey="gekaem_products_view" />
+                <ViewToggle
+                    bind:mode={viewMode}
+                    storageKey="gekaem_products_view"
+                />
                 <button
                     type="button"
-                    onclick={() => showTypeModal = true}
+                    onclick={() => (showTypeModal = true)}
                     class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors"
                 >
                     + Tipo
                 </button>
                 <button
                     type="button"
-                    onclick={() => showAttributeModal = true}
+                    onclick={() => (showAttributeModal = true)}
                     class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 font-semibold text-xs border border-slate-200 dark:border-[#26334D] transition-colors"
                 >
                     + Atributo
@@ -410,37 +494,54 @@
         </div>
 
         <!-- PESTAÑAS DE VISTA -->
-        <div class="flex items-center gap-2 border-b border-slate-200 dark:border-[#26334D] pb-2 text-xs font-semibold">
+        <div
+            class="flex items-center gap-2 border-b border-slate-200 dark:border-[#26334D] pb-2 text-xs font-semibold"
+        >
             <button
                 type="button"
-                onclick={() => activeTab = 'products'}
-                class="px-4 py-2 rounded-xl transition-all {activeTab === 'products' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                onclick={() => (activeTab = "products")}
+                class="px-4 py-2 rounded-xl transition-all {activeTab ===
+                'products'
+                    ? 'bg-[#4F46E5] text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
             >
                 Productos y Variantes ({products.total ?? 0})
             </button>
             <button
                 type="button"
-                onclick={() => activeTab = 'attributes'}
-                class="px-4 py-2 rounded-xl transition-all {activeTab === 'attributes' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                onclick={() => (activeTab = "attributes")}
+                class="px-4 py-2 rounded-xl transition-all {activeTab ===
+                'attributes'
+                    ? 'bg-[#4F46E5] text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
             >
                 Atributos y Opciones ({localAttributes.length})
             </button>
             <button
                 type="button"
-                onclick={() => activeTab = 'types'}
-                class="px-4 py-2 rounded-xl transition-all {activeTab === 'types' ? 'bg-[#4F46E5] text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                onclick={() => (activeTab = "types")}
+                class="px-4 py-2 rounded-xl transition-all {activeTab ===
+                'types'
+                    ? 'bg-[#4F46E5] text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
             >
                 Tipos de Producto ({productTypes.length})
             </button>
         </div>
 
         <!-- PESTAÑA 1: CATÁLOGO DE PRODUCTOS -->
-        {#if activeTab === 'products'}
+        {#if activeTab === "products"}
             <!-- BUSCADOR Y FILTROS COMBINADOS -->
-            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
-                <div class="flex-1 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] px-3 py-2 rounded-xl flex items-center gap-2">
+            <div
+                class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3.5 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm"
+            >
+                <div
+                    class="flex-1 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] px-3 py-2 rounded-xl flex items-center gap-2"
+                >
                     <span class="text-slate-400 text-xs">🔍</span>
-                    <label for="search-products" class="sr-only">Buscar producto</label>
+                    <label for="search-products" class="sr-only"
+                        >Buscar producto</label
+                    >
                     <input
                         id="search-products"
                         type="text"
@@ -450,13 +551,23 @@
                         class="w-full bg-transparent text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none"
                     />
                     {#if search}
-                        <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-400 text-xs hover:text-slate-600 dark:hover:text-white">✕</button>
+                        <button
+                            type="button"
+                            onclick={() => {
+                                search = "";
+                                applyFilters();
+                            }}
+                            class="text-slate-400 text-xs hover:text-slate-600 dark:hover:text-white"
+                            >✕</button
+                        >
                     {/if}
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 text-xs">
                     <div class="flex items-center gap-1.5">
-                        <label for="filter-product-type" class="sr-only">Filtrar por tipo de producto</label>
+                        <label for="filter-product-type" class="sr-only"
+                            >Filtrar por tipo de producto</label
+                        >
                         <select
                             id="filter-product-type"
                             bind:value={productTypeFilter}
@@ -469,11 +580,15 @@
                             {/each}
                         </select>
                         {#if productTypeFilter}
-                            {@const selectedPt = localProductTypes.find(pt => String(pt.id) === String(productTypeFilter))}
+                            {@const selectedPt = localProductTypes.find(
+                                (pt) =>
+                                    String(pt.id) === String(productTypeFilter),
+                            )}
                             {#if selectedPt}
                                 <button
                                     type="button"
-                                    onclick={() => openEditProductTypeModal(selectedPt)}
+                                    onclick={() =>
+                                        openEditProductTypeModal(selectedPt)}
                                     class="px-2.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-semibold border border-amber-500/30 transition-colors flex items-center gap-1"
                                     title="Renombrar este tipo de producto"
                                 >
@@ -484,7 +599,9 @@
                         {/if}
                     </div>
 
-                    <label for="filter-workflow" class="sr-only">Filtrar por flujo</label>
+                    <label for="filter-workflow" class="sr-only"
+                        >Filtrar por flujo</label
+                    >
                     <select
                         id="filter-workflow"
                         bind:value={workflowFilter}
@@ -511,103 +628,200 @@
             </div>
 
             <!-- VISTA TABLA EXPANDIBLE (DEFAULT) -->
-            {#if viewMode === 'table'}
-                <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
+            {#if viewMode === "table"}
+                <div
+                    class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm"
+                >
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-200 dark:border-[#26334D]">
+                            <thead
+                                class="bg-slate-50/80 dark:bg-[#0B0F17]/60 text-[#64748B] dark:text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-200 dark:border-[#26334D]"
+                            >
                                 <tr>
-                                    <th class="py-2.5 px-3 w-10 text-center"></th>
-                                    <th class="py-2.5 px-3 whitespace-nowrap">Código / Barcode</th>
-                                    <th class="py-2.5 px-3 whitespace-nowrap">Producto</th>
-                                    <th class="py-2.5 px-3 whitespace-nowrap">Tipo</th>
-                                    <th class="py-2.5 px-3 whitespace-nowrap">Flujo Kanban</th>
-                                    <th class="py-2.5 px-3 whitespace-nowrap">Tiempo Fabr.</th>
+                                    <th class="py-2.5 px-3 w-10 text-center"
+                                    ></th>
+                                    <th class="py-2.5 px-3 whitespace-nowrap"
+                                        >Código / Barcode</th
+                                    >
+                                    <th class="py-2.5 px-3 whitespace-nowrap"
+                                        >Producto</th
+                                    >
+                                    <th class="py-2.5 px-3 whitespace-nowrap"
+                                        >Tipo</th
+                                    >
+                                    <th class="py-2.5 px-3 whitespace-nowrap"
+                                        >Flujo Kanban</th
+                                    >
+                                    <th class="py-2.5 px-3 whitespace-nowrap"
+                                        >Tiempo Fabr.</th
+                                    >
                                     {#if hasFinancialAccess}
-                                        <th class="py-2.5 px-3 text-right whitespace-nowrap">Precio Base</th>
+                                        <th
+                                            class="py-2.5 px-3 text-right whitespace-nowrap"
+                                            >Precio Base</th
+                                        >
                                     {/if}
-                                    <th class="py-2.5 px-3 text-center whitespace-nowrap">Variantes</th>
-                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
+                                    <th
+                                        class="py-2.5 px-3 text-center whitespace-nowrap"
+                                        >Variantes</th
+                                    >
+                                    <th
+                                        class="py-2.5 px-3 text-right whitespace-nowrap"
+                                        >Acciones</th
+                                    >
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
+                            <tbody
+                                class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300"
+                            >
                                 {#each products.data as prod (prod.id)}
-                                    {@const isExpanded = expandedRows.has(prod.id)}
-                                    <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-50/50 dark:bg-slate-800/30' : ''}">
+                                    {@const isExpanded = expandedRows.has(
+                                        prod.id,
+                                    )}
+                                    <tr
+                                        class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded
+                                            ? 'bg-slate-50/50 dark:bg-slate-800/30'
+                                            : ''}"
+                                    >
                                         <!-- Botón de expandir -->
-                                        <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                        <td
+                                            class="py-2.5 px-3 text-center whitespace-nowrap"
+                                        >
                                             <button
                                                 type="button"
-                                                onclick={() => toggleRow(prod.id)}
-                                                class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 inline-flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400' : ''}"
-                                                title={isExpanded ? 'Colapsar detalles' : 'Expandir BOM y variantes'}
+                                                onclick={() =>
+                                                    toggleRow(prod.id)}
+                                                class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 inline-flex items-center justify-center transition-transform {isExpanded
+                                                    ? 'rotate-90 text-[#4F46E5] dark:text-emerald-400'
+                                                    : ''}"
+                                                title={isExpanded
+                                                    ? "Colapsar detalles"
+                                                    : "Expandir BOM y variantes"}
                                             >
                                                 ▶
                                             </button>
                                         </td>
                                         <!-- Barcode / SKU -->
-                                        <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <td
+                                            class="py-2.5 px-3 whitespace-nowrap"
+                                        >
                                             {#if prod.barcode}
-                                                <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] font-mono text-[11px] text-[#4F46E5] dark:text-sky-400 font-bold">
+                                                <div
+                                                    class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] font-mono text-[11px] text-[#4F46E5] dark:text-sky-400 font-bold"
+                                                >
                                                     <span>{prod.barcode}</span>
                                                     <button
                                                         type="button"
-                                                        onclick={() => downloadBarcodeAsPng(prod.barcode, prod.barcode_format || 'CODE128', prod.name)}
+                                                        onclick={() =>
+                                                            downloadBarcodeAsPng(
+                                                                prod.barcode,
+                                                                prod.barcode_format ||
+                                                                    "CODE128",
+                                                                prod.name,
+                                                            )}
                                                         class="p-0.5 text-slate-400 hover:text-[#4F46E5] dark:hover:text-emerald-400 transition-colors"
                                                         title="Descargar código de barras como imagen PNG"
                                                     >
-                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                        <svg
+                                                            class="w-3.5 h-3.5"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            viewBox="0 0 24 24"
+                                                        >
+                                                            <path
+                                                                stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                                stroke-width="2"
+                                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                                            />
                                                         </svg>
                                                     </button>
                                                 </div>
                                             {:else}
-                                                <span class="text-slate-400 dark:text-slate-600 font-mono text-[10px]">Sin código</span>
+                                                <span
+                                                    class="text-slate-400 dark:text-slate-600 font-mono text-[10px]"
+                                                    >Sin código</span
+                                                >
                                             {/if}
                                         </td>
                                         <!-- Producto -->
-                                        <td class="py-2.5 px-3 whitespace-nowrap">
+                                        <td
+                                            class="py-2.5 px-3 whitespace-nowrap"
+                                        >
                                             <button
                                                 type="button"
                                                 class="text-left font-semibold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-emerald-400 inline-block transition-colors"
-                                                onclick={() => toggleRow(prod.id)}
+                                                onclick={() =>
+                                                    toggleRow(prod.id)}
                                             >
                                                 {prod.name}
                                             </button>
-                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 font-medium ml-1">+{prod.buffer_percentage}%</span>
+                                            <span
+                                                class="text-[10px] text-slate-400 dark:text-slate-500 font-medium ml-1"
+                                                >+{prod.buffer_percentage}%</span
+                                            >
                                         </td>
                                         <!-- Tipo -->
-                                        <td class="py-2.5 px-3 whitespace-nowrap">
-                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80">
-                                                {prod.product_type?.name ?? 'Sin tipo'}
+                                        <td
+                                            class="py-2.5 px-3 whitespace-nowrap"
+                                        >
+                                            <span
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80"
+                                            >
+                                                {prod.product_type?.name ??
+                                                    "Sin tipo"}
                                             </span>
                                         </td>
                                         <!-- Flujo -->
-                                        <td class="py-2.5 px-3 whitespace-nowrap font-medium text-slate-800 dark:text-slate-200 text-xs">
-                                            {prod.workflow?.name ?? 'No asignado'}
+                                        <td
+                                            class="py-2.5 px-3 whitespace-nowrap font-medium text-slate-800 dark:text-slate-200 text-xs"
+                                        >
+                                            {prod.workflow?.name ??
+                                                "No asignado"}
                                         </td>
                                         <!-- Tiempo -->
-                                        <td class="py-2.5 px-3 whitespace-nowrap font-mono text-amber-600 dark:text-amber-300 font-semibold text-xs">
+                                        <td
+                                            class="py-2.5 px-3 whitespace-nowrap font-mono text-amber-600 dark:text-amber-300 font-semibold text-xs"
+                                        >
                                             ⏱ {prod.formatted_time}
                                         </td>
                                         <!-- Precio Base -->
                                         {#if hasFinancialAccess}
-                                            <td class="py-2.5 px-3 whitespace-nowrap text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
-                                                {formatCurrency(prod.base_price)}
+                                            <td
+                                                class="py-2.5 px-3 whitespace-nowrap text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs"
+                                            >
+                                                {formatCurrency(
+                                                    prod.base_price,
+                                                )}
                                             </td>
                                         {/if}
                                         <!-- Variantes -->
-                                        <td class="py-2.5 px-3 whitespace-nowrap text-center">
-                                            <span class="px-2 py-0.5 rounded-full font-mono font-bold text-[11px] {prod.variants?.length > 1 ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}">
+                                        <td
+                                            class="py-2.5 px-3 whitespace-nowrap text-center"
+                                        >
+                                            <span
+                                                class="px-2 py-0.5 rounded-full font-mono font-bold text-[11px] {prod
+                                                    .variants?.length > 1
+                                                    ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'}"
+                                            >
                                                 {prod.variants?.length ?? 0}
                                             </span>
                                         </td>
                                         <!-- Acciones -->
-                                        <td class="py-2.5 px-3 text-right whitespace-nowrap">
-                                            <div class="inline-flex items-center justify-end">
+                                        <td
+                                            class="py-2.5 px-3 text-right whitespace-nowrap"
+                                        >
+                                            <div
+                                                class="inline-flex items-center justify-end"
+                                            >
                                                 <button
                                                     type="button"
-                                                    onclick={(e) => toggleActionMenu(e, prod.id)}
+                                                    onclick={(e) =>
+                                                        toggleActionMenu(
+                                                            e,
+                                                            prod.id,
+                                                        )}
                                                     class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
                                                     title="Más opciones"
                                                     aria-label="Más opciones"
@@ -621,46 +835,90 @@
                                                     role="menu"
                                                     tabindex="-1"
                                                     class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]/60 animate-in fade-in zoom-in-95 duration-100"
-                                                    style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
-                                                    onclick={(e) => e.stopPropagation()}
-                                                    onkeydown={(e) => { if (e.key === 'Escape') openActionMenuProdId = null; }}
+                                                    style="right: {menuCoords.right}px; {menuCoords.openUpwards
+                                                        ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;`
+                                                        : `top: ${menuCoords.top}px;`}"
+                                                    onclick={(e) =>
+                                                        e.stopPropagation()}
+                                                    onkeydown={(e) => {
+                                                        if (e.key === "Escape")
+                                                            openActionMenuProdId =
+                                                                null;
+                                                    }}
                                                 >
                                                     <div class="py-0.5">
                                                         <button
                                                             type="button"
-                                                            onclick={() => { openActionMenuProdId = null; openEditProduct(prod); }}
+                                                            onclick={() => {
+                                                                openActionMenuProdId =
+                                                                    null;
+                                                                openEditProduct(
+                                                                    prod,
+                                                                );
+                                                            }}
                                                             class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
                                                         >
                                                             <span>✏️</span>
-                                                            <span>Editar Producto</span>
+                                                            <span
+                                                                >Editar Producto</span
+                                                            >
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            onclick={() => { openActionMenuProdId = null; toggleRow(prod.id); }}
+                                                            onclick={() => {
+                                                                openActionMenuProdId =
+                                                                    null;
+                                                                toggleRow(
+                                                                    prod.id,
+                                                                );
+                                                            }}
                                                             class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
                                                         >
                                                             <span>📋</span>
-                                                            <span>Ver Receta BOM</span>
+                                                            <span
+                                                                >Ver Receta BOM</span
+                                                            >
                                                         </button>
                                                         {#if prod.barcode}
                                                             <button
                                                                 type="button"
-                                                                onclick={() => { openActionMenuProdId = null; downloadBarcodeAsPng(prod.barcode, prod.barcode_format || 'CODE128', prod.name); }}
+                                                                onclick={() => {
+                                                                    openActionMenuProdId =
+                                                                        null;
+                                                                    downloadBarcodeAsPng(
+                                                                        prod.barcode,
+                                                                        prod.barcode_format ||
+                                                                            "CODE128",
+                                                                        prod.name,
+                                                                    );
+                                                                }}
                                                                 class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[#06B6D4] hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
                                                             >
                                                                 <span>📥</span>
-                                                                <span>Descargar Barcode</span>
+                                                                <span
+                                                                    >Descargar
+                                                                    Barcode</span
+                                                                >
                                                             </button>
                                                         {/if}
                                                     </div>
                                                     <div class="py-0.5">
                                                         <button
                                                             type="button"
-                                                            onclick={() => { openActionMenuProdId = null; destroyProduct(prod); }}
+                                                            onclick={() => {
+                                                                openActionMenuProdId =
+                                                                    null;
+                                                                destroyProduct(
+                                                                    prod,
+                                                                );
+                                                            }}
                                                             class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                                                         >
                                                             <span>🗑️</span>
-                                                            <span>Eliminar Producto</span>
+                                                            <span
+                                                                >Eliminar
+                                                                Producto</span
+                                                            >
                                                         </button>
                                                     </div>
                                                 </div>
@@ -668,98 +926,197 @@
                                         </td>
                                     </tr>
 
-
                                     <!-- RENGLÓN EXPANDIDO (ACCORDION) -->
                                     {#if isExpanded}
-                                        <tr class="bg-slate-50/90 dark:bg-[#0B0F17]/60 border-b border-slate-200 dark:border-[#26334D]">
-                                            <td colspan="9" class="p-4 sm:p-6 space-y-4">
-                                                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                                        <tr
+                                            class="bg-slate-50/90 dark:bg-[#0B0F17]/60 border-b border-slate-200 dark:border-[#26334D]"
+                                        >
+                                            <td
+                                                colspan="9"
+                                                class="p-4 sm:p-6 space-y-4"
+                                            >
+                                                <div
+                                                    class="grid grid-cols-1 lg:grid-cols-3 gap-5"
+                                                >
                                                     <!-- Columna 1: Código de Barras SVG -->
-                                                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl flex flex-col items-center justify-center space-y-2 shadow-sm">
-                                                        <div class="flex items-center justify-between w-full px-1 border-b border-slate-100 dark:border-[#26334D] pb-1.5">
-                                                            <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider">Código de Barras</span>
-                                                            <span class="text-[10px] font-mono text-[#4F46E5] dark:text-sky-400 font-bold bg-indigo-50 dark:bg-sky-950/40 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-sky-800/40">
-                                                                {prod.barcode_format || 'CODE128'}
+                                                    <div
+                                                        class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl flex flex-col items-center justify-center space-y-2 shadow-sm"
+                                                    >
+                                                        <div
+                                                            class="flex items-center justify-between w-full px-1 border-b border-slate-100 dark:border-[#26334D] pb-1.5"
+                                                        >
+                                                            <span
+                                                                class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider"
+                                                                >Código de
+                                                                Barras</span
+                                                            >
+                                                            <span
+                                                                class="text-[10px] font-mono text-[#4F46E5] dark:text-sky-400 font-bold bg-indigo-50 dark:bg-sky-950/40 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-sky-800/40"
+                                                            >
+                                                                {prod.barcode_format ||
+                                                                    "CODE128"}
                                                             </span>
                                                         </div>
                                                         {#if prod.barcode}
                                                             <BarcodeViewer
                                                                 value={prod.barcode}
-                                                                format={prod.barcode_format || 'CODE128'}
+                                                                format={prod.barcode_format ||
+                                                                    "CODE128"}
                                                                 productName={prod.name}
                                                                 showDownload={true}
                                                                 height={42}
                                                                 width={1.8}
                                                             />
                                                         {:else}
-                                                            <div class="text-center py-4 text-slate-400 dark:text-slate-500 text-xs italic">
-                                                                No se ha asignado código de barras.
+                                                            <div
+                                                                class="text-center py-4 text-slate-400 dark:text-slate-500 text-xs italic"
+                                                            >
+                                                                No se ha
+                                                                asignado código
+                                                                de barras.
                                                             </div>
                                                         {/if}
                                                     </div>
 
                                                     <!-- Columna 2: Receta BOM -->
-                                                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2 shadow-sm">
-                                                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2">
-                                                            <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider">
-                                                                Receta BOM ({prod.material_requirements?.length ?? 0} Insumos)
+                                                    <div
+                                                        class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2 shadow-sm"
+                                                    >
+                                                        <div
+                                                            class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2"
+                                                        >
+                                                            <span
+                                                                class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider"
+                                                            >
+                                                                Receta BOM ({prod
+                                                                    .material_requirements
+                                                                    ?.length ??
+                                                                    0} Insumos)
                                                             </span>
                                                         </div>
-                                                        <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                                                        <div
+                                                            class="space-y-1.5 max-h-48 overflow-y-auto"
+                                                        >
                                                             {#each prod.material_requirements ?? [] as req}
-                                                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
-                                                                    <div class="font-medium text-slate-800 dark:text-slate-200">
-                                                                        {req.raw_material?.name}
+                                                                <div
+                                                                    class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs"
+                                                                >
+                                                                    <div
+                                                                        class="font-medium text-slate-800 dark:text-slate-200"
+                                                                    >
+                                                                        {req
+                                                                            .raw_material
+                                                                            ?.name}
                                                                     </div>
-                                                                    <div class="text-right font-mono text-slate-500 dark:text-slate-400 text-[11px]">
-                                                                        <span class="text-slate-800 dark:text-slate-200 font-bold">{Number(req.quantity_required)}</span> {req.raw_material?.unit_of_measure}
+                                                                    <div
+                                                                        class="text-right font-mono text-slate-500 dark:text-slate-400 text-[11px]"
+                                                                    >
+                                                                        <span
+                                                                            class="text-slate-800 dark:text-slate-200 font-bold"
+                                                                            >{Number(
+                                                                                req.quantity_required,
+                                                                            )}</span
+                                                                        >
+                                                                        {req
+                                                                            .raw_material
+                                                                            ?.unit_of_measure}
                                                                         {#if Number(req.waste_percent) > 0}
-                                                                            <span class="text-amber-600 dark:text-amber-400 text-[10px]">(+{Number(req.waste_percent)}%)</span>
+                                                                            <span
+                                                                                class="text-amber-600 dark:text-amber-400 text-[10px]"
+                                                                                >(+{Number(
+                                                                                    req.waste_percent,
+                                                                                )}%)</span
+                                                                            >
                                                                         {/if}
                                                                     </div>
                                                                 </div>
                                                             {:else}
-                                                                <div class="text-slate-400 dark:text-slate-500 text-xs italic py-2">
-                                                                    Sin insumos configurados.
+                                                                <div
+                                                                    class="text-slate-400 dark:text-slate-500 text-xs italic py-2"
+                                                                >
+                                                                    Sin insumos
+                                                                    configurados.
                                                                 </div>
                                                             {/each}
                                                         </div>
                                                     </div>
 
                                                     <!-- Columna 3: Variantes Ortogonales -->
-                                                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2 shadow-sm">
-                                                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2">
-                                                            <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider">
-                                                                Variantes Activas ({prod.variants?.length ?? 0})
+                                                    <div
+                                                        class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2 shadow-sm"
+                                                    >
+                                                        <div
+                                                            class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2"
+                                                        >
+                                                            <span
+                                                                class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider"
+                                                            >
+                                                                Variantes
+                                                                Activas ({prod
+                                                                    .variants
+                                                                    ?.length ??
+                                                                    0})
                                                             </span>
                                                         </div>
-                                                        <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                                                        <div
+                                                            class="space-y-1.5 max-h-48 overflow-y-auto"
+                                                        >
                                                             {#each prod.variants ?? [] as variant}
-                                                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
+                                                                <div
+                                                                    class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs"
+                                                                >
                                                                     <div>
-                                                                        <span class="font-bold text-slate-800 dark:text-slate-200 block">{variant.name_label}</span>
+                                                                        <span
+                                                                            class="font-bold text-slate-800 dark:text-slate-200 block"
+                                                                            >{variant.name_label}</span
+                                                                        >
                                                                         {#if variant.sku}
-                                                                            <span class="font-mono text-[10px] text-slate-400 dark:text-slate-500">SKU: {variant.sku}</span>
+                                                                            <span
+                                                                                class="font-mono text-[10px] text-slate-400 dark:text-slate-500"
+                                                                                >SKU:
+                                                                                {variant.sku}</span
+                                                                            >
                                                                         {/if}
                                                                     </div>
-                                                                    <div class="text-right">
+                                                                    <div
+                                                                        class="text-right"
+                                                                    >
                                                                         {#if hasFinancialAccess}
                                                                             {#if variant.price_override}
-                                                                                <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 block">{formatCurrency(variant.price_override)}</span>
+                                                                                <span
+                                                                                    class="font-mono font-bold text-emerald-600 dark:text-emerald-400 block"
+                                                                                    >{formatCurrency(
+                                                                                        variant.price_override,
+                                                                                    )}</span
+                                                                                >
                                                                             {:else}
-                                                                                <span class="font-mono text-slate-500 dark:text-slate-400 block">{formatCurrency(prod.base_price)}</span>
+                                                                                <span
+                                                                                    class="font-mono text-slate-500 dark:text-slate-400 block"
+                                                                                    >{formatCurrency(
+                                                                                        prod.base_price,
+                                                                                    )}</span
+                                                                                >
                                                                             {/if}
                                                                         {/if}
                                                                         {#if variant.production_minutes_delta}
-                                                                            <span class="font-mono text-[10px] text-amber-600 dark:text-amber-300">
-                                                                                {variant.production_minutes_delta > 0 ? '+' : ''}{variant.production_minutes_delta}m
+                                                                            <span
+                                                                                class="font-mono text-[10px] text-amber-600 dark:text-amber-300"
+                                                                            >
+                                                                                {variant.production_minutes_delta >
+                                                                                0
+                                                                                    ? "+"
+                                                                                    : ""}{variant.production_minutes_delta}m
                                                                             </span>
                                                                         {/if}
                                                                     </div>
                                                                 </div>
                                                             {:else}
-                                                                <div class="text-slate-400 dark:text-slate-500 text-xs italic py-2">
-                                                                    Variante única estándar.
+                                                                <div
+                                                                    class="text-slate-400 dark:text-slate-500 text-xs italic py-2"
+                                                                >
+                                                                    Variante
+                                                                    única
+                                                                    estándar.
                                                                 </div>
                                                             {/each}
                                                         </div>
@@ -770,8 +1127,12 @@
                                     {/if}
                                 {:else}
                                     <tr>
-                                        <td colspan="9" class="p-10 text-center text-slate-400 dark:text-slate-500 text-xs">
-                                            No hay productos registrados en el catálogo.
+                                        <td
+                                            colspan="9"
+                                            class="p-10 text-center text-slate-400 dark:text-slate-500 text-xs"
+                                        >
+                                            No hay productos registrados en el
+                                            catálogo.
                                         </td>
                                     </tr>
                                 {/each}
@@ -780,45 +1141,84 @@
                     </div>
                 </div>
 
-            <!-- VISTA EN TARJETAS (CARDS) -->
+                <!-- VISTA EN TARJETAS (CARDS) -->
             {:else}
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div
+                    class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
+                >
                     {#each products.data as prod (prod.id)}
-                        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 flex flex-col justify-between shadow-sm group hover:border-[#4F46E5] dark:hover:border-[#06B6D4] transition">
+                        <div
+                            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 flex flex-col justify-between shadow-sm group hover:border-[#4F46E5] dark:hover:border-[#06B6D4] transition"
+                        >
                             <div>
                                 <!-- Cabecera del Producto -->
-                                <div class="flex items-start justify-between gap-2 mb-2">
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                        {prod.product_type?.name ?? 'Sin tipo'}
+                                <div
+                                    class="flex items-start justify-between gap-2 mb-2"
+                                >
+                                    <span
+                                        class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                                    >
+                                        {prod.product_type?.name ?? "Sin tipo"}
                                     </span>
                                     {#if hasFinancialAccess}
-                                        <span class="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-base">
+                                        <span
+                                            class="font-mono text-emerald-600 dark:text-emerald-400 font-extrabold text-base"
+                                        >
                                             {formatCurrency(prod.base_price)}
                                         </span>
                                     {/if}
                                 </div>
 
-                                <h3 class="text-base font-bold text-slate-900 dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-emerald-300 transition-colors">{prod.name}</h3>
+                                <h3
+                                    class="text-base font-bold text-slate-900 dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-emerald-300 transition-colors"
+                                >
+                                    {prod.name}
+                                </h3>
 
                                 {#if prod.barcode}
-                                    <div class="mt-2 flex flex-col items-center">
-                                        <div class="flex items-center justify-between w-full mb-1">
-                                            <span class="text-[9px] font-mono text-slate-500 dark:text-slate-400 font-semibold uppercase">{prod.barcode_format || 'CODE128'}</span>
+                                    <div
+                                        class="mt-2 flex flex-col items-center"
+                                    >
+                                        <div
+                                            class="flex items-center justify-between w-full mb-1"
+                                        >
+                                            <span
+                                                class="text-[9px] font-mono text-slate-500 dark:text-slate-400 font-semibold uppercase"
+                                                >{prod.barcode_format ||
+                                                    "CODE128"}</span
+                                            >
                                             <button
                                                 type="button"
-                                                onclick={() => downloadBarcodeAsPng(prod.barcode, prod.barcode_format || 'CODE128', prod.name)}
+                                                onclick={() =>
+                                                    downloadBarcodeAsPng(
+                                                        prod.barcode,
+                                                        prod.barcode_format ||
+                                                            "CODE128",
+                                                        prod.name,
+                                                    )}
                                                 class="text-[10px] text-slate-500 hover:text-[#4F46E5] dark:hover:text-emerald-400 flex items-center gap-1 font-semibold transition-colors"
                                                 title="Descargar imagen PNG"
                                             >
-                                                <svg class="w-3 h-3 text-[#4F46E5] dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                <svg
+                                                    class="w-3 h-3 text-[#4F46E5] dark:text-emerald-400"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        stroke-width="2"
+                                                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                                    />
                                                 </svg>
                                                 <span>PNG</span>
                                             </button>
                                         </div>
                                         <BarcodeViewer
                                             value={prod.barcode}
-                                            format={prod.barcode_format || 'CODE128'}
+                                            format={prod.barcode_format ||
+                                                "CODE128"}
                                             productName={prod.name}
                                             showDownload={false}
                                             height={32}
@@ -828,32 +1228,71 @@
                                 {/if}
 
                                 <!-- Métricas de Producción -->
-                                <div class="mt-3.5 p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-1.5 text-xs">
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500 dark:text-slate-400">Flujo Kanban:</span>
-                                        <span class="font-semibold text-slate-800 dark:text-slate-200">{prod.workflow?.name ?? 'No asignado'}</span>
+                                <div
+                                    class="mt-3.5 p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] space-y-1.5 text-xs"
+                                >
+                                    <div
+                                        class="flex justify-between items-center"
+                                    >
+                                        <span
+                                            class="text-slate-500 dark:text-slate-400"
+                                            >Flujo Kanban:</span
+                                        >
+                                        <span
+                                            class="font-semibold text-slate-800 dark:text-slate-200"
+                                            >{prod.workflow?.name ??
+                                                "No asignado"}</span
+                                        >
                                     </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500 dark:text-slate-400">Tiempo de Fabricación:</span>
-                                        <span class="font-mono text-amber-600 dark:text-amber-300 font-bold">⏱ {prod.formatted_time}</span>
+                                    <div
+                                        class="flex justify-between items-center"
+                                    >
+                                        <span
+                                            class="text-slate-500 dark:text-slate-400"
+                                            >Tiempo de Fabricación:</span
+                                        >
+                                        <span
+                                            class="font-mono text-amber-600 dark:text-amber-300 font-bold"
+                                            >⏱ {prod.formatted_time}</span
+                                        >
                                     </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500 dark:text-slate-400">Tiempo de Holgura:</span>
-                                        <span class="font-mono text-slate-700 dark:text-slate-300 font-semibold">+{prod.buffer_percentage}%</span>
+                                    <div
+                                        class="flex justify-between items-center"
+                                    >
+                                        <span
+                                            class="text-slate-500 dark:text-slate-400"
+                                            >Tiempo de Holgura:</span
+                                        >
+                                        <span
+                                            class="font-mono text-slate-700 dark:text-slate-300 font-semibold"
+                                            >+{prod.buffer_percentage}%</span
+                                        >
                                     </div>
                                 </div>
 
                                 <!-- Variantes Generadas -->
                                 <div class="mt-3">
-                                    <span class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                        Variantes ({prod.variants?.length ?? 0}):
+                                    <span
+                                        class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block mb-1.5"
+                                    >
+                                        Variantes ({prod.variants?.length ??
+                                            0}):
                                     </span>
-                                    <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                                    <div
+                                        class="flex flex-wrap gap-1 max-h-24 overflow-y-auto"
+                                    >
                                         {#each prod.variants ?? [] as variant}
-                                            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono">
+                                            <span
+                                                class="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono"
+                                            >
                                                 {variant.name_label}
                                                 {#if hasFinancialAccess && variant.price_override}
-                                                    <strong class="text-emerald-600 dark:text-emerald-400 font-sans">({formatCurrency(variant.price_override)})</strong>
+                                                    <strong
+                                                        class="text-emerald-600 dark:text-emerald-400 font-sans"
+                                                        >({formatCurrency(
+                                                            variant.price_override,
+                                                        )})</strong
+                                                    >
                                                 {/if}
                                             </span>
                                         {/each}
@@ -861,27 +1300,51 @@
                                 </div>
 
                                 <!-- Receta BOM -->
-                                <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-[#26334D]">
-                                    <span class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block mb-1.5">
-                                        Receta BOM ({prod.material_requirements?.length ?? 0} insumos):
+                                <div
+                                    class="mt-3 pt-2.5 border-t border-slate-100 dark:border-[#26334D]"
+                                >
+                                    <span
+                                        class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block mb-1.5"
+                                    >
+                                        Receta BOM ({prod.material_requirements
+                                            ?.length ?? 0} insumos):
                                     </span>
                                     <div class="space-y-1">
                                         {#each prod.material_requirements ?? [] as req}
-                                            <div class="flex items-center justify-between text-[11px] text-slate-700 dark:text-slate-300">
-                                                <span class="truncate max-w-[170px]">• {req.raw_material?.name}</span>
-                                                <span class="font-mono text-slate-500 dark:text-slate-400">
-                                                    {Number(req.quantity_required)} {req.raw_material?.unit_of_measure} (+{Number(req.waste_percent)}%)
+                                            <div
+                                                class="flex items-center justify-between text-[11px] text-slate-700 dark:text-slate-300"
+                                            >
+                                                <span
+                                                    class="truncate max-w-[170px]"
+                                                    >• {req.raw_material
+                                                        ?.name}</span
+                                                >
+                                                <span
+                                                    class="font-mono text-slate-500 dark:text-slate-400"
+                                                >
+                                                    {Number(
+                                                        req.quantity_required,
+                                                    )}
+                                                    {req.raw_material
+                                                        ?.unit_of_measure} (+{Number(
+                                                        req.waste_percent,
+                                                    )}%)
                                                 </span>
                                             </div>
                                         {:else}
-                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 italic">Sin materiales requeridos</span>
+                                            <span
+                                                class="text-[10px] text-slate-400 dark:text-slate-500 italic"
+                                                >Sin materiales requeridos</span
+                                            >
                                         {/each}
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Acciones -->
-                            <div class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex items-center justify-end gap-2">
+                            <div
+                                class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex items-center justify-end gap-2"
+                            >
                                 <button
                                     type="button"
                                     onclick={() => openEditProduct(prod)}
@@ -899,8 +1362,11 @@
                             </div>
                         </div>
                     {:else}
-                        <div class="col-span-full p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl text-slate-400 dark:text-slate-500 text-xs shadow-sm">
-                            No hay productos registrados. Haz clic en "Nuevo Producto" para comenzar.
+                        <div
+                            class="col-span-full p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl text-slate-400 dark:text-slate-500 text-xs shadow-sm"
+                        >
+                            No hay productos registrados. Haz clic en "Nuevo
+                            Producto" para comenzar.
                         </div>
                     {/each}
                 </div>
@@ -908,14 +1374,21 @@
 
             <!-- PAGINACIÓN -->
             {#if products.links && products.links.length > 3}
-                <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shadow-sm">
-                    <div>Mostrando {products.from ?? 0} a {products.to ?? 0} de {products.total} productos</div>
+                <div
+                    class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shadow-sm"
+                >
+                    <div>
+                        Mostrando {products.from ?? 0} a {products.to ?? 0} de {products.total}
+                        productos
+                    </div>
                     <div class="flex items-center gap-1">
                         {#each products.links as link}
                             {#if link.url}
                                 <Link
                                     href={link.url}
-                                    class="px-3 py-1.5 rounded-lg border text-xs font-medium {link.active ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold' : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300'}"
+                                    class="px-3 py-1.5 rounded-lg border text-xs font-medium {link.active
+                                        ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold'
+                                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300'}"
                                 >
                                     {@html link.label}
                                 </Link>
@@ -925,13 +1398,21 @@
                 </div>
             {/if}
 
-        <!-- PESTAÑA 2: ATRIBUTOS Y OPCIONES -->
-        {:else if activeTab === 'attributes'}
+            <!-- PESTAÑA 2: ATRIBUTOS Y OPCIONES -->
+        {:else if activeTab === "attributes"}
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {#each localAttributes as attr (attr.id)}
-                    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 shadow-sm space-y-3">
-                        <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2.5">
-                            <h3 class="font-bold text-slate-900 dark:text-white text-base">{attr.name}</h3>
+                    <div
+                        class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 shadow-sm space-y-3"
+                    >
+                        <div
+                            class="flex items-center justify-between border-b border-slate-100 dark:border-[#26334D] pb-2.5"
+                        >
+                            <h3
+                                class="font-bold text-slate-900 dark:text-white text-base"
+                            >
+                                {attr.name}
+                            </h3>
                             <button
                                 type="button"
                                 onclick={() => openAddOption(attr)}
@@ -942,25 +1423,44 @@
                         </div>
                         <div class="space-y-1.5">
                             {#each attr.options ?? [] as opt}
-                                <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
-                                    <span class="font-medium text-slate-800 dark:text-slate-200">{opt.value}</span>
-                                    <span class="font-mono text-slate-400 dark:text-slate-500 text-[10px]">SKU: {opt.sku_suffix ?? 'N/A'}</span>
+                                <div
+                                    class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs"
+                                >
+                                    <span
+                                        class="font-medium text-slate-800 dark:text-slate-200"
+                                        >{opt.value}</span
+                                    >
+                                    <span
+                                        class="font-mono text-slate-400 dark:text-slate-500 text-[10px]"
+                                        >SKU: {opt.sku_suffix ?? "N/A"}</span
+                                    >
                                 </div>
                             {:else}
-                                <span class="text-xs text-slate-400 dark:text-slate-500 italic">Sin opciones creadas aún.</span>
+                                <span
+                                    class="text-xs text-slate-400 dark:text-slate-500 italic"
+                                    >Sin opciones creadas aún.</span
+                                >
                             {/each}
                         </div>
                     </div>
                 {/each}
             </div>
 
-        <!-- PESTAÑA 3: TIPOS DE PRODUCTO -->
-        {:else if activeTab === 'types'}
+            <!-- PESTAÑA 3: TIPOS DE PRODUCTO -->
+        {:else if activeTab === "types"}
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {#each localProductTypes as pt (pt.id)}
-                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl flex items-center justify-between shadow-sm">
-                        <span class="font-bold text-slate-900 dark:text-white text-sm">{pt.name}</span>
-                        <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">ID #{pt.id}</span>
+                    <div
+                        class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-xl flex items-center justify-between shadow-sm"
+                    >
+                        <span
+                            class="font-bold text-slate-900 dark:text-white text-sm"
+                            >{pt.name}</span
+                        >
+                        <span
+                            class="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                            >ID #{pt.id}</span
+                        >
                     </div>
                 {/each}
             </div>
@@ -983,12 +1483,22 @@
 
 <!-- MODAL CREAR TIPO DE PRODUCTO -->
 {#if showTypeModal}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <h3 class="text-base font-bold text-slate-900 dark:text-white">Nuevo Tipo de Producto</h3>
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4"
+        >
+            <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                Nuevo Tipo de Producto
+            </h3>
             <form onsubmit={submitType} class="space-y-4 text-xs">
                 <div>
-                    <label for="pt-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre del Tipo *</label>
+                    <label
+                        for="pt-name"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Nombre del Tipo *</label
+                    >
                     <input
                         id="pt-name"
                         type="text"
@@ -998,12 +1508,26 @@
                         class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     />
                     {#if errors.name}
-                        <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">
+                            {errors.name}
+                        </p>
                     {/if}
                 </div>
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]">
-                    <button type="button" onclick={() => showTypeModal = false} class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]">Cancelar</button>
-                    <button type="submit" disabled={typeProcessing} class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50">Guardar</button>
+                <div
+                    class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]"
+                >
+                    <button
+                        type="button"
+                        onclick={() => (showTypeModal = false)}
+                        class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]"
+                        >Cancelar</button
+                    >
+                    <button
+                        type="submit"
+                        disabled={typeProcessing}
+                        class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50"
+                        >Guardar</button
+                    >
                 </div>
             </form>
         </div>
@@ -1012,12 +1536,22 @@
 
 <!-- MODAL CREAR ATRIBUTO -->
 {#if showAttributeModal}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <h3 class="text-base font-bold text-slate-900 dark:text-white">Nuevo Atributo</h3>
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4"
+        >
+            <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                Nuevo Atributo
+            </h3>
             <form onsubmit={submitAttribute} class="space-y-4 text-xs">
                 <div>
-                    <label for="oa-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre del Atributo *</label>
+                    <label
+                        for="oa-name"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Nombre del Atributo *</label
+                    >
                     <input
                         id="oa-name"
                         type="text"
@@ -1027,12 +1561,26 @@
                         class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     />
                     {#if errors.name}
-                        <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">
+                            {errors.name}
+                        </p>
                     {/if}
                 </div>
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]">
-                    <button type="button" onclick={() => showAttributeModal = false} class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]">Cancelar</button>
-                    <button type="submit" disabled={attributeProcessing} class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50">Guardar Atributo</button>
+                <div
+                    class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]"
+                >
+                    <button
+                        type="button"
+                        onclick={() => (showAttributeModal = false)}
+                        class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]"
+                        >Cancelar</button
+                    >
+                    <button
+                        type="submit"
+                        disabled={attributeProcessing}
+                        class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50"
+                        >Guardar Atributo</button
+                    >
                 </div>
             </form>
         </div>
@@ -1041,12 +1589,22 @@
 
 <!-- MODAL CREAR OPCIÓN EN ATRIBUTO -->
 {#if showOptionModal && selectedAttributeForOption}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <h3 class="text-base font-bold text-slate-900 dark:text-white">Nueva Opción para "{selectedAttributeForOption.name}"</h3>
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4"
+        >
+            <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                Nueva Opción para "{selectedAttributeForOption.name}"
+            </h3>
             <form onsubmit={submitOption} class="space-y-4 text-xs">
                 <div>
-                    <label for="opt-val" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Valor de la Opción *</label>
+                    <label
+                        for="opt-val"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Valor de la Opción *</label
+                    >
                     <input
                         id="opt-val"
                         type="text"
@@ -1056,11 +1614,17 @@
                         class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs"
                     />
                     {#if errors.value}
-                        <p class="text-[10px] text-rose-500 mt-1">{errors.value}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">
+                            {errors.value}
+                        </p>
                     {/if}
                 </div>
                 <div>
-                    <label for="opt-sku" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Sufijo para SKU (Opcional)</label>
+                    <label
+                        for="opt-sku"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Sufijo para SKU (Opcional)</label
+                    >
                     <input
                         id="opt-sku"
                         type="text"
@@ -1069,9 +1633,21 @@
                         class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-[#4F46E5] focus:ring-2 focus:ring-[#4F46E5]/20 rounded-xl px-3 py-2 text-xs font-mono uppercase"
                     />
                 </div>
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]">
-                    <button type="button" onclick={() => showOptionModal = false} class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]">Cancelar</button>
-                    <button type="submit" disabled={optionProcessing} class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50">Guardar Opción</button>
+                <div
+                    class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]"
+                >
+                    <button
+                        type="button"
+                        onclick={() => (showOptionModal = false)}
+                        class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D]"
+                        >Cancelar</button
+                    >
+                    <button
+                        type="submit"
+                        disabled={optionProcessing}
+                        class="px-4 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold disabled:opacity-50"
+                        >Guardar Opción</button
+                    >
                 </div>
             </form>
         </div>
@@ -1088,21 +1664,37 @@
 
 <!-- SUBMODAL ESTILIZADO GIPPYME PARA EDITAR TIPO DE PRODUCTO (SIN WINDOW.PROMPT) -->
 {#if showEditTypeModal}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4">
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-4"
+        >
             <div>
-                <h4 class="text-sm font-bold text-slate-900 dark:text-white">Editar Tipo de Producto</h4>
-                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Modifica el nombre para todos los productos de esta categoría.</p>
+                <h4 class="text-sm font-bold text-slate-900 dark:text-white">
+                    Editar Tipo de Producto
+                </h4>
+                <p
+                    class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5"
+                >
+                    Modifica el nombre para todos los productos de esta
+                    categoría.
+                </p>
             </div>
 
             {#if editTypeErrorMessage}
-                <div class="p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-500/30 rounded-xl text-xs text-rose-600 dark:text-rose-400">
+                <div
+                    class="p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-500/30 rounded-xl text-xs text-rose-600 dark:text-rose-400"
+                >
                     {editTypeErrorMessage}
                 </div>
             {/if}
 
             <div>
-                <label for="edit-type-name-input-index" class="block font-semibold text-slate-700 dark:text-slate-300 text-xs mb-1.5">
+                <label
+                    for="edit-type-name-input-index"
+                    class="block font-semibold text-slate-700 dark:text-slate-300 text-xs mb-1.5"
+                >
                     Nombre del Tipo de Producto *
                 </label>
                 <input
@@ -1114,10 +1706,15 @@
                 />
             </div>
 
-            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#26334D]">
+            <div
+                class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#26334D]"
+            >
                 <button
                     type="button"
-                    onclick={() => { showEditTypeModal = false; editingTypeId = null; }}
+                    onclick={() => {
+                        showEditTypeModal = false;
+                        editingTypeId = null;
+                    }}
                     disabled={editTypeProcessing}
                     class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
                 >
@@ -1129,9 +1726,20 @@
                     disabled={!editTypeName.trim() || editTypeProcessing}
                     class="px-3.5 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white text-xs font-semibold shadow-sm transition disabled:opacity-50"
                 >
-                    {editTypeProcessing ? 'Guardando...' : 'Guardar Cambios'}
+                    {editTypeProcessing ? "Guardando..." : "Guardar Cambios"}
                 </button>
             </div>
         </div>
     </div>
 {/if}
+
+<ConfirmTrashModal
+    open={Boolean(productToDelete)}
+    title="Eliminar Producto"
+    itemLabel={productToDelete?.name ?? ""}
+    processing={deleteProductProcessing}
+    onCancel={() => {
+        if (!deleteProductProcessing) productToDelete = null;
+    }}
+    onConfirm={confirmDeleteProduct}
+/>

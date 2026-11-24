@@ -137,14 +137,13 @@ class WorkflowController extends Controller
                 $targetWorkflow->update(['is_default' => true]);
             }
 
-            // 4. Eliminar etapas del flujo viejo
-            $workflow->stages()->delete();
-
-            // 5. Eliminar el flujo
+            // 4. Soft-delete del flujo conservando sus etapas originales para posible recuperación
             $workflow->delete();
         });
 
-        return redirect()->route('workflows.index')->with('success', "Flujo \"{$workflow->name}\" eliminado con éxito. Sus productos y tareas activas se reasignaron a \"{$targetWorkflow->name}\".");
+        return redirect()->route('workflows.index')
+            ->with('success', "Flujo \"{$workflow->name}\" enviado a la Papelera de Reciclaje (sus productos y tareas se reasignaron a \"{$targetWorkflow->name}\"). Estará disponible para recuperación durante 8 días calendario.")
+            ->with('trashed', true);
     }
 
     /**

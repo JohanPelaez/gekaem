@@ -17,6 +17,7 @@ use App\Http\Controllers\QuickCreateController;
 use App\Http\Controllers\RawMaterialController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TenantSettingsController;
+use App\Http\Controllers\TrashController;
 use App\Http\Controllers\UnitOfMeasureController;
 use App\Http\Controllers\WorkflowController;
 use App\Http\Controllers\DashboardController;
@@ -174,6 +175,14 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
             Route::post('/upgrade', [PaymentController::class, 'upgradePlan'])->name('upgrade');
         });
         Route::get('/settings/billing', [PaymentController::class, 'billing'])->name('settings.billing');
+
+        // Papelera de Reciclaje (Exclusivo CEO / Super Admin)
+        Route::prefix('trash')->name('trash.')->group(function (): void {
+            Route::get('/', [TrashController::class, 'index'])->name('index');
+            Route::post('/{type}/{id}/restore', [TrashController::class, 'restore'])->name('restore');
+            Route::delete('/empty', [TrashController::class, 'emptyTrash'])->name('empty');
+            Route::delete('/{type}/{id}/force', [TrashController::class, 'forceDelete'])->name('force-delete');
+        });
 
         // Configuración del Taller y Equipo (Solo Dueño o Admin)
         Route::prefix('settings')->name('settings.')->group(function (): void {

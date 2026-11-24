@@ -99,6 +99,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                'trashed' => fn () => (bool) $request->session()->get('trashed', false),
             ],
             'counts' => [
                 'active_orders' => $activeOrdersCount,

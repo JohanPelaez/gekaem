@@ -29,6 +29,7 @@ class GetDashboardStatsAction
         $totalOrdersCount = Order::where('tenant_id', $tenantId)->count();
         $totalRevenue = (float) Order::where('tenant_id', $tenantId)->sum('total_amount');
         $completedTasksCount = ProductionTask::where('tenant_id', $tenantId)
+            ->whereHas('order')
             ->whereHas('currentStage', fn ($q) => $q->where('stage_category', 'done'))
             ->count();
         $pendingOrdersCount = Order::where('tenant_id', $tenantId)
@@ -94,7 +95,7 @@ class GetDashboardStatsAction
             'orthogonalAttributes' => OrthogonalAttribute::where('tenant_id', $tenantId)->with('options')->orderBy('name')->get(),
             'attributes' => OrthogonalAttribute::where('tenant_id', $tenantId)->with('options')->orderBy('name')->get(),
             'unitsOfMeasure' => UnitOfMeasure::orderBy('name')->get(['id', 'name', 'abbreviation']),
-            'wipQueueMinutes' => (int) ProductionTask::where('tenant_id', $tenantId)->whereHas('currentStage', fn ($q) => $q->whereIn('stage_category', ['pending', 'in_progress']))->sum('estimated_minutes'),
+            'wipQueueMinutes' => (int) ProductionTask::where('tenant_id', $tenantId)->whereHas('order')->whereHas('currentStage', fn ($q) => $q->whereIn('stage_category', ['pending', 'in_progress']))->sum('estimated_minutes'),
             'dailyProductiveMinutes' => $tenant->daily_productive_minutes ?? 480,
             'defaultBufferPercent' => $tenant->default_buffer_percent ?? 20,
             'allScheduledOrders' => $allScheduledOrders,

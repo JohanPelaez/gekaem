@@ -278,13 +278,15 @@ class ProductController extends Controller
     {
         $variantIds = $product->variants()->pluck('id');
 
-        if (ProductionTask::whereIn('product_variant_id', $variantIds)->exists()) {
+        if (ProductionTask::whereIn('product_variant_id', $variantIds)->whereHas('order')->exists()) {
             return redirect()->back()->with('error', 'No se puede eliminar el producto porque tiene tareas registradas en pedidos.');
         }
 
         $product->delete();
 
-        return redirect()->back()->with('success', 'Producto eliminado con éxito.');
+        return redirect()->back()
+            ->with('success', 'Elemento enviado a la Papelera de Reciclaje. Estará disponible para recuperación durante 8 días calendario.')
+            ->with('trashed', true);
     }
 
     /**

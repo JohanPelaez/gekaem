@@ -113,7 +113,9 @@ class KanbanController extends Controller
             return;
         }
 
-        $tasks = ProductionTask::with(['productVariant.product', 'workflow.stages'])->get();
+        $tasks = ProductionTask::whereHas('order')
+            ->with(['productVariant.product', 'workflow.stages'])
+            ->get();
         foreach ($tasks as $task) {
             $wf = $task->workflow ?? $workflows->firstWhere('id', $task->productVariant?->product?->workflow_id) ?? $defaultWorkflow;
             $stageIds = $wf->stages->pluck('id')->all();

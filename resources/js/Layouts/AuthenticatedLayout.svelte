@@ -28,6 +28,13 @@
     let counts = $derived(page.props.counts);
     let currentUrl = $derived(page.url);
 
+    // Restablecer estado de descarte cuando llegue un nuevo mensaje flash
+    $effect(() => {
+        if (flash?.success || flash?.error) {
+            flashDismissed = false;
+        }
+    });
+
     // Inicializar y sincronizar tema Claro / Oscuro con localStorage (Modo Claro por defecto)
     $effect(() => {
         if (typeof window !== 'undefined') {
@@ -160,6 +167,16 @@
                 badge: null,
                 icon: 'workflows',
             },
+            ...(auth?.user?.role === 'owner' || auth?.user?.is_super_admin
+                ? [
+                      {
+                          name: 'Papelera de Reciclaje',
+                          href: '/trash',
+                          badge: null,
+                          icon: 'trash',
+                      },
+                  ]
+                : []),
             {
                 name: 'Ajustes / Configuración',
                 href: '/settings',
@@ -377,6 +394,10 @@
                             {:else if item.icon === 'workflows'}
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                </svg>
+                            {:else if item.icon === 'trash'}
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                                 </svg>
                             {:else if item.icon === 'settings'}
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
@@ -735,12 +756,22 @@
             {#if (flash?.success || flash?.error) && !flashDismissed}
                 <div class="w-full max-w-none mb-3">
                     {#if flash?.success}
-                        <div class="bg-emerald-500/10 border border-emerald-500/25 text-emerald-800 dark:text-emerald-300 px-4 py-2.5 rounded-2xl flex items-center justify-between text-xs shadow-xs">
-                            <div class="flex items-center gap-2">
+                        <div class="bg-emerald-500/10 border border-emerald-500/25 text-emerald-800 dark:text-emerald-300 px-4 py-2.5 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs">
+                            <div class="flex items-center gap-2 min-w-0">
                                 <span class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[11px] shrink-0">✓</span>
                                 <span class="font-medium">{flash.success}</span>
                             </div>
-                            <button type="button" onclick={() => flashDismissed = true} class="text-emerald-600 dark:text-emerald-400 font-bold text-xs px-2 py-0.5">✕</button>
+                            <div class="flex items-center gap-2 shrink-0">
+                                {#if (flash?.trashed || String(flash.success).includes('Papelera de Reciclaje')) && (auth?.user?.role === 'owner' || auth?.user?.is_super_admin)}
+                                    <Link
+                                        href="/trash"
+                                        class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors whitespace-nowrap"
+                                    >
+                                        Ir a la Papelera
+                                    </Link>
+                                {/if}
+                                <button type="button" onclick={() => flashDismissed = true} class="text-emerald-600 dark:text-emerald-400 font-bold text-xs px-2 py-0.5">✕</button>
+                            </div>
                         </div>
                     {/if}
                     {#if flash?.error}

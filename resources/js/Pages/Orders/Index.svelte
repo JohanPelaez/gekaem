@@ -1,15 +1,16 @@
 <script>
-    import { untrack } from 'svelte';
-    import { router, Link, page } from '@inertiajs/svelte';
-    import AppLayout from '../../Layouts/AppLayout.svelte';
-    import ViewToggle from '../../Components/ViewToggle.svelte';
-    import CurrencyInput from '../../Components/CurrencyInput.svelte';
-    import OrderFormModal from '../../Components/OrderFormModal.svelte';
-    import OrderPaymentsManager from '../../Components/OrderPaymentsManager.svelte';
-    import CalendarView from './CalendarView.svelte';
-    import { canViewPrices } from '../../Utils/permissions.js';
-    import { getPaymentScheduleAlert } from '../../Utils/paymentScheduleAlerts.js';
-    import { csrfFetch } from '../../Utils/csrfFetch.js';
+    import { untrack } from "svelte";
+    import { router, Link, page } from "@inertiajs/svelte";
+    import AppLayout from "../../Layouts/AppLayout.svelte";
+    import ViewToggle from "../../Components/ViewToggle.svelte";
+    import CurrencyInput from "../../Components/CurrencyInput.svelte";
+    import OrderFormModal from "../../Components/OrderFormModal.svelte";
+    import OrderPaymentsManager from "../../Components/OrderPaymentsManager.svelte";
+    import ConfirmTrashModal from "../../Components/ConfirmTrashModal.svelte";
+    import CalendarView from "./CalendarView.svelte";
+    import { canViewPrices } from "../../Utils/permissions.js";
+    import { getPaymentScheduleAlert } from "../../Utils/paymentScheduleAlerts.js";
+    import { csrfFetch } from "../../Utils/csrfFetch.js";
 
     let {
         orders,
@@ -27,7 +28,14 @@
         wipQueueMinutes = 0,
         dailyProductiveMinutes = 480,
         defaultBufferPercent = 20,
-        filters = { search: '', status: '', customer_id: '', payment_status: '', delivery_range: '', exact_date: '' },
+        filters = {
+            search: "",
+            status: "",
+            customer_id: "",
+            payment_status: "",
+            delivery_range: "",
+            exact_date: "",
+        },
         errors = {},
     } = $props();
 
@@ -49,21 +57,30 @@
     });
 
     function normalizeDateKey(dateValue) {
-        if (!dateValue) return '';
+        if (!dateValue) return "";
         const str = String(dateValue).trim();
         const match = str.match(/^(\d{4}-\d{2}-\d{2})/);
-        return match ? match[1] : '';
+        return match ? match[1] : "";
     }
 
     function getOrderDateKey(order) {
-        if (!order) return '';
-        if (order.delivery_date_key && /^\d{4}-\d{2}-\d{2}$/.test(order.delivery_date_key)) {
+        if (!order) return "";
+        if (
+            order.delivery_date_key &&
+            /^\d{4}-\d{2}-\d{2}$/.test(order.delivery_date_key)
+        ) {
             return order.delivery_date_key;
         }
-        const raw = order.committed_delivery_at || order.predicted_delivery_at || order.delivery_date || '';
-        if (!raw) return '';
-        const match = String(raw).trim().match(/^(\d{4}-\d{2}-\d{2})/);
-        return match ? match[1] : '';
+        const raw =
+            order.committed_delivery_at ||
+            order.predicted_delivery_at ||
+            order.delivery_date ||
+            "";
+        if (!raw) return "";
+        const match = String(raw)
+            .trim()
+            .match(/^(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : "";
     }
 
     // Mapa reactivo global como fuente única de verdad para ambos calendarios
@@ -90,72 +107,93 @@
     });
 
     function formatExactDateHuman(dateKey) {
-        if (!dateKey) return '';
+        if (!dateKey) return "";
         const clean = normalizeDateKey(dateKey);
-        if (!clean) return '';
-        const [y, m, d] = clean.split('-').map(Number);
+        if (!clean) return "";
+        const [y, m, d] = clean.split("-").map(Number);
         const dateObj = new Date(y, m - 1, d);
-        return dateObj.toLocaleDateString('es-CO', {
-            weekday: 'short',
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
+        return dateObj.toLocaleDateString("es-CO", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
         });
     }
 
     function formatDayTitle(dateKey) {
-        if (!dateKey) return '';
+        if (!dateKey) return "";
         const clean = normalizeDateKey(dateKey);
-        if (!clean) return '';
-        const [y, m, d] = clean.split('-').map(Number);
+        if (!clean) return "";
+        const [y, m, d] = clean.split("-").map(Number);
         const dateObj = new Date(y, m - 1, d);
-        const str = dateObj.toLocaleDateString('es-CO', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
+        const str = dateObj.toLocaleDateString("es-CO", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
         });
         return str.charAt(0).toUpperCase() + str.slice(1);
     }
 
     let authUser = $derived(page.props.auth?.user);
     let hasFinancialAccess = $derived(canViewPrices(authUser));
-    let isOwnerOrAdmin = $derived(authUser?.is_super_admin || authUser?.role === 'owner');
-    let isCeo = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner'));
+    let isOwnerOrAdmin = $derived(
+        authUser?.is_super_admin || authUser?.role === "owner",
+    );
+    let isCeo = $derived(
+        Boolean(authUser?.is_super_admin || authUser?.role === "owner"),
+    );
+
+    let orderToDelete = $state(null);
+    let deleteOrderProcessing = $state(false);
 
     function deleteOrder(order) {
         openActionMenuOrderId = null;
-        if (confirm(`¿Estás seguro de eliminar el pedido #${order.order_number}? Esta acción no se puede deshacer.`)) {
-            router.delete(`/orders/${order.id}`);
-        }
+        orderToDelete = order;
     }
 
-    let search = $state('');
-    let statusFilter = $state('');
-    let customerFilter = $state('');
-    let paymentStatusFilter = $state('');
-    let deliveryRangeFilter = $state('');
-    let selectedExactDate = $state('');
+    function confirmDeleteOrder() {
+        if (!orderToDelete || deleteOrderProcessing) return;
+        router.delete(`/orders/${orderToDelete.id}`, {
+            preserveScroll: true,
+            onStart: () => {
+                deleteOrderProcessing = true;
+            },
+            onFinish: () => {
+                deleteOrderProcessing = false;
+                orderToDelete = null;
+            },
+        });
+    }
+
+    let search = $state("");
+    let statusFilter = $state("");
+    let customerFilter = $state("");
+    let paymentStatusFilter = $state("");
+    let deliveryRangeFilter = $state("");
+    let selectedExactDate = $state("");
 
     $effect(() => {
         const incoming = filters;
         untrack(() => {
-            search = incoming.search ?? '';
-            statusFilter = incoming.status ?? '';
-            customerFilter = incoming.customer_id ? String(incoming.customer_id) : '';
-            paymentStatusFilter = incoming.payment_status ?? '';
-            deliveryRangeFilter = incoming.delivery_range ?? '';
-            selectedExactDate = incoming.exact_date ?? '';
+            search = incoming.search ?? "";
+            statusFilter = incoming.status ?? "";
+            customerFilter = incoming.customer_id
+                ? String(incoming.customer_id)
+                : "";
+            paymentStatusFilter = incoming.payment_status ?? "";
+            deliveryRangeFilter = incoming.delivery_range ?? "";
+            selectedExactDate = incoming.exact_date ?? "";
         });
     });
 
-    let viewMode = $state('table'); // 'table' | 'cards' | 'calendar'
+    let viewMode = $state("table"); // 'table' | 'cards' | 'calendar'
     let expandedRows = $state(new Set());
 
     // Estado reactivo para el menú contextual del día en el calendario
     let dayContextMenu = $state({
         open: false,
-        dateKey: '',
+        dateKey: "",
         orders: [],
         x: 0,
         y: 0,
@@ -164,17 +202,23 @@
     // Modal de desglose detallado de pedidos para un día específico
     let dayOrdersModal = $state({
         open: false,
-        dateKey: '',
+        dateKey: "",
         orders: [],
     });
 
     function handleCalendarDayClick(day, event) {
-        const clickX = event.clientX || (typeof window !== 'undefined' ? window.innerWidth / 2 : 200);
-        const clickY = event.clientY || (typeof window !== 'undefined' ? window.innerHeight / 2 : 200);
+        const clickX =
+            event.clientX ||
+            (typeof window !== "undefined" ? window.innerWidth / 2 : 200);
+        const clickY =
+            event.clientY ||
+            (typeof window !== "undefined" ? window.innerHeight / 2 : 200);
         const menuWidth = 280;
         const menuHeight = 260;
-        const screenW = typeof window !== 'undefined' ? window.innerWidth : 1024;
-        const screenH = typeof window !== 'undefined' ? window.innerHeight : 768;
+        const screenW =
+            typeof window !== "undefined" ? window.innerWidth : 1024;
+        const screenH =
+            typeof window !== "undefined" ? window.innerHeight : 768;
         const x = Math.min(Math.max(10, clickX), screenW - menuWidth - 20);
         const y = Math.min(Math.max(10, clickY), screenH - menuHeight - 20);
 
@@ -214,7 +258,7 @@
     function handleContextFilterTable() {
         const date = dayContextMenu.dateKey;
         closeContextMenu();
-        viewMode = 'table';
+        viewMode = "table";
         selectedExactDate = date;
         applyFilters();
     }
@@ -228,25 +272,32 @@
     let showCreateModal = $state(false);
     let isEditingOrder = $state(false);
     let selectedOrderForEdit = $state(null);
-    let initialDateForModal = $state('');
+    let initialDateForModal = $state("");
 
     function openCreate() {
         isEditingOrder = false;
         selectedOrderForEdit = null;
-        initialDateForModal = '';
+        initialDateForModal = "";
         showCreateModal = true;
     }
 
     function openCreateForDate(dateKey) {
         isEditingOrder = false;
         selectedOrderForEdit = null;
-        initialDateForModal = dateKey || '';
+        initialDateForModal = dateKey || "";
         showCreateModal = true;
     }
 
     function openEditOrder(order) {
-        const rawDate = order?.promised_date || order?.delivery_date_key || order?.committed_delivery_at || order?.predicted_delivery_at || '';
-        const normalizedDate = rawDate ? String(rawDate).trim().slice(0, 10) : '';
+        const rawDate =
+            order?.promised_date ||
+            order?.delivery_date_key ||
+            order?.committed_delivery_at ||
+            order?.predicted_delivery_at ||
+            "";
+        const normalizedDate = rawDate
+            ? String(rawDate).trim().slice(0, 10)
+            : "";
         isEditingOrder = true;
         selectedOrderForEdit = {
             ...order,
@@ -270,12 +321,12 @@
 
     function applyFilters() {
         router.get(
-            '/orders',
+            "/orders",
             {
                 search,
                 status: statusFilter,
                 customer_id: customerFilter,
-                payment_status: hasFinancialAccess ? paymentStatusFilter : '',
+                payment_status: hasFinancialAccess ? paymentStatusFilter : "",
                 delivery_range: deliveryRangeFilter,
                 exact_date: selectedExactDate,
             },
@@ -289,17 +340,17 @@
     }
 
     function clearExactDate() {
-        selectedExactDate = '';
+        selectedExactDate = "";
         applyFilters();
     }
 
     function clearFilters() {
-        search = '';
-        statusFilter = '';
-        customerFilter = '';
-        paymentStatusFilter = '';
-        deliveryRangeFilter = '';
-        selectedExactDate = '';
+        search = "";
+        statusFilter = "";
+        customerFilter = "";
+        paymentStatusFilter = "";
+        deliveryRangeFilter = "";
+        selectedExactDate = "";
         applyFilters();
     }
 
@@ -318,7 +369,10 @@
         showPaymentModal = true;
     }
 
-    function handleOrderPaymentsUpdated({ payments: updatedPayments, paymentSchedules: updatedSchedules }) {
+    function handleOrderPaymentsUpdated({
+        payments: updatedPayments,
+        paymentSchedules: updatedSchedules,
+    }) {
         if (selectedOrderForPayment) {
             selectedOrderForPayment = {
                 ...selectedOrderForPayment,
@@ -330,7 +384,11 @@
     }
 
     function deletePayment(payment) {
-        if (confirm(`¿Eliminar este abono por ${formatCurrency(payment.amount)}?`)) {
+        if (
+            confirm(
+                `¿Eliminar este abono por ${formatCurrency(payment.amount)}?`,
+            )
+        ) {
             router.delete(`/payments/${payment.id}`, {
                 preserveScroll: true,
             });
@@ -342,17 +400,17 @@
         open: false,
         order: null,
         loading: false,
-        error: '',
+        error: "",
     });
 
-    let deliverToast = $state({ visible: false, message: '' });
+    let deliverToast = $state({ visible: false, message: "" });
     let deliverToastTimer = null;
 
     function showDeliverToast(message) {
         if (deliverToastTimer) clearTimeout(deliverToastTimer);
         deliverToast = { visible: true, message };
         deliverToastTimer = setTimeout(() => {
-            deliverToast = { visible: false, message: '' };
+            deliverToast = { visible: false, message: "" };
         }, 6000);
     }
 
@@ -361,7 +419,7 @@
             open: true,
             order,
             loading: false,
-            error: '',
+            error: "",
         };
     }
 
@@ -371,7 +429,7 @@
             open: false,
             order: null,
             loading: false,
-            error: '',
+            error: "",
         };
     }
 
@@ -380,17 +438,20 @@
         if (!order) return;
 
         deliverConfirmModal.loading = true;
-        deliverConfirmModal.error = '';
+        deliverConfirmModal.error = "";
 
         try {
             const res = await csrfFetch(`/orders/${order.id}/deliver`, {
-                method: 'PATCH',
-                headers: { Accept: 'application/json' },
+                method: "PATCH",
+                headers: { Accept: "application/json" },
             });
 
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                throw new Error(data.message || 'No se pudo marcar el pedido como entregado.');
+                throw new Error(
+                    data.message ||
+                        "No se pudo marcar el pedido como entregado.",
+                );
             }
 
             const orderNum = order.order_number;
@@ -398,39 +459,42 @@
                 open: false,
                 order: null,
                 loading: false,
-                error: '',
+                error: "",
             };
 
-            showDeliverToast(`📦 Pedido #${orderNum} marcado como entregado y movido a Historial de Pedidos`);
+            showDeliverToast(
+                `📦 Pedido #${orderNum} marcado como entregado y movido a Historial de Pedidos`,
+            );
             router.reload({ preserveScroll: true });
         } catch (err) {
-            deliverConfirmModal.error = err.message || 'Error al marcar el pedido como entregado.';
+            deliverConfirmModal.error =
+                err.message || "Error al marcar el pedido como entregado.";
             deliverConfirmModal.loading = false;
         }
     }
 
     function formatDate(dateStr) {
-        if (!dateStr) return 'N/A';
+        if (!dateStr) return "N/A";
         const clean = normalizeDateKey(dateStr);
-        if (!clean) return 'N/A';
-        const [y, m, d] = clean.split('-').map(Number);
+        if (!clean) return "N/A";
+        const [y, m, d] = clean.split("-").map(Number);
         const dateObj = new Date(y, m - 1, d);
-        let timeStr = '';
-        if (String(dateStr).includes('T')) {
-            timeStr = String(dateStr).split('T')[1].slice(0, 5);
-        } else if (String(dateStr).includes(' ')) {
-            timeStr = String(dateStr).split(' ')[1].slice(0, 5);
+        let timeStr = "";
+        if (String(dateStr).includes("T")) {
+            timeStr = String(dateStr).split("T")[1].slice(0, 5);
+        } else if (String(dateStr).includes(" ")) {
+            timeStr = String(dateStr).split(" ")[1].slice(0, 5);
         }
-        const formatted = dateObj.toLocaleDateString('es-CO', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
+        const formatted = dateObj.toLocaleDateString("es-CO", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
         });
         return timeStr ? `${formatted} ${timeStr}` : formatted;
     }
 
     function formatMinutes(mins) {
-        if (!mins) return '0 min';
+        if (!mins) return "0 min";
         const h = Math.floor(mins / 60);
         const m = mins % 60;
         if (h === 0) return `${m}m`;
@@ -438,51 +502,80 @@
     }
 
     function formatCurrency(val) {
-        return new Intl.NumberFormat('es-CO', {
-            style: 'currency',
-            currency: 'COP',
+        return new Intl.NumberFormat("es-CO", {
+            style: "currency",
+            currency: "COP",
             maximumFractionDigits: 0,
         }).format(Number(val || 0));
     }
 
     function getDerivedStatusBadge(status) {
         switch (status) {
-            case 'pending':
-                return { label: 'Pendiente', color: 'bg-[#64748B]/15 text-[#64748B] dark:text-slate-300 border-[#64748B]/40' };
-            case 'in_progress':
-                return { label: 'En Producción', color: 'bg-[#4F46E5]/10 text-[#4F46E5] dark:text-indigo-400 border-[#4F46E5]/40' };
-            case 'blocked':
-                return { label: 'Bloqueado', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30' };
-            case 'ready':
-                return { label: 'Listo', color: 'bg-[#06B6D4]/10 text-[#06B6D4] border-[#06B6D4]/40' };
-            case 'delivered':
-                return { label: 'Entregado', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' };
+            case "pending":
+                return {
+                    label: "Pendiente",
+                    color: "bg-[#64748B]/15 text-[#64748B] dark:text-slate-300 border-[#64748B]/40",
+                };
+            case "in_progress":
+                return {
+                    label: "En Producción",
+                    color: "bg-[#4F46E5]/10 text-[#4F46E5] dark:text-indigo-400 border-[#4F46E5]/40",
+                };
+            case "blocked":
+                return {
+                    label: "Bloqueado",
+                    color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30",
+                };
+            case "ready":
+                return {
+                    label: "Listo",
+                    color: "bg-[#06B6D4]/10 text-[#06B6D4] border-[#06B6D4]/40",
+                };
+            case "delivered":
+                return {
+                    label: "Entregado",
+                    color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+                };
             default:
-                return { label: status, color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700' };
+                return {
+                    label: status,
+                    color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700",
+                };
         }
     }
 
     function getOrderBadge(order) {
         if (order.orderStatus?.name) {
-            const hex = order.orderStatus.color || '#64748B';
+            const hex = order.orderStatus.color || "#64748B";
             return {
                 label: order.orderStatus.name,
                 style: `background-color: ${hex}18; color: ${hex}; border-color: ${hex}55;`,
-                color: '',
+                color: "",
             };
         }
         return { ...getDerivedStatusBadge(order.derived_status), style: null };
     }
 
     function getShippingTypeBadge(type) {
-        if (type === 'envio_incluido') {
-            return { label: '📦 Envío Incluido', color: 'bg-[#4F46E5]/10 text-[#4F46E5] dark:text-indigo-400 border-[#4F46E5]/30' };
+        if (type === "envio_incluido") {
+            return {
+                label: "📦 Envío Incluido",
+                color: "bg-[#4F46E5]/10 text-[#4F46E5] dark:text-indigo-400 border-[#4F46E5]/30",
+            };
         }
-        return { label: '🚚 Contraentrega', color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' };
+        return {
+            label: "🚚 Contraentrega",
+            color: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+        };
     }
 
     let openActionMenuOrderId = $state(null);
-    let menuCoords = $state({ top: 0, right: 0, openUpwards: false, rectTop: 0 });
+    let menuCoords = $state({
+        top: 0,
+        right: 0,
+        openUpwards: false,
+        rectTop: 0,
+    });
 
     function toggleActionMenu(e, id) {
         e.stopPropagation();
@@ -503,10 +596,10 @@
 </script>
 
 <svelte:window
-    onclick={() => openActionMenuOrderId = null}
-    onscroll={() => openActionMenuOrderId = null}
+    onclick={() => (openActionMenuOrderId = null)}
+    onscroll={() => (openActionMenuOrderId = null)}
     onkeydown={(e) => {
-        if (e.key === 'Escape') {
+        if (e.key === "Escape") {
             openActionMenuOrderId = null;
             if (dayContextMenu?.open) closeContextMenu();
             if (dayOrdersModal?.open) dayOrdersModal.open = false;
@@ -517,15 +610,28 @@
 <AppLayout title="Gestión de Pedidos y Finanzas">
     <div class="space-y-4 w-full max-w-none">
         <!-- ENCABEZADO Y ACCIONES -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+        <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1"
+        >
             <div>
-                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Pedidos, Abonos y Entregas</h1>
+                <h1
+                    class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white"
+                >
+                    Pedidos, Abonos y Entregas
+                </h1>
                 <p class="text-xs text-[#64748B] dark:text-slate-400 mt-0.5">
-                    Controla pedidos con fecha de entrega, registro de abonos y saldo pendiente en tiempo real.
+                    Controla pedidos con fecha de entrega, registro de abonos y
+                    saldo pendiente en tiempo real.
                 </p>
             </div>
-            <div class="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
-                <ViewToggle bind:mode={viewMode} storageKey="gekaem_orders_view" showCalendar={true} />
+            <div
+                class="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto"
+            >
+                <ViewToggle
+                    bind:mode={viewMode}
+                    storageKey="gekaem_orders_view"
+                    showCalendar={true}
+                />
                 <Link
                     href="/kanban"
                     class="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-[#151D2C] dark:hover:bg-[#1C263B] text-slate-700 dark:text-slate-200 font-semibold text-xs transition-colors border border-slate-200 dark:border-[#26334D] flex items-center gap-1.5 shadow-sm"
@@ -546,92 +652,155 @@
 
         <!-- KPI SUMMARY CARDS -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-sm">
-                <span class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block">Cola en Producción</span>
-                <div class="text-xl font-mono font-bold text-amber-500 dark:text-amber-300 mt-1">
+            <div
+                class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-sm"
+            >
+                <span
+                    class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block"
+                    >Cola en Producción</span
+                >
+                <div
+                    class="text-xl font-mono font-bold text-amber-500 dark:text-amber-300 mt-1"
+                >
                     ⏱ {formatMinutes(wipQueueMinutes)}
                 </div>
-                <span class="text-[10px] text-[#64748B] dark:text-slate-500 mt-0.5 block">Taller: {dailyProductiveMinutes} min/día</span>
+                <span
+                    class="text-[10px] text-[#64748B] dark:text-slate-500 mt-0.5 block"
+                    >Taller: {dailyProductiveMinutes} min/día</span
+                >
             </div>
 
-            <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-sm">
-                <span class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block">Pedidos Totales</span>
-                <div class="text-xl font-mono font-bold text-slate-900 dark:text-white mt-1">
+            <div
+                class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-sm"
+            >
+                <span
+                    class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block"
+                    >Pedidos Totales</span
+                >
+                <div
+                    class="text-xl font-mono font-bold text-slate-900 dark:text-white mt-1"
+                >
                     {orders.total ?? 0}
                 </div>
-                <span class="text-[10px] text-[#64748B] dark:text-slate-500 mt-0.5 block">Registrados en historial</span>
+                <span
+                    class="text-[10px] text-[#64748B] dark:text-slate-500 mt-0.5 block"
+                    >Registrados en historial</span
+                >
             </div>
 
-            <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-sm">
-                <span class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block">Control de Holgura</span>
+            <div
+                class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-sm"
+            >
+                <span
+                    class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block"
+                    >Control de Holgura</span
+                >
                 <div class="text-xl font-mono font-bold text-[#06B6D4] mt-1">
                     +{defaultBufferPercent}%
                 </div>
-                <span class="text-[10px] text-[#64748B] dark:text-slate-500 mt-0.5 block">Margen del taller</span>
+                <span
+                    class="text-[10px] text-[#64748B] dark:text-slate-500 mt-0.5 block"
+                    >Margen del taller</span
+                >
             </div>
 
-            <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-sm">
-                <span class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block">Clientes Activos</span>
-                <div class="text-xl font-mono font-bold text-[#4F46E5] dark:text-indigo-400 mt-1">
+            <div
+                class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-sm"
+            >
+                <span
+                    class="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 uppercase tracking-wider block"
+                    >Clientes Activos</span
+                >
+                <div
+                    class="text-xl font-mono font-bold text-[#4F46E5] dark:text-indigo-400 mt-1"
+                >
                     {localCustomers.length}
                 </div>
-                <span class="text-[10px] text-[#64748B] dark:text-slate-500 mt-0.5 block">Directorio registrado</span>
+                <span
+                    class="text-[10px] text-[#64748B] dark:text-slate-500 mt-0.5 block"
+                    >Directorio registrado</span
+                >
             </div>
         </div>
 
         <!-- BARRA DE FILTROS Y BUSCADOR COMBINADOS -->
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-4 rounded-3xl space-y-3 shadow-sm">
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-4 rounded-3xl space-y-3 shadow-sm"
+        >
             <!-- Fila 1: Pestañas de estado operativo y Buscador rápido -->
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div
+                class="flex flex-col md:flex-row md:items-center justify-between gap-3"
+            >
                 <div class="flex flex-wrap items-center gap-1 text-xs">
                     <button
                         type="button"
-                        onclick={() => setStatus('')}
-                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {!statusFilter ? 'bg-[#4F46E5] text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                        onclick={() => setStatus("")}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {!statusFilter
+                            ? 'bg-[#4F46E5] text-white font-bold shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         Todos
                     </button>
                     <button
                         type="button"
-                        onclick={() => setStatus('pending')}
-                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'pending' ? 'bg-[#4F46E5] text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                        onclick={() => setStatus("pending")}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter ===
+                        'pending'
+                            ? 'bg-[#4F46E5] text-white font-bold shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         Pendientes
                     </button>
                     <button
                         type="button"
-                        onclick={() => setStatus('in_progress')}
-                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'in_progress' ? 'bg-[#4F46E5] text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                        onclick={() => setStatus("in_progress")}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter ===
+                        'in_progress'
+                            ? 'bg-[#4F46E5] text-white font-bold shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         En Producción
                     </button>
                     <button
                         type="button"
-                        onclick={() => setStatus('blocked')}
-                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'blocked' ? 'bg-[#4F46E5] text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                        onclick={() => setStatus("blocked")}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter ===
+                        'blocked'
+                            ? 'bg-[#4F46E5] text-white font-bold shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         Bloqueados
                     </button>
                     <button
                         type="button"
-                        onclick={() => setStatus('ready')}
-                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'ready' ? 'bg-[#4F46E5] text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                        onclick={() => setStatus("ready")}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter ===
+                        'ready'
+                            ? 'bg-[#4F46E5] text-white font-bold shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         Listos
                     </button>
                     <button
                         type="button"
-                        onclick={() => setStatus('delivered')}
-                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter === 'delivered' ? 'bg-[#4F46E5] text-white font-bold shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                        onclick={() => setStatus("delivered")}
+                        class="px-3 py-1.5 rounded-xl font-medium transition-colors {statusFilter ===
+                        'delivered'
+                            ? 'bg-[#4F46E5] text-white font-bold shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}"
                     >
                         Entregados
                     </button>
                 </div>
 
                 <!-- Buscador por #pedido o cliente -->
-                <div class="flex items-center gap-2 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] px-3 py-1.5 rounded-xl w-full md:w-72">
+                <div
+                    class="flex items-center gap-2 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] px-3 py-1.5 rounded-xl w-full md:w-72"
+                >
                     <span class="text-slate-400 text-xs">🔍</span>
-                    <label for="search-orders" class="sr-only">Buscar por # o cliente</label>
+                    <label for="search-orders" class="sr-only"
+                        >Buscar por # o cliente</label
+                    >
                     <input
                         id="search-orders"
                         type="text"
@@ -641,16 +810,30 @@
                         class="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder-slate-400 text-xs focus:outline-none"
                     />
                     {#if search}
-                        <button type="button" onclick={() => { search = ''; applyFilters(); }} class="text-slate-400 text-xs hover:text-slate-600 dark:hover:text-white">✕</button>
+                        <button
+                            type="button"
+                            onclick={() => {
+                                search = "";
+                                applyFilters();
+                            }}
+                            class="text-slate-400 text-xs hover:text-slate-600 dark:hover:text-white"
+                            >✕</button
+                        >
                     {/if}
                 </div>
             </div>
 
             <!-- Fila 2: Filtros desplegables secundarios -->
-            <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800/80 text-xs">
+            <div
+                class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-200 dark:border-slate-800/80 text-xs"
+            >
                 <!-- Filtro por Cliente -->
                 <div class="flex items-center gap-1.5">
-                    <label for="filter-ord-cust" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px]">Cliente:</label>
+                    <label
+                        for="filter-ord-cust"
+                        class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px]"
+                        >Cliente:</label
+                    >
                     <select
                         id="filter-ord-cust"
                         bind:value={customerFilter}
@@ -667,7 +850,11 @@
                 <!-- Filtro por Estado de Pago (SOLO SI TIENE PERMISOS FINANCIEROS) -->
                 {#if hasFinancialAccess}
                     <div class="flex items-center gap-1.5">
-                        <label for="filter-ord-pay" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px]">Estado de Pago:</label>
+                        <label
+                            for="filter-ord-pay"
+                            class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px]"
+                            >Estado de Pago:</label
+                        >
                         <select
                             id="filter-ord-pay"
                             bind:value={paymentStatusFilter}
@@ -678,14 +865,20 @@
                             <option value="unpaid">Sin Abono</option>
                             <option value="partial">Abono Parcial</option>
                             <option value="paid">Pagado Total</option>
-                            <option value="scheduled">📅 Con Cobros Programados / Vencidos</option>
+                            <option value="scheduled"
+                                >📅 Con Cobros Programados / Vencidos</option
+                            >
                         </select>
                     </div>
                 {/if}
 
                 <!-- Filtro por Rango de Entrega -->
                 <div class="flex items-center gap-1.5">
-                    <label for="filter-ord-delivery" class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px]">Entrega:</label>
+                    <label
+                        for="filter-ord-delivery"
+                        class="text-[#64748B] dark:text-slate-400 font-semibold text-[11px]"
+                        >Entrega:</label
+                    >
                     <select
                         id="filter-ord-delivery"
                         bind:value={deliveryRangeFilter}
@@ -702,8 +895,14 @@
 
                 <!-- Chip de Fecha Exacta Seleccionada (desde el Calendario) -->
                 {#if selectedExactDate}
-                    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#06B6D4]/15 text-[#06B6D4] border border-[#06B6D4]/30 font-semibold text-xs">
-                        <span>📅 Entrega: {formatExactDateHuman(selectedExactDate)}</span>
+                    <div
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#06B6D4]/15 text-[#06B6D4] border border-[#06B6D4]/30 font-semibold text-xs"
+                    >
+                        <span
+                            >📅 Entrega: {formatExactDateHuman(
+                                selectedExactDate,
+                            )}</span
+                        >
                         <button
                             type="button"
                             onclick={clearExactDate}
@@ -729,119 +928,236 @@
         </div>
 
         <!-- VISTA TABLA (DEFAULT) -->
-        {#if viewMode === 'table'}
-            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm">
+        {#if viewMode === "table"}
+            <div
+                class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl overflow-hidden shadow-sm"
+            >
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-50/80 dark:bg-[#0B0F17]/80 text-[#64748B] dark:text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200 dark:border-[#26334D]">
+                        <thead
+                            class="bg-slate-50/80 dark:bg-[#0B0F17]/80 text-[#64748B] dark:text-slate-400 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200 dark:border-[#26334D]"
+                        >
                             <tr>
                                 <th class="py-2.5 px-3 w-10 text-center"></th>
-                                <th class="py-2.5 px-3 whitespace-nowrap">Pedido #</th>
-                                <th class="py-2.5 px-3 whitespace-nowrap">Cliente</th>
-                                <th class="py-2.5 px-3 whitespace-nowrap">Estado</th>
-                                <th class="py-2.5 px-3 whitespace-nowrap">Envío</th>
-                                <th class="py-2.5 px-3 whitespace-nowrap">Entrega Comprometida</th>
+                                <th class="py-2.5 px-3 whitespace-nowrap"
+                                    >Pedido #</th
+                                >
+                                <th class="py-2.5 px-3 whitespace-nowrap"
+                                    >Cliente</th
+                                >
+                                <th class="py-2.5 px-3 whitespace-nowrap"
+                                    >Estado</th
+                                >
+                                <th class="py-2.5 px-3 whitespace-nowrap"
+                                    >Envío</th
+                                >
+                                <th class="py-2.5 px-3 whitespace-nowrap"
+                                    >Entrega Comprometida</th
+                                >
                                 {#if hasFinancialAccess}
-                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Total</th>
-                                    <th class="py-2.5 px-3 text-right whitespace-nowrap">Saldo</th>
+                                    <th
+                                        class="py-2.5 px-3 text-right whitespace-nowrap"
+                                        >Total</th
+                                    >
+                                    <th
+                                        class="py-2.5 px-3 text-right whitespace-nowrap"
+                                        >Saldo</th
+                                    >
                                 {/if}
-                                <th class="py-2.5 px-3 text-center whitespace-nowrap">Progreso</th>
-                                <th class="py-2.5 px-3 text-right whitespace-nowrap">Acciones</th>
+                                <th
+                                    class="py-2.5 px-3 text-center whitespace-nowrap"
+                                    >Progreso</th
+                                >
+                                <th
+                                    class="py-2.5 px-3 text-right whitespace-nowrap"
+                                    >Acciones</th
+                                >
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300">
+                        <tbody
+                            class="divide-y divide-slate-100 dark:divide-[#26334D]/60 text-slate-700 dark:text-slate-300"
+                        >
                             {#each orders.data as order (order.id)}
                                 {@const badge = getOrderBadge(order)}
-                                {@const shippingBadge = getShippingTypeBadge(order.shipping_type)}
+                                {@const shippingBadge = getShippingTypeBadge(
+                                    order.shipping_type,
+                                )}
                                 {@const tasksTotal = order.tasks_count ?? 0}
-                                {@const tasksCompleted = order.completed_tasks_count ?? 0}
-                                {@const progressPercent = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : 0}
+                                {@const tasksCompleted =
+                                    order.completed_tasks_count ?? 0}
+                                {@const progressPercent =
+                                    tasksTotal > 0
+                                        ? Math.round(
+                                              (tasksCompleted / tasksTotal) *
+                                                  100,
+                                          )
+                                        : 0}
                                 {@const isExpanded = expandedRows.has(order.id)}
-                                <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded ? 'bg-slate-50/60 dark:bg-slate-800/25' : ''}">
-                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                                <tr
+                                    class="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors {isExpanded
+                                        ? 'bg-slate-50/60 dark:bg-slate-800/25'
+                                        : ''}"
+                                >
+                                    <td
+                                        class="py-2.5 px-3 text-center whitespace-nowrap"
+                                    >
                                         <button
                                             type="button"
                                             onclick={() => toggleRow(order.id)}
-                                            class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 inline-flex items-center justify-center transition-transform {isExpanded ? 'rotate-90 text-[#4F46E5] dark:text-indigo-400' : ''}"
-                                            title={isExpanded ? 'Colapsar detalles' : 'Expandir productos y abonos'}
+                                            class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 inline-flex items-center justify-center transition-transform {isExpanded
+                                                ? 'rotate-90 text-[#4F46E5] dark:text-indigo-400'
+                                                : ''}"
+                                            title={isExpanded
+                                                ? "Colapsar detalles"
+                                                : "Expandir productos y abonos"}
                                         >
                                             ▶
                                         </button>
                                     </td>
-                                    <td class="py-2.5 px-3 font-mono font-bold text-[#4F46E5] dark:text-indigo-400 text-xs whitespace-nowrap">
+                                    <td
+                                        class="py-2.5 px-3 font-mono font-bold text-[#4F46E5] dark:text-indigo-400 text-xs whitespace-nowrap"
+                                    >
                                         #{order.order_number}
                                     </td>
                                     <td class="py-2.5 px-3 whitespace-nowrap">
-                                        <div class="inline-flex items-center gap-1.5 max-w-[220px]">
+                                        <div
+                                            class="inline-flex items-center gap-1.5 max-w-[220px]"
+                                        >
                                             <button
                                                 type="button"
                                                 class="font-semibold text-slate-900 dark:text-white text-xs hover:text-[#4F46E5] dark:hover:text-indigo-400 text-left truncate transition-colors"
-                                                onclick={() => toggleRow(order.id)}
-                                                title={order.customer?.name ?? 'Cliente'}
+                                                onclick={() =>
+                                                    toggleRow(order.id)}
+                                                title={order.customer?.name ??
+                                                    "Cliente"}
                                             >
-                                                {order.customer?.name ?? 'Cliente'}
+                                                {order.customer?.name ??
+                                                    "Cliente"}
                                             </button>
                                             {#if order.customer?.phone}
-                                                <span class="text-[10px] text-[#64748B] dark:text-slate-500 font-mono shrink-0">· {order.customer.phone}</span>
+                                                <span
+                                                    class="text-[10px] text-[#64748B] dark:text-slate-500 font-mono shrink-0"
+                                                    >· {order.customer
+                                                        .phone}</span
+                                                >
                                             {/if}
                                         </div>
                                     </td>
                                     <td class="py-2.5 px-3 whitespace-nowrap">
                                         {#if badge.style}
-                                            <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border inline-block" style={badge.style}>
+                                            <span
+                                                class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border inline-block"
+                                                style={badge.style}
+                                            >
                                                 {badge.label}
                                             </span>
                                         {:else}
-                                            <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border inline-block {badge.color}">
+                                            <span
+                                                class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border inline-block {badge.color}"
+                                            >
                                                 {badge.label}
                                             </span>
                                         {/if}
                                     </td>
                                     <td class="py-2.5 px-3 whitespace-nowrap">
-                                        <span class="text-[10px] px-2.5 py-0.5 rounded-full font-semibold border inline-flex items-center gap-1 whitespace-nowrap {shippingBadge.color}">
+                                        <span
+                                            class="text-[10px] px-2.5 py-0.5 rounded-full font-semibold border inline-flex items-center gap-1 whitespace-nowrap {shippingBadge.color}"
+                                        >
                                             {shippingBadge.label}
                                         </span>
                                     </td>
-                                    <td class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300 text-xs whitespace-nowrap">
-                                        📅 {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
+                                    <td
+                                        class="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300 text-xs whitespace-nowrap"
+                                    >
+                                        📅 {formatDate(
+                                            order.committed_delivery_at ||
+                                                order.predicted_delivery_at,
+                                        )}
                                     </td>
                                     {#if hasFinancialAccess}
-                                        {@const scheduleAlert = getPaymentScheduleAlert(order)}
-                                        <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap">
+                                        {@const scheduleAlert =
+                                            getPaymentScheduleAlert(order)}
+                                        <td
+                                            class="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap"
+                                        >
                                             {formatCurrency(order.total_amount)}
                                         </td>
-                                        <td class="py-2.5 px-3 text-right font-mono font-bold text-xs whitespace-nowrap {order.pending_balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">
-                                            <div class="inline-flex items-center justify-end gap-1.5">
-                                                <span>{order.pending_balance > 0 ? formatCurrency(order.pending_balance) : '✓ Pagado'}</span>
+                                        <td
+                                            class="py-2.5 px-3 text-right font-mono font-bold text-xs whitespace-nowrap {order.pending_balance >
+                                            0
+                                                ? 'text-amber-600 dark:text-amber-400'
+                                                : 'text-emerald-600 dark:text-emerald-400'}"
+                                        >
+                                            <div
+                                                class="inline-flex items-center justify-end gap-1.5"
+                                            >
+                                                <span
+                                                    >{order.pending_balance > 0
+                                                        ? formatCurrency(
+                                                              order.pending_balance,
+                                                          )
+                                                        : "✓ Pagado"}</span
+                                                >
                                                 {#if scheduleAlert}
                                                     <button
                                                         type="button"
-                                                        onclick={() => openPaymentModal(order)}
-                                                        title={`${scheduleAlert.label} · ${scheduleAlert.formattedDate} · ${formatCurrency(scheduleAlert.amount)}${scheduleAlert.notes ? ` (${scheduleAlert.notes})` : ''}${scheduleAlert.extraCount > 0 ? ` (+${scheduleAlert.extraCount} más)` : ''}`}
+                                                        onclick={() =>
+                                                            openPaymentModal(
+                                                                order,
+                                                            )}
+                                                        title={`${scheduleAlert.label} · ${scheduleAlert.formattedDate} · ${formatCurrency(scheduleAlert.amount)}${scheduleAlert.notes ? ` (${scheduleAlert.notes})` : ""}${scheduleAlert.extraCount > 0 ? ` (+${scheduleAlert.extraCount} más)` : ""}`}
                                                         class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-sans font-bold border transition-opacity hover:opacity-85 {scheduleAlert.badgeClass}"
                                                     >
-                                                        <span class="w-1.5 h-1.5 rounded-full shrink-0 {scheduleAlert.dotClass}"></span>
-                                                        <span>{scheduleAlert.compactLabel}</span>
-                                                        <span class="font-mono">{formatCurrency(scheduleAlert.amount)}</span>
+                                                        <span
+                                                            class="w-1.5 h-1.5 rounded-full shrink-0 {scheduleAlert.dotClass}"
+                                                        ></span>
+                                                        <span
+                                                            >{scheduleAlert.compactLabel}</span
+                                                        >
+                                                        <span class="font-mono"
+                                                            >{formatCurrency(
+                                                                scheduleAlert.amount,
+                                                            )}</span
+                                                        >
                                                     </button>
                                                 {/if}
                                             </div>
                                         </td>
                                     {/if}
-                                    <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                                        <div class="inline-flex items-center gap-1.5">
-                                            <div class="w-14 h-1.5 bg-slate-200 dark:bg-slate-950 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
-                                                <div class="h-full bg-[#06B6D4]" style="width: {progressPercent}%"></div>
+                                    <td
+                                        class="py-2.5 px-3 text-center whitespace-nowrap"
+                                    >
+                                        <div
+                                            class="inline-flex items-center gap-1.5"
+                                        >
+                                            <div
+                                                class="w-14 h-1.5 bg-slate-200 dark:bg-slate-950 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800"
+                                            >
+                                                <div
+                                                    class="h-full bg-[#06B6D4]"
+                                                    style="width: {progressPercent}%"
+                                                ></div>
                                             </div>
-                                            <span class="font-mono text-[10px] text-[#64748B] dark:text-slate-400">{progressPercent}%</span>
+                                            <span
+                                                class="font-mono text-[10px] text-[#64748B] dark:text-slate-400"
+                                                >{progressPercent}%</span
+                                            >
                                         </div>
                                     </td>
-                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
-                                        <div class="inline-flex items-center justify-end">
+                                    <td
+                                        class="py-2.5 px-3 text-right whitespace-nowrap"
+                                    >
+                                        <div
+                                            class="inline-flex items-center justify-end"
+                                        >
                                             <!-- Botón Menú Contextual ••• -->
                                             <button
                                                 type="button"
-                                                onclick={(e) => toggleActionMenu(e, order.id)}
+                                                onclick={(e) =>
+                                                    toggleActionMenu(
+                                                        e,
+                                                        order.id,
+                                                    )}
                                                 class="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] text-xs font-bold transition-colors"
                                                 title="Más opciones del pedido"
                                                 aria-label="Más opciones"
@@ -856,45 +1172,87 @@
                                                 role="menu"
                                                 tabindex="-1"
                                                 class="fixed z-[9999] w-48 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] shadow-xl py-1 text-left divide-y divide-slate-100 dark:divide-[#26334D]/60 animate-in fade-in zoom-in-95 duration-100"
-                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;` : `top: ${menuCoords.top}px;`}"
-                                                onclick={(e) => e.stopPropagation()}
-                                                onkeydown={(e) => { if (e.key === 'Escape') openActionMenuOrderId = null; }}
+                                                style="right: {menuCoords.right}px; {menuCoords.openUpwards
+                                                    ? `bottom: ${window.innerHeight - menuCoords.rectTop + 6}px;`
+                                                    : `top: ${menuCoords.top}px;`}"
+                                                onclick={(e) =>
+                                                    e.stopPropagation()}
+                                                onkeydown={(e) => {
+                                                    if (e.key === "Escape")
+                                                        openActionMenuOrderId =
+                                                            null;
+                                                }}
                                             >
                                                 <div class="py-0.5">
                                                     <button
                                                         type="button"
-                                                        onclick={() => { openActionMenuOrderId = null; openEditOrder(order); }}
+                                                        onclick={() => {
+                                                            openActionMenuOrderId =
+                                                                null;
+                                                            openEditOrder(
+                                                                order,
+                                                            );
+                                                        }}
                                                         class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
                                                     >
                                                         <span>✏️</span>
-                                                        <span>Editar Pedido</span>
+                                                        <span
+                                                            >Editar Pedido</span
+                                                        >
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onclick={() => { openActionMenuOrderId = null; router.visit(`/kanban?order_id=${order.id}`); }}
+                                                        onclick={() => {
+                                                            openActionMenuOrderId =
+                                                                null;
+                                                            router.visit(
+                                                                `/kanban?order_id=${order.id}`,
+                                                            );
+                                                        }}
                                                         class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
                                                     >
                                                         <span>📋</span>
-                                                        <span>Ir al Tablero Kanban</span>
+                                                        <span
+                                                            >Ir al Tablero
+                                                            Kanban</span
+                                                        >
                                                     </button>
                                                     {#if hasFinancialAccess}
                                                         <button
                                                             type="button"
-                                                            onclick={() => { openActionMenuOrderId = null; openPaymentModal(order); }}
+                                                            onclick={() => {
+                                                                openActionMenuOrderId =
+                                                                    null;
+                                                                openPaymentModal(
+                                                                    order,
+                                                                );
+                                                            }}
                                                             class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
                                                         >
                                                             <span>💳</span>
-                                                            <span>Gestionar Abonos</span>
+                                                            <span
+                                                                >Gestionar
+                                                                Abonos</span
+                                                            >
                                                         </button>
                                                     {/if}
-                                                    {#if order.derived_status === 'ready'}
+                                                    {#if order.derived_status === "ready"}
                                                         <button
                                                             type="button"
-                                                            onclick={() => { openActionMenuOrderId = null; markDelivered(order); }}
+                                                            onclick={() => {
+                                                                openActionMenuOrderId =
+                                                                    null;
+                                                                markDelivered(
+                                                                    order,
+                                                                );
+                                                            }}
                                                             class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors font-medium"
                                                         >
                                                             <span>✅</span>
-                                                            <span>Marcar como Entregado</span>
+                                                            <span
+                                                                >Marcar como
+                                                                Entregado</span
+                                                            >
                                                         </button>
                                                     {/if}
                                                 </div>
@@ -903,11 +1261,16 @@
                                                     <div class="py-0.5">
                                                         <button
                                                             type="button"
-                                                            onclick={() => deleteOrder(order)}
+                                                            onclick={() =>
+                                                                deleteOrder(
+                                                                    order,
+                                                                )}
                                                             class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                                                         >
                                                             <span>🗑️</span>
-                                                            <span>Eliminar Pedido</span>
+                                                            <span
+                                                                >Eliminar Pedido</span
+                                                            >
                                                         </button>
                                                     </div>
                                                 {/if}
@@ -918,91 +1281,198 @@
 
                                 <!-- RENGLÓN EXPANDIDO (ACCORDION) -->
                                 {#if isExpanded}
-                                    <tr class="bg-slate-50/60 dark:bg-[#0B0F17]/70 border-b border-slate-200 dark:border-[#26334D]">
-                                        <td colspan="10" class="p-4 sm:p-6 space-y-4">
-                                            <div class="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-[#26334D] text-xs">
-                                                <span class="text-[#64748B] dark:text-slate-400">Modalidad de Envío:</span>
-                                                <span class="px-2.5 py-0.5 rounded-full font-semibold border {shippingBadge.color}">
+                                    <tr
+                                        class="bg-slate-50/60 dark:bg-[#0B0F17]/70 border-b border-slate-200 dark:border-[#26334D]"
+                                    >
+                                        <td
+                                            colspan="10"
+                                            class="p-4 sm:p-6 space-y-4"
+                                        >
+                                            <div
+                                                class="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-[#26334D] text-xs"
+                                            >
+                                                <span
+                                                    class="text-[#64748B] dark:text-slate-400"
+                                                    >Modalidad de Envío:</span
+                                                >
+                                                <span
+                                                    class="px-2.5 py-0.5 rounded-full font-semibold border {shippingBadge.color}"
+                                                >
                                                     {shippingBadge.label}
                                                 </span>
                                             </div>
-                                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                            <div
+                                                class="grid grid-cols-1 lg:grid-cols-2 gap-4"
+                                            >
                                                 <!-- Productos y Tareas de Producción -->
-                                                <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2.5 shadow-sm">
-                                                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-1.5">
-                                                        <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider">
-                                                            Productos Solicitados ({order.production_tasks?.length ?? 0} ítems)
+                                                <div
+                                                    class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2.5 shadow-sm"
+                                                >
+                                                    <div
+                                                        class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-1.5"
+                                                    >
+                                                        <span
+                                                            class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider"
+                                                        >
+                                                            Productos
+                                                            Solicitados ({order
+                                                                .production_tasks
+                                                                ?.length ?? 0} ítems)
                                                         </span>
                                                         <button
                                                             type="button"
-                                                            onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
+                                                            onclick={() =>
+                                                                router.visit(
+                                                                    `/kanban?order_id=${order.id}`,
+                                                                )}
                                                             class="text-[11px] font-semibold text-[#06B6D4] hover:underline flex items-center gap-1 transition-colors"
                                                             title="Abrir Tablero Kanban de este Pedido"
                                                         >
-                                                            <span>📋 Ver en Tablero ➔</span>
+                                                            <span
+                                                                >📋 Ver en
+                                                                Tablero ➔</span
+                                                            >
                                                         </button>
                                                     </div>
-                                                    <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                                                    <div
+                                                        class="space-y-1.5 max-h-48 overflow-y-auto"
+                                                    >
                                                         {#each order.production_tasks ?? [] as task}
-                                                            <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
+                                                            <div
+                                                                class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs"
+                                                            >
                                                                 <div>
-                                                                    <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                                                                        <span class="font-mono text-[#4F46E5] dark:text-indigo-400">{Math.round(Number(task.quantity))}x</span>
-                                                                        <span>{task.item_name_snapshot}</span>
+                                                                    <div
+                                                                        class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5"
+                                                                    >
+                                                                        <span
+                                                                            class="font-mono text-[#4F46E5] dark:text-indigo-400"
+                                                                            >{Math.round(
+                                                                                Number(
+                                                                                    task.quantity,
+                                                                                ),
+                                                                            )}x</span
+                                                                        >
+                                                                        <span
+                                                                            >{task.item_name_snapshot}</span
+                                                                        >
                                                                     </div>
-                                                                    <span class="text-[10px] text-[#64748B] dark:text-slate-400 font-mono">
-                                                                        Estimado: {task.estimated_minutes} min {#if hasFinancialAccess}• Unitario: {formatCurrency(task.unit_price)}{/if}
+                                                                    <span
+                                                                        class="text-[10px] text-[#64748B] dark:text-slate-400 font-mono"
+                                                                    >
+                                                                        Estimado:
+                                                                        {task.estimated_minutes}
+                                                                        min {#if hasFinancialAccess}•
+                                                                            Unitario:
+                                                                            {formatCurrency(
+                                                                                task.unit_price,
+                                                                            )}{/if}
                                                                     </span>
                                                                 </div>
                                                                 <div>
                                                                     {#if task.current_stage}
-                                                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border" style="color: {task.current_stage.color}; border-color: {task.current_stage.color}40; background: {task.current_stage.color}15">
-                                                                            {task.current_stage.name}
+                                                                        <span
+                                                                            class="px-2 py-0.5 rounded text-[10px] font-bold border"
+                                                                            style="color: {task
+                                                                                .current_stage
+                                                                                .color}; border-color: {task
+                                                                                .current_stage
+                                                                                .color}40; background: {task
+                                                                                .current_stage
+                                                                                .color}15"
+                                                                        >
+                                                                            {task
+                                                                                .current_stage
+                                                                                .name}
                                                                         </span>
                                                                     {/if}
                                                                 </div>
                                                             </div>
                                                         {:else}
-                                                            <span class="text-slate-400 text-xs italic py-2 block">Sin tareas de producción asociadas.</span>
+                                                            <span
+                                                                class="text-slate-400 text-xs italic py-2 block"
+                                                                >Sin tareas de
+                                                                producción
+                                                                asociadas.</span
+                                                            >
                                                         {/each}
                                                     </div>
                                                 </div>
 
                                                 <!-- Historial de Abonos y Comprobantes (SOLO SI TIENE PERMISOS FINANCIEROS) -->
                                                 {#if hasFinancialAccess}
-                                                    <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2.5 shadow-sm">
-                                                        <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-1.5">
-                                                            <span class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider">
-                                                                Historial de Abonos ({order.payments?.length ?? 0})
+                                                    <div
+                                                        class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl space-y-2.5 shadow-sm"
+                                                    >
+                                                        <div
+                                                            class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-1.5"
+                                                        >
+                                                            <span
+                                                                class="text-[10px] uppercase font-bold text-[#64748B] dark:text-slate-400 tracking-wider"
+                                                            >
+                                                                Historial de
+                                                                Abonos ({order
+                                                                    .payments
+                                                                    ?.length ??
+                                                                    0})
                                                             </span>
-                                                            <span class="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                                                                Total abonado: {formatCurrency(order.paid_amount)}
+                                                            <span
+                                                                class="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                                                            >
+                                                                Total abonado: {formatCurrency(
+                                                                    order.paid_amount,
+                                                                )}
                                                             </span>
                                                         </div>
 
-                                                        <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                                                        <div
+                                                            class="space-y-1.5 max-h-48 overflow-y-auto"
+                                                        >
                                                             {#each order.payments ?? [] as pay}
-                                                                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs">
+                                                                <div
+                                                                    class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-xs"
+                                                                >
                                                                     <div>
-                                                                        <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 font-mono">
-                                                                            <span class="text-emerald-600 dark:text-emerald-400">{formatCurrency(pay.amount)}</span>
-                                                                            <span class="text-[#64748B] dark:text-slate-400 font-sans text-[11px] capitalize">• {pay.payment_method}</span>
+                                                                        <div
+                                                                            class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 font-mono"
+                                                                        >
+                                                                            <span
+                                                                                class="text-emerald-600 dark:text-emerald-400"
+                                                                                >{formatCurrency(
+                                                                                    pay.amount,
+                                                                                )}</span
+                                                                            >
+                                                                            <span
+                                                                                class="text-[#64748B] dark:text-slate-400 font-sans text-[11px] capitalize"
+                                                                                >•
+                                                                                {pay.payment_method}</span
+                                                                            >
                                                                         </div>
-                                                                        <span class="text-[10px] text-[#64748B] dark:text-slate-400 font-mono">Fecha: {pay.payment_date}</span>
+                                                                        <span
+                                                                            class="text-[10px] text-[#64748B] dark:text-slate-400 font-mono"
+                                                                            >Fecha:
+                                                                            {pay.payment_date}</span
+                                                                        >
                                                                     </div>
-                                                                    <div class="flex items-center gap-1.5">
+                                                                    <div
+                                                                        class="flex items-center gap-1.5"
+                                                                    >
                                                                         {#if pay.voucher_path}
                                                                             <a
                                                                                 href={`/storage/${pay.voucher_path}`}
                                                                                 target="_blank"
                                                                                 class="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#06B6D4] font-semibold text-[10px] border border-slate-200 dark:border-slate-700"
                                                                             >
-                                                                                Comprobante ↗
+                                                                                Comprobante
+                                                                                ↗
                                                                             </a>
                                                                         {/if}
                                                                         <button
                                                                             type="button"
-                                                                            onclick={() => deletePayment(pay)}
+                                                                            onclick={() =>
+                                                                                deletePayment(
+                                                                                    pay,
+                                                                                )}
                                                                             class="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs"
                                                                             title="Eliminar abono"
                                                                         >
@@ -1011,7 +1481,12 @@
                                                                     </div>
                                                                 </div>
                                                             {:else}
-                                                                <span class="text-slate-400 text-xs italic py-2 block">Sin abonos registrados aún.</span>
+                                                                <span
+                                                                    class="text-slate-400 text-xs italic py-2 block"
+                                                                    >Sin abonos
+                                                                    registrados
+                                                                    aún.</span
+                                                                >
                                                             {/each}
                                                         </div>
                                                     </div>
@@ -1019,8 +1494,13 @@
                                             </div>
 
                                             {#if order.notes}
-                                                <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl text-xs text-[#64748B] dark:text-slate-400">
-                                                    <span class="font-bold text-slate-700 dark:text-slate-300">Notas del Pedido: </span>
+                                                <div
+                                                    class="p-3 bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl text-xs text-[#64748B] dark:text-slate-400"
+                                                >
+                                                    <span
+                                                        class="font-bold text-slate-700 dark:text-slate-300"
+                                                        >Notas del Pedido:
+                                                    </span>
                                                     <span>{order.notes}</span>
                                                 </div>
                                             {/if}
@@ -1029,7 +1509,10 @@
                                 {/if}
                             {:else}
                                 <tr>
-                                    <td colspan="10" class="p-10 text-center text-slate-400 text-xs">
+                                    <td
+                                        colspan="10"
+                                        class="p-10 text-center text-slate-400 text-xs"
+                                    >
                                         No se encontraron pedidos registrados.
                                     </td>
                                 </tr>
@@ -1039,50 +1522,81 @@
                 </div>
             </div>
 
-        <!-- VISTA EN TARJETAS (CARDS) -->
-        {:else if viewMode === 'cards'}
+            <!-- VISTA EN TARJETAS (CARDS) -->
+        {:else if viewMode === "cards"}
             <div class="space-y-4">
                 {#each orders.data as order (order.id)}
                     {@const badge = getOrderBadge(order)}
-                    {@const shippingBadge = getShippingTypeBadge(order.shipping_type)}
+                    {@const shippingBadge = getShippingTypeBadge(
+                        order.shipping_type,
+                    )}
                     {@const tasksTotal = order.tasks_count ?? 0}
                     {@const tasksCompleted = order.completed_tasks_count ?? 0}
-                    {@const progressPercent = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : 0}
+                    {@const progressPercent =
+                        tasksTotal > 0
+                            ? Math.round((tasksCompleted / tasksTotal) * 100)
+                            : 0}
 
-                    <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl p-5 shadow-sm hover:border-[#4F46E5]/40 transition-colors space-y-4">
-                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div
+                        class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl p-5 shadow-sm hover:border-[#4F46E5]/40 transition-colors space-y-4"
+                    >
+                        <div
+                            class="flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                        >
                             <!-- Identificación del Pedido -->
                             <div class="space-y-1.5">
-                                <div class="flex flex-wrap items-center gap-2.5">
-                                    <span class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-950 font-mono font-bold text-sm text-[#4F46E5] dark:text-indigo-400 border border-slate-200 dark:border-[#26334D]">
+                                <div
+                                    class="flex flex-wrap items-center gap-2.5"
+                                >
+                                    <span
+                                        class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-950 font-mono font-bold text-sm text-[#4F46E5] dark:text-indigo-400 border border-slate-200 dark:border-[#26334D]"
+                                    >
                                         #{order.order_number}
                                     </span>
-                                    <h3 class="font-bold text-slate-900 dark:text-white text-base">
-                                        {order.customer?.name ?? 'Cliente'}
+                                    <h3
+                                        class="font-bold text-slate-900 dark:text-white text-base"
+                                    >
+                                        {order.customer?.name ?? "Cliente"}
                                     </h3>
                                     {#if badge.style}
-                                        <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border" style={badge.style}>
+                                        <span
+                                            class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border"
+                                            style={badge.style}
+                                        >
                                             {badge.label}
                                         </span>
                                     {:else}
-                                        <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border {badge.color}">
+                                        <span
+                                            class="text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border {badge.color}"
+                                        >
                                             {badge.label}
                                         </span>
                                     {/if}
-                                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-semibold border {shippingBadge.color}">
+                                    <span
+                                        class="text-[10px] px-2.5 py-0.5 rounded-full font-semibold border {shippingBadge.color}"
+                                    >
                                         {shippingBadge.label}
                                     </span>
                                 </div>
-                                <div class="flex flex-wrap items-center gap-3 text-xs text-[#64748B] dark:text-slate-400">
+                                <div
+                                    class="flex flex-wrap items-center gap-3 text-xs text-[#64748B] dark:text-slate-400"
+                                >
                                     {#if order.customer?.phone}
                                         <span>📞 {order.customer.phone}</span>
                                     {/if}
                                     {#if order.notes}
-                                        <span class="italic max-w-sm truncate text-slate-500">"{order.notes}"</span>
+                                        <span
+                                            class="italic max-w-sm truncate text-slate-500"
+                                            >"{order.notes}"</span
+                                        >
                                     {/if}
                                     {#if hasFinancialAccess}
-                                        <span class="font-mono text-slate-900 dark:text-white font-bold">
-                                            Total: {formatCurrency(order.total_amount)}
+                                        <span
+                                            class="font-mono text-slate-900 dark:text-white font-bold"
+                                        >
+                                            Total: {formatCurrency(
+                                                order.total_amount,
+                                            )}
                                         </span>
                                     {/if}
                                 </div>
@@ -1091,20 +1605,40 @@
                             <!-- Badges de Estado Financiero (SOLO SI TIENE PERMISOS) -->
                             {#if hasFinancialAccess}
                                 <div class="flex flex-wrap items-center gap-2">
-                                    {#if order.payment_status === 'paid'}
-                                        <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                                    {#if order.payment_status === "paid"}
+                                        <span
+                                            class="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5"
+                                        >
                                             <span>✓</span>
-                                            <span>Pagado ({formatCurrency(order.total_amount)})</span>
+                                            <span
+                                                >Pagado ({formatCurrency(
+                                                    order.total_amount,
+                                                )})</span
+                                            >
                                         </span>
-                                    {:else if order.payment_status === 'partial'}
-                                        <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+                                    {:else if order.payment_status === "partial"}
+                                        <span
+                                            class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1.5"
+                                        >
                                             <span>⏳</span>
-                                            <span>Abonado: {formatCurrency(order.paid_amount)} / Saldo: {formatCurrency(order.pending_balance)}</span>
+                                            <span
+                                                >Abonado: {formatCurrency(
+                                                    order.paid_amount,
+                                                )} / Saldo: {formatCurrency(
+                                                    order.pending_balance,
+                                                )}</span
+                                            >
                                         </span>
                                     {:else}
-                                        <span class="px-3 py-1.5 rounded-xl font-bold text-xs bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center gap-1.5">
+                                        <span
+                                            class="px-3 py-1.5 rounded-xl font-bold text-xs bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center gap-1.5"
+                                        >
                                             <span>⚠️</span>
-                                            <span>Sin Abono (Saldo: {formatCurrency(order.total_amount)})</span>
+                                            <span
+                                                >Sin Abono (Saldo: {formatCurrency(
+                                                    order.total_amount,
+                                                )})</span
+                                            >
                                         </span>
                                     {/if}
 
@@ -1114,9 +1648,15 @@
                                         class="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-400 font-semibold text-xs border border-emerald-500/30 flex items-center gap-1.5 transition-colors shadow-sm"
                                     >
                                         <span>💳</span>
-                                        <span>{order.pending_balance > 0 ? 'Registrar Abono' : 'Ver Abonos'}</span>
+                                        <span
+                                            >{order.pending_balance > 0
+                                                ? "Registrar Abono"
+                                                : "Ver Abonos"}</span
+                                        >
                                         {#if order.payments && order.payments.length > 0}
-                                            <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                                            <span
+                                                class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono"
+                                            >
                                                 {order.payments.length}
                                             </span>
                                         {/if}
@@ -1125,22 +1665,44 @@
                             {/if}
 
                             <!-- Fecha de Entrega y Progreso -->
-                            <div class="flex flex-col sm:flex-row lg:flex-col gap-2 w-full lg:w-60">
-                                <div class="p-2.5 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] text-xs">
-                                    <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-0.5">Entrega Comprometida</span>
-                                    <span class="font-mono font-bold text-slate-900 dark:text-white text-xs block">
-                                        📅 {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
+                            <div
+                                class="flex flex-col sm:flex-row lg:flex-col gap-2 w-full lg:w-60"
+                            >
+                                <div
+                                    class="p-2.5 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D] text-xs"
+                                >
+                                    <span
+                                        class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block mb-0.5"
+                                        >Entrega Comprometida</span
+                                    >
+                                    <span
+                                        class="font-mono font-bold text-slate-900 dark:text-white text-xs block"
+                                    >
+                                        📅 {formatDate(
+                                            order.committed_delivery_at ||
+                                                order.predicted_delivery_at,
+                                        )}
                                     </span>
                                 </div>
 
                                 <div class="space-y-1">
-                                    <div class="flex justify-between items-center text-[10px] text-[#64748B] dark:text-slate-400 font-mono">
-                                        <span>Taller: {tasksCompleted}/{tasksTotal} tareas</span>
+                                    <div
+                                        class="flex justify-between items-center text-[10px] text-[#64748B] dark:text-slate-400 font-mono"
+                                    >
+                                        <span
+                                            >Taller: {tasksCompleted}/{tasksTotal}
+                                            tareas</span
+                                        >
                                         <span>{progressPercent}%</span>
                                     </div>
-                                    <div class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 overflow-hidden">
+                                    <div
+                                        class="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 overflow-hidden"
+                                    >
                                         <div
-                                            class="h-full rounded-full transition-all duration-500 {progressPercent === 100 ? 'bg-emerald-500' : 'bg-[#06B6D4]'}"
+                                            class="h-full rounded-full transition-all duration-500 {progressPercent ===
+                                            100
+                                                ? 'bg-emerald-500'
+                                                : 'bg-[#06B6D4]'}"
                                             style="width: {progressPercent}%"
                                         ></div>
                                     </div>
@@ -1148,7 +1710,9 @@
                             </div>
 
                             <!-- Acciones -->
-                            <div class="flex items-center gap-2 self-end lg:self-center shrink-0">
+                            <div
+                                class="flex items-center gap-2 self-end lg:self-center shrink-0"
+                            >
                                 <button
                                     type="button"
                                     onclick={() => openEditOrder(order)}
@@ -1161,7 +1725,10 @@
 
                                 <button
                                     type="button"
-                                    onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
+                                    onclick={() =>
+                                        router.visit(
+                                            `/kanban?order_id=${order.id}`,
+                                        )}
                                     class="px-3.5 py-2 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 text-[#06B6D4] dark:text-cyan-400 text-xs font-bold border border-[#06B6D4]/30 hover:border-[#06B6D4]/60 transition-colors flex items-center gap-1.5 shadow-sm"
                                     title="Abrir tablero Kanban aislado para este pedido"
                                 >
@@ -1170,7 +1737,7 @@
                                     <span>➔</span>
                                 </button>
 
-                                {#if order.derived_status === 'ready'}
+                                {#if order.derived_status === "ready"}
                                     <button
                                         type="button"
                                         onclick={() => markDelivered(order)}
@@ -1185,33 +1752,59 @@
 
                         <!-- Banner Semáforo de Cobro Programado (SOLO CON PERMISOS FINANCIEROS) -->
                         {#if hasFinancialAccess}
-                            {@const cardScheduleAlert = getPaymentScheduleAlert(order)}
+                            {@const cardScheduleAlert =
+                                getPaymentScheduleAlert(order)}
                             {#if cardScheduleAlert}
                                 <button
                                     type="button"
                                     onclick={() => openPaymentModal(order)}
                                     class="w-full text-left px-3.5 py-2.5 rounded-2xl border flex flex-wrap items-center justify-between gap-2 transition-all hover:shadow-sm {cardScheduleAlert.badgeClass}"
                                 >
-                                    <div class="flex items-center gap-2.5 min-w-0">
-                                        <span class="w-2.5 h-2.5 rounded-full shrink-0 {cardScheduleAlert.dotClass}"></span>
-                                        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                                            <span class="font-bold">{cardScheduleAlert.label}</span>
-                                            <span class="opacity-75 font-mono text-[11px]">· {cardScheduleAlert.formattedDate}</span>
+                                    <div
+                                        class="flex items-center gap-2.5 min-w-0"
+                                    >
+                                        <span
+                                            class="w-2.5 h-2.5 rounded-full shrink-0 {cardScheduleAlert.dotClass}"
+                                        ></span>
+                                        <div
+                                            class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs"
+                                        >
+                                            <span class="font-bold"
+                                                >{cardScheduleAlert.label}</span
+                                            >
+                                            <span
+                                                class="opacity-75 font-mono text-[11px]"
+                                                >· {cardScheduleAlert.formattedDate}</span
+                                            >
                                             {#if cardScheduleAlert.notes}
-                                                <span class="opacity-80 text-[11px] truncate max-w-xs">· "{cardScheduleAlert.notes}"</span>
+                                                <span
+                                                    class="opacity-80 text-[11px] truncate max-w-xs"
+                                                    >· "{cardScheduleAlert.notes}"</span
+                                                >
                                             {/if}
                                         </div>
                                     </div>
-                                    <div class="flex items-center gap-2 shrink-0">
-                                        <span class="font-mono font-extrabold text-xs">
-                                            {formatCurrency(cardScheduleAlert.amount)}
+                                    <div
+                                        class="flex items-center gap-2 shrink-0"
+                                    >
+                                        <span
+                                            class="font-mono font-extrabold text-xs"
+                                        >
+                                            {formatCurrency(
+                                                cardScheduleAlert.amount,
+                                            )}
                                         </span>
                                         {#if cardScheduleAlert.extraCount > 0}
-                                            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/60 dark:bg-slate-900/50 border border-current/20">
+                                            <span
+                                                class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/60 dark:bg-slate-900/50 border border-current/20"
+                                            >
                                                 +{cardScheduleAlert.extraCount} más
                                             </span>
                                         {/if}
-                                        <span class="text-[11px] font-semibold underline underline-offset-2">Gestionar →</span>
+                                        <span
+                                            class="text-[11px] font-semibold underline underline-offset-2"
+                                            >Gestionar →</span
+                                        >
                                     </div>
                                 </button>
                             {/if}
@@ -1219,14 +1812,30 @@
 
                         <!-- Desglose de Productos / Tareas del Pedido -->
                         {#if order.production_tasks && order.production_tasks.length > 0}
-                            <div class="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 items-center">
-                                <span class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider">Productos:</span>
+                            <div
+                                class="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 items-center"
+                            >
+                                <span
+                                    class="text-[11px] font-bold text-[#64748B] dark:text-slate-400 uppercase tracking-wider"
+                                    >Productos:</span
+                                >
                                 {#each order.production_tasks as task}
-                                    <span class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300 font-mono">
-                                        <span class="font-bold text-slate-900 dark:text-white">{Math.round(Number(task.quantity))}x</span>
+                                    <span
+                                        class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300 font-mono"
+                                    >
+                                        <span
+                                            class="font-bold text-slate-900 dark:text-white"
+                                            >{Math.round(
+                                                Number(task.quantity),
+                                            )}x</span
+                                        >
                                         <span>{task.item_name_snapshot}</span>
                                         {#if task.current_stage}
-                                            <span class="px-1.5 py-0.2 rounded text-[9px] font-bold" style="color: {task.current_stage.color}">
+                                            <span
+                                                class="px-1.5 py-0.2 rounded text-[9px] font-bold"
+                                                style="color: {task
+                                                    .current_stage.color}"
+                                            >
                                                 [{task.current_stage.name}]
                                             </span>
                                         {/if}
@@ -1236,16 +1845,23 @@
                         {/if}
                     </div>
                 {:else}
-                    <div class="p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl text-slate-400 text-xs">
-                        No se encontraron pedidos registrados con los filtros seleccionados.
+                    <div
+                        class="p-12 text-center bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl text-slate-400 text-xs"
+                    >
+                        No se encontraron pedidos registrados con los filtros
+                        seleccionados.
                     </div>
                 {/each}
             </div>
 
-        <!-- VISTA EN CALENDARIO (PUNTO 10) -->
-        {:else if viewMode === 'calendar'}
+            <!-- VISTA EN CALENDARIO (PUNTO 10) -->
+        {:else if viewMode === "calendar"}
             <CalendarView
-                orders={calendarOrders && calendarOrders.length > 0 ? calendarOrders : (allScheduledOrders.length > 0 ? allScheduledOrders : (orders.data || []))}
+                orders={calendarOrders && calendarOrders.length > 0
+                    ? calendarOrders
+                    : allScheduledOrders.length > 0
+                      ? allScheduledOrders
+                      : orders.data || []}
                 {hasFinancialAccess}
                 onOpenPaymentModal={openPaymentModal}
                 onMarkDelivered={markDelivered}
@@ -1257,15 +1873,22 @@
         {/if}
 
         <!-- PAGINACIÓN (SOLO PARA VISTA TABLA Y TARJETAS) -->
-        {#if viewMode !== 'calendar' && orders.links && orders.links.length > 3}
-            <div class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl flex items-center justify-between text-xs text-[#64748B] dark:text-slate-400 shadow-sm">
-                <div>Mostrando {orders.from ?? 0} a {orders.to ?? 0} de {orders.total} pedidos</div>
+        {#if viewMode !== "calendar" && orders.links && orders.links.length > 3}
+            <div
+                class="p-4 bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl flex items-center justify-between text-xs text-[#64748B] dark:text-slate-400 shadow-sm"
+            >
+                <div>
+                    Mostrando {orders.from ?? 0} a {orders.to ?? 0} de {orders.total}
+                    pedidos
+                </div>
                 <div class="flex items-center gap-1">
                     {#each orders.links as link}
                         {#if link.url}
                             <Link
                                 href={link.url}
-                                class="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors {link.active ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold shadow-sm' : 'bg-slate-50 dark:bg-[#0B0F17] border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}"
+                                class="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors {link.active
+                                    ? 'bg-[#4F46E5] text-white border-[#4F46E5] font-bold shadow-sm'
+                                    : 'bg-slate-50 dark:bg-[#0B0F17] border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}"
                             >
                                 {@html link.label}
                             </Link>
@@ -1317,38 +1940,59 @@
 
 <!-- MODAL REGISTRAR ABONO, COBROS PROGRAMADOS Y VER HISTORIAL DE PAGOS (SOLO VISIBLE CON PERMISOS) -->
 {#if showPaymentModal && selectedOrderForPayment && hasFinancialAccess}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
-            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
+        >
+            <div
+                class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3"
+            >
                 <div>
                     <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-100 dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-800">
+                        <span
+                            class="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-100 dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-800"
+                        >
                             #{selectedOrderForPayment.order_number}
                         </span>
-                        <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                        <h3
+                            class="text-base font-bold text-slate-900 dark:text-white"
+                        >
                             Gestión de Abonos y Cobros Programados
                         </h3>
                     </div>
-                    <p class="text-xs text-[#64748B] dark:text-slate-400 mt-0.5">
+                    <p
+                        class="text-xs text-[#64748B] dark:text-slate-400 mt-0.5"
+                    >
                         Cliente: {selectedOrderForPayment.customer?.name}
                     </p>
                 </div>
-                <button type="button" onclick={() => showPaymentModal = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-base">✕</button>
+                <button
+                    type="button"
+                    onclick={() => (showPaymentModal = false)}
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-base"
+                    >✕</button
+                >
             </div>
 
             <OrderPaymentsManager
                 orderId={selectedOrderForPayment.id}
                 orderTotal={Number(selectedOrderForPayment.total_amount || 0)}
                 payments={selectedOrderForPayment.payments || []}
-                paymentSchedules={selectedOrderForPayment.payment_schedules || selectedOrderForPayment.paymentSchedules || []}
+                paymentSchedules={selectedOrderForPayment.payment_schedules ||
+                    selectedOrderForPayment.paymentSchedules ||
+                    []}
                 allowVoucher={true}
                 onUpdated={handleOrderPaymentsUpdated}
             />
 
-            <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex justify-end">
+            <div
+                class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex justify-end"
+            >
                 <button
                     type="button"
-                    onclick={() => showPaymentModal = false}
+                    onclick={() => (showPaymentModal = false)}
                     class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs"
                 >
                     Cerrar
@@ -1358,8 +2002,6 @@
     </div>
 {/if}
 
-
-
 <!-- MENÚ CONTEXTUAL AL HACER CLIC EN UN DÍA DEL CALENDARIO (PUNTO 3) -->
 {#if dayContextMenu.open}
     <div
@@ -1367,7 +2009,9 @@
         onclick={closeContextMenu}
         role="button"
         tabindex="-1"
-        onkeydown={(e) => { if (e.key === 'Escape') closeContextMenu(); }}
+        onkeydown={(e) => {
+            if (e.key === "Escape") closeContextMenu();
+        }}
     ></div>
 
     <div
@@ -1375,10 +2019,18 @@
         style="left: {dayContextMenu.x}px; top: {dayContextMenu.y}px;"
     >
         <!-- Cabecera del Menú -->
-        <div class="px-3 py-2 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between">
+        <div
+            class="px-3 py-2 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between"
+        >
             <div class="min-w-0 pr-2">
-                <span class="text-[10px] text-[#64748B] dark:text-slate-400 font-bold uppercase tracking-wider block">Opciones del Día</span>
-                <span class="font-bold text-slate-900 dark:text-white text-xs block truncate" title={formatDayTitle(dayContextMenu.dateKey)}>
+                <span
+                    class="text-[10px] text-[#64748B] dark:text-slate-400 font-bold uppercase tracking-wider block"
+                    >Opciones del Día</span
+                >
+                <span
+                    class="font-bold text-slate-900 dark:text-white text-xs block truncate"
+                    title={formatDayTitle(dayContextMenu.dateKey)}
+                >
                     {formatDayTitle(dayContextMenu.dateKey)}
                 </span>
             </div>
@@ -1399,7 +2051,10 @@
                 onclick={handleContextCreateOrder}
                 class="w-full text-left px-3 py-2 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-600/20 text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-300 flex items-center gap-2.5 transition-colors font-medium group"
             >
-                <span class="text-emerald-500 dark:text-emerald-400 group-hover:scale-110 transition-transform text-sm">➕</span>
+                <span
+                    class="text-emerald-500 dark:text-emerald-400 group-hover:scale-110 transition-transform text-sm"
+                    >➕</span
+                >
                 <span>Crear nuevo pedido para este día</span>
             </button>
 
@@ -1410,10 +2065,18 @@
                 class="w-full text-left px-3 py-2 rounded-xl hover:bg-sky-50 dark:hover:bg-sky-600/20 text-slate-700 dark:text-slate-200 hover:text-sky-600 dark:hover:text-sky-300 flex items-center justify-between transition-colors font-medium group"
             >
                 <div class="flex items-center gap-2.5">
-                    <span class="text-sky-500 dark:text-sky-400 group-hover:scale-110 transition-transform text-sm">📋</span>
+                    <span
+                        class="text-sky-500 dark:text-sky-400 group-hover:scale-110 transition-transform text-sm"
+                        >📋</span
+                    >
                     <span>Ver pedidos de este día</span>
                 </div>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold {dayContextMenu.orders.length > 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700' : 'text-slate-400'}">
+                <span
+                    class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold {dayContextMenu
+                        .orders.length > 0
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700'
+                        : 'text-slate-400'}"
+                >
                     {dayContextMenu.orders.length}
                 </span>
             </button>
@@ -1424,7 +2087,10 @@
                 onclick={handleContextFilterTable}
                 class="w-full text-left px-3 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-purple-600/20 text-slate-700 dark:text-slate-200 hover:text-[#4F46E5] dark:hover:text-purple-300 flex items-center gap-2.5 transition-colors font-medium group"
             >
-                <span class="text-[#4F46E5] dark:text-purple-400 group-hover:scale-110 transition-transform text-sm">▦</span>
+                <span
+                    class="text-[#4F46E5] dark:text-purple-400 group-hover:scale-110 transition-transform text-sm"
+                    >▦</span
+                >
                 <span>Filtrar en Tabla por esta fecha</span>
             </button>
 
@@ -1434,7 +2100,10 @@
                 onclick={handleContextGoKanban}
                 class="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-600/20 text-slate-700 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-300 flex items-center gap-2.5 transition-colors font-medium group border-t border-slate-100 dark:border-slate-800/80 pt-2"
             >
-                <span class="text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform text-sm">🏭</span>
+                <span
+                    class="text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform text-sm"
+                    >🏭</span
+                >
                 <span>Ver entregas del día en Kanban</span>
             </button>
         </div>
@@ -1443,24 +2112,39 @@
 
 <!-- MODAL DE DESGLOSE DE PEDIDOS DEL DÍA -->
 {#if dayOrdersModal.open}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150"
+        >
             <!-- Encabezado del modal -->
-            <div class="flex items-start justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
+            <div
+                class="flex items-start justify-between border-b border-slate-200 dark:border-[#26334D] pb-3"
+            >
                 <div>
                     <div class="flex items-center gap-2">
-                        <span class="px-2.5 py-0.5 rounded-lg font-mono font-bold text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30">
+                        <span
+                            class="px-2.5 py-0.5 rounded-lg font-mono font-bold text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30"
+                        >
                             📅 {formatExactDateHuman(dayOrdersModal.dateKey)}
                         </span>
-                        <span class="text-xs text-[#64748B] dark:text-slate-400">({dayOrdersModal.orders.length} {dayOrdersModal.orders.length === 1 ? 'pedido programado' : 'pedidos programados'})</span>
+                        <span class="text-xs text-[#64748B] dark:text-slate-400"
+                            >({dayOrdersModal.orders.length}
+                            {dayOrdersModal.orders.length === 1
+                                ? "pedido programado"
+                                : "pedidos programados"})</span
+                        >
                     </div>
-                    <h3 class="text-lg font-bold text-slate-900 dark:text-white mt-1 capitalize">
+                    <h3
+                        class="text-lg font-bold text-slate-900 dark:text-white mt-1 capitalize"
+                    >
                         {formatDayTitle(dayOrdersModal.dateKey)}
                     </h3>
                 </div>
                 <button
                     type="button"
-                    onclick={() => dayOrdersModal.open = false}
+                    onclick={() => (dayOrdersModal.open = false)}
                     class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-base p-1"
                 >
                     ✕
@@ -1469,62 +2153,129 @@
 
             <!-- Listado de Pedidos del Día -->
             {#if dayOrdersModal.orders.length === 0}
-                <div class="p-8 text-center bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] text-[#64748B] dark:text-slate-400 text-xs space-y-2">
+                <div
+                    class="p-8 text-center bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] text-[#64748B] dark:text-slate-400 text-xs space-y-2"
+                >
                     <span class="text-3xl block">✨</span>
-                    <span class="font-bold text-slate-900 dark:text-white block">No hay pedidos comprometidos para este día</span>
-                    <p class="text-[11px] text-slate-500">Puedes aprovechar la capacidad del taller registrando un nuevo pedido.</p>
+                    <span class="font-bold text-slate-900 dark:text-white block"
+                        >No hay pedidos comprometidos para este día</span
+                    >
+                    <p class="text-[11px] text-slate-500">
+                        Puedes aprovechar la capacidad del taller registrando un
+                        nuevo pedido.
+                    </p>
                 </div>
             {:else}
                 <div class="space-y-3">
                     {#each dayOrdersModal.orders as order (order.id)}
-                        {@const badge = getDerivedStatusBadge(order.derived_status)}
-                        {@const shippingBadge = getShippingTypeBadge(order.shipping_type)}
-                        {@const tasks = order.production_tasks || order.tasks || []}
-                        <div class="p-4 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] hover:border-slate-300 dark:hover:border-slate-700 transition-colors space-y-3">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        {@const badge = getDerivedStatusBadge(
+                            order.derived_status,
+                        )}
+                        {@const shippingBadge = getShippingTypeBadge(
+                            order.shipping_type,
+                        )}
+                        {@const tasks =
+                            order.production_tasks || order.tasks || []}
+                        <div
+                            class="p-4 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] hover:border-slate-300 dark:hover:border-slate-700 transition-colors space-y-3"
+                        >
+                            <div
+                                class="flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                            >
                                 <div class="flex items-center gap-2">
-                                    <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                                    <span
+                                        class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm"
+                                    >
                                         #{order.order_number}
                                     </span>
-                                    <span class="font-bold text-slate-900 dark:text-white text-sm">
-                                        {order.customer?.name ?? 'Cliente'}
+                                    <span
+                                        class="font-bold text-slate-900 dark:text-white text-sm"
+                                    >
+                                        {order.customer?.name ?? "Cliente"}
                                     </span>
                                     {#if order.customer?.phone}
-                                        <span class="text-[11px] font-mono text-slate-500 dark:text-slate-400">📞 {order.customer.phone}</span>
+                                        <span
+                                            class="text-[11px] font-mono text-slate-500 dark:text-slate-400"
+                                            >📞 {order.customer.phone}</span
+                                        >
                                     {/if}
                                 </div>
-                                <div class="flex items-center gap-1.5 self-start sm:self-auto">
-                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border {badge.color}">
+                                <div
+                                    class="flex items-center gap-1.5 self-start sm:self-auto"
+                                >
+                                    <span
+                                        class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border {badge.color}"
+                                    >
                                         {badge.label}
                                     </span>
-                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold border {shippingBadge.color}">
+                                    <span
+                                        class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold border {shippingBadge.color}"
+                                    >
                                         {shippingBadge.label}
                                     </span>
                                 </div>
                             </div>
 
                             {#if hasFinancialAccess}
-                                <div class="flex items-center gap-4 text-xs font-mono text-[#64748B] dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-[#26334D]/60">
-                                    <span>Total: <strong class="text-slate-900 dark:text-white">{formatCurrency(order.total_amount)}</strong></span>
-                                    <span>Abonado: <strong class="text-emerald-600 dark:text-emerald-400">{formatCurrency(order.paid_amount)}</strong></span>
-                                    <span>Saldo: <strong class="{order.pending_balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">{formatCurrency(order.pending_balance)}</strong></span>
+                                <div
+                                    class="flex items-center gap-4 text-xs font-mono text-[#64748B] dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-[#26334D]/60"
+                                >
+                                    <span
+                                        >Total: <strong
+                                            class="text-slate-900 dark:text-white"
+                                            >{formatCurrency(
+                                                order.total_amount,
+                                            )}</strong
+                                        ></span
+                                    >
+                                    <span
+                                        >Abonado: <strong
+                                            class="text-emerald-600 dark:text-emerald-400"
+                                            >{formatCurrency(
+                                                order.paid_amount,
+                                            )}</strong
+                                        ></span
+                                    >
+                                    <span
+                                        >Saldo: <strong
+                                            class={order.pending_balance > 0
+                                                ? "text-amber-600 dark:text-amber-400"
+                                                : "text-emerald-600 dark:text-emerald-400"}
+                                            >{formatCurrency(
+                                                order.pending_balance,
+                                            )}</strong
+                                        ></span
+                                    >
                                 </div>
                             {/if}
 
                             <!-- Tareas / Productos -->
                             {#if tasks.length > 0}
-                                <div class="flex flex-wrap gap-1.5 items-center">
+                                <div
+                                    class="flex flex-wrap gap-1.5 items-center"
+                                >
                                     {#each tasks as task}
-                                        <span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300 font-mono">
-                                            <span class="font-bold text-slate-900 dark:text-white">{Math.round(Number(task.quantity))}x</span>
-                                            <span>{task.item_name_snapshot}</span>
+                                        <span
+                                            class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-700 dark:text-slate-300 font-mono"
+                                        >
+                                            <span
+                                                class="font-bold text-slate-900 dark:text-white"
+                                                >{Math.round(
+                                                    Number(task.quantity),
+                                                )}x</span
+                                            >
+                                            <span
+                                                >{task.item_name_snapshot}</span
+                                            >
                                         </span>
                                     {/each}
                                 </div>
                             {/if}
 
                             <!-- Acciones rápidas -->
-                            <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]/60">
+                            <div
+                                class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-[#26334D]/60"
+                            >
                                 <button
                                     type="button"
                                     onclick={() => {
@@ -1541,7 +2292,9 @@
                                     type="button"
                                     onclick={() => {
                                         dayOrdersModal.open = false;
-                                        router.visit(`/kanban?order_id=${order.id}`);
+                                        router.visit(
+                                            `/kanban?order_id=${order.id}`,
+                                        );
                                     }}
                                     class="px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/70 hover:bg-sky-100 dark:hover:bg-sky-900/70 text-sky-600 dark:text-sky-400 text-xs font-bold border border-sky-200 dark:border-sky-800/70 flex items-center gap-1"
                                 >
@@ -1560,7 +2313,7 @@
                                         💳 Abonos
                                     </button>
                                 {/if}
-                                {#if order.derived_status === 'ready'}
+                                {#if order.derived_status === "ready"}
                                     <button
                                         type="button"
                                         onclick={() => {
@@ -1579,7 +2332,9 @@
             {/if}
 
             <!-- Pie del Modal con Acción de Crear Pedido -->
-            <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex items-center justify-between">
+            <div
+                class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex items-center justify-between"
+            >
                 <button
                     type="button"
                     onclick={() => {
@@ -1595,7 +2350,7 @@
 
                 <button
                     type="button"
-                    onclick={() => dayOrdersModal.open = false}
+                    onclick={() => (dayOrdersModal.open = false)}
                     class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs"
                 >
                     Cerrar
@@ -1608,20 +2363,37 @@
 <!-- MODAL DE CONFIRMACIÓN: MARCAR COMO ENTREGADO -->
 {#if deliverConfirmModal.open && deliverConfirmModal.order}
     {@const targetOrder = deliverConfirmModal.order}
-    {@const pendingAmount = Math.max(0, Number(targetOrder.pending_balance ?? 0))}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 text-slate-900 dark:text-slate-100">
-            <div class="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-[#26334D] pb-3">
+    {@const pendingAmount = Math.max(
+        0,
+        Number(targetOrder.pending_balance ?? 0),
+    )}
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 text-slate-900 dark:text-slate-100"
+        >
+            <div
+                class="flex items-start justify-between gap-3 border-b border-slate-200 dark:border-[#26334D] pb-3"
+            >
                 <div class="flex items-center gap-2.5">
-                    <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base shrink-0">
+                    <div
+                        class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base shrink-0"
+                    >
                         📦
                     </div>
                     <div>
-                        <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                        <h3
+                            class="text-base font-bold text-slate-900 dark:text-white"
+                        >
                             Marcar como Entregado
                         </h3>
                         <p class="text-xs text-[#64748B] dark:text-slate-400">
-                            Pedido <strong class="font-mono text-[#4F46E5] dark:text-sky-400">#{targetOrder.order_number}</strong> — {targetOrder.customer?.name ?? 'Cliente'}
+                            Pedido <strong
+                                class="font-mono text-[#4F46E5] dark:text-sky-400"
+                                >#{targetOrder.order_number}</strong
+                            >
+                            — {targetOrder.customer?.name ?? "Cliente"}
                         </p>
                     </div>
                 </div>
@@ -1635,21 +2407,38 @@
                 </button>
             </div>
 
-            <p class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-                ¿Confirmas la entrega final de este pedido? Saldrá del Tablero de Pedidos y quedará registrado en el <strong>Historial de Pedidos</strong>.
+            <p
+                class="text-xs text-slate-700 dark:text-slate-300 leading-relaxed"
+            >
+                ¿Confirmas la entrega final de este pedido? Saldrá del Tablero
+                de Pedidos y quedará registrado en el <strong
+                    >Historial de Pedidos</strong
+                >.
             </p>
 
             {#if hasFinancialAccess && pendingAmount > 0}
-                <div class="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                    ⚠️ Este pedido tiene un saldo pendiente de <strong class="font-mono">{formatCurrency(pendingAmount)}</strong> (ej. Contraentrega). Al marcarlo como entregado pasará al Historial de Pedidos, donde podrás seguir registrando su cobro.
+                <div
+                    class="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-xs text-amber-800 dark:text-amber-200 leading-relaxed"
+                >
+                    ⚠️ Este pedido tiene un saldo pendiente de <strong
+                        class="font-mono"
+                        >{formatCurrency(pendingAmount)}</strong
+                    > (ej. Contraentrega). Al marcarlo como entregado pasará al Historial
+                    de Pedidos, donde podrás seguir registrando su cobro.
                 </div>
             {/if}
 
             {#if deliverConfirmModal.error}
-                <p class="text-xs text-rose-600 dark:text-rose-400 font-semibold">{deliverConfirmModal.error}</p>
+                <p
+                    class="text-xs text-rose-600 dark:text-rose-400 font-semibold"
+                >
+                    {deliverConfirmModal.error}
+                </p>
             {/if}
 
-            <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-[#26334D]">
+            <div
+                class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-200 dark:border-[#26334D]"
+            >
                 <button
                     type="button"
                     onclick={closeDeliverModal}
@@ -1664,7 +2453,9 @@
                     disabled={deliverConfirmModal.loading}
                     class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition disabled:opacity-50"
                 >
-                    {deliverConfirmModal.loading ? 'Guardando...' : 'Confirmar Entrega'}
+                    {deliverConfirmModal.loading
+                        ? "Guardando..."
+                        : "Confirmar Entrega"}
                 </button>
             </div>
         </div>
@@ -1673,7 +2464,9 @@
 
 <!-- TOAST FLOTANTE DE ENTREGA -->
 {#if deliverToast.visible}
-    <div class="fixed bottom-5 right-5 z-50 max-w-md bg-slate-900 dark:bg-[#151D2C] text-white border border-slate-700 dark:border-[#26334D] rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3">
+    <div
+        class="fixed bottom-5 right-5 z-50 max-w-md bg-slate-900 dark:bg-[#151D2C] text-white border border-slate-700 dark:border-[#26334D] rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3"
+    >
         <span class="text-xs font-semibold leading-snug flex-1">
             {deliverToast.message}
         </span>
@@ -1687,7 +2480,7 @@
         {/if}
         <button
             type="button"
-            onclick={() => deliverToast = { visible: false, message: '' }}
+            onclick={() => (deliverToast = { visible: false, message: "" })}
             class="text-slate-400 hover:text-white text-xs font-bold px-1 shrink-0"
             aria-label="Cerrar notificación"
         >
@@ -1696,4 +2489,13 @@
     </div>
 {/if}
 
-
+<ConfirmTrashModal
+    open={Boolean(orderToDelete)}
+    title="Eliminar Pedido"
+    itemLabel={orderToDelete ? `Pedido #${orderToDelete.order_number}` : ""}
+    processing={deleteOrderProcessing}
+    onCancel={() => {
+        if (!deleteOrderProcessing) orderToDelete = null;
+    }}
+    onConfirm={confirmDeleteOrder}
+/>

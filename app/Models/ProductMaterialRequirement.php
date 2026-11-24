@@ -45,7 +45,7 @@ class ProductMaterialRequirement extends Model
      */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     /**
@@ -65,6 +65,6 @@ class ProductMaterialRequirement extends Model
      */
     public function rawMaterial(): BelongsTo
     {
-        return $this->belongsTo(RawMaterial::class);
+        return $this->belongsTo(RawMaterial::class)->withTrashed();
     }
 }

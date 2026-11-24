@@ -43,9 +43,10 @@ class PredictDeliveryDateAction
         return DB::transaction(function () use ($tenant, $items, $customBufferPercent): array {
             $dailyMinutes = $tenant->daily_productive_minutes > 0 ? (int) $tenant->daily_productive_minutes : 480;
 
-            // 1. Minutos en Cola WIP: Tareas activas del taller (pending o in_progress)
+            // 1. Minutos en Cola WIP: Tareas activas del taller (pending o in_progress) excluyendo pedidos en papelera
             $wipMinutes = (int) ProductionTask::withoutGlobalScope('tenant')
                 ->where('tenant_id', $tenant->id)
+                ->whereHas('order')
                 ->whereHas('currentStage', function ($query): void {
                     $query->whereIn('stage_category', ['pending', 'in_progress']);
                 })

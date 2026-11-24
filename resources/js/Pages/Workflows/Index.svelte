@@ -1,7 +1,7 @@
 <script>
-    import { untrack } from 'svelte';
-    import { router } from '@inertiajs/svelte';
-    import AppLayout from '../../Layouts/AppLayout.svelte';
+    import { untrack } from "svelte";
+    import { router } from "@inertiajs/svelte";
+    import AppLayout from "../../Layouts/AppLayout.svelte";
 
     let { workflows = [], errors = {} } = $props();
 
@@ -18,7 +18,9 @@
     });
 
     let selectedWorkflow = $derived(
-        localWorkflows.find((w) => w.id === selectedWorkflowId) ?? localWorkflows[0] ?? null,
+        localWorkflows.find((w) => w.id === selectedWorkflowId) ??
+            localWorkflows[0] ??
+            null,
     );
 
     let showCreateWorkflowModal = $state(false);
@@ -39,14 +41,17 @@
         if (localWorkflows.length <= 1) return;
         workflowToDelete = wf;
         confirmDeleteUnderstood = false;
-        const others = localWorkflows.filter((w) => Number(w.id) !== Number(wf.id));
+        const others = localWorkflows.filter(
+            (w) => Number(w.id) !== Number(wf.id),
+        );
         const defaultOther = others.find((w) => w.is_default) || others[0];
         targetWorkflowId = defaultOther ? defaultOther.id : null;
         showDeleteWorkflowModal = true;
     }
 
     function submitDeleteWorkflow() {
-        if (!workflowToDelete || !confirmDeleteUnderstood || !targetWorkflowId) return;
+        if (!workflowToDelete || !confirmDeleteUnderstood || !targetWorkflowId)
+            return;
         deleteWorkflowProcessing = true;
         router.delete(`/workflows/${workflowToDelete.id}`, {
             data: { target_workflow_id: targetWorkflowId },
@@ -89,74 +94,79 @@
 
     // Paleta de colores predefinida de alta calidad para etapas
     const COLOR_PALETTE = [
-        '#38bdf8', // Sky
-        '#3b82f6', // Blue
-        '#10b981', // Emerald
-        '#14b8a6', // Teal
-        '#f59e0b', // Amber
-        '#f97316', // Orange
-        '#ef4444', // Red
-        '#ec4899', // Pink
-        '#8b5cf6', // Purple
-        '#64748b', // Slate
+        "#38bdf8", // Sky
+        "#3b82f6", // Blue
+        "#10b981", // Emerald
+        "#14b8a6", // Teal
+        "#f59e0b", // Amber
+        "#f97316", // Orange
+        "#ef4444", // Red
+        "#ec4899", // Pink
+        "#8b5cf6", // Purple
+        "#64748b", // Slate
     ];
 
     // Formulario para nuevo flujo en Svelte 5 Rune
     let workflowForm = $state({
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         is_default: false,
     });
 
     function resetWorkflowForm() {
-        workflowForm.name = '';
-        workflowForm.description = '';
+        workflowForm.name = "";
+        workflowForm.description = "";
         workflowForm.is_default = false;
     }
 
     // Formulario para editar flujo en Svelte 5 Rune
     let editWorkflowForm = $state({
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         is_default: false,
     });
 
     function openEditWorkflow(wf) {
         editingWorkflow = wf;
-        editWorkflowForm.name = wf.name ?? '';
-        editWorkflowForm.description = wf.description ?? '';
+        editWorkflowForm.name = wf.name ?? "";
+        editWorkflowForm.description = wf.description ?? "";
         editWorkflowForm.is_default = Boolean(wf.is_default);
         showEditWorkflowModal = true;
     }
 
     // Formulario para nueva/editar etapa en Svelte 5 Rune (Posición automática)
     let stageForm = $state({
-        name: '',
-        color: '#38bdf8',
-        stage_category: 'in_progress',
-        wip_limit: '',
+        name: "",
+        color: "#38bdf8",
+        stage_category: "in_progress",
+        wip_limit: "",
     });
 
     function resetStageForm() {
-        stageForm.name = '';
-        stageForm.color = '#38bdf8';
-        stageForm.stage_category = 'in_progress';
-        stageForm.wip_limit = '';
+        stageForm.name = "";
+        stageForm.color = "#38bdf8";
+        stageForm.stage_category = "in_progress";
+        stageForm.wip_limit = "";
     }
 
     const categoryDescriptions = {
-        pending: 'En Espera (Sin iniciar)',
-        in_progress: 'En Proceso (Descuenta materias primas si no se consumieron)',
-        blocked: 'Bloqueado (Detiene y marca en alerta el pedido)',
-        done: 'Terminado (Completa y avanza el pedido a listo)',
+        pending: "En Espera (Sin iniciar)",
+        in_progress:
+            "En Proceso (Descuenta materias primas si no se consumieron)",
+        blocked: "Bloqueado (Detiene y marca en alerta el pedido)",
+        done: "Terminado (Completa y avanza el pedido a listo)",
     };
 
     function submitWorkflow(e) {
         e.preventDefault();
-        router.post('/workflows', workflowForm, {
+        router.post("/workflows", workflowForm, {
             preserveScroll: true,
-            onStart: () => { workflowProcessing = true; },
-            onFinish: () => { workflowProcessing = false; },
+            onStart: () => {
+                workflowProcessing = true;
+            },
+            onFinish: () => {
+                workflowProcessing = false;
+            },
             onSuccess: () => {
                 showCreateWorkflowModal = false;
                 resetWorkflowForm();
@@ -169,8 +179,12 @@
         if (!editingWorkflow) return;
         router.patch(`/workflows/${editingWorkflow.id}`, editWorkflowForm, {
             preserveScroll: true,
-            onStart: () => { workflowProcessing = true; },
-            onFinish: () => { workflowProcessing = false; },
+            onStart: () => {
+                workflowProcessing = true;
+            },
+            onFinish: () => {
+                workflowProcessing = false;
+            },
             onSuccess: () => {
                 showEditWorkflowModal = false;
                 editingWorkflow = null;
@@ -180,10 +194,10 @@
 
     function openCreateStage(wf) {
         selectedWorkflowId = wf.id;
-        stageForm.name = '';
-        stageForm.color = '#38bdf8';
-        stageForm.stage_category = 'in_progress';
-        stageForm.wip_limit = '';
+        stageForm.name = "";
+        stageForm.color = "#38bdf8";
+        stageForm.stage_category = "in_progress";
+        stageForm.wip_limit = "";
         editingStage = null;
         showCreateStageModal = true;
     }
@@ -192,9 +206,9 @@
         selectedWorkflowId = wf.id;
         editingStage = stage;
         stageForm.name = stage.name;
-        stageForm.color = stage.color || '#38bdf8';
+        stageForm.color = stage.color || "#38bdf8";
         stageForm.stage_category = stage.stage_category;
-        stageForm.wip_limit = stage.wip_limit ?? '';
+        stageForm.wip_limit = stage.wip_limit ?? "";
         showCreateStageModal = true;
     }
 
@@ -203,8 +217,12 @@
         if (editingStage) {
             router.patch(`/workflows/stages/${editingStage.id}`, stageForm, {
                 preserveScroll: true,
-                onStart: () => { stageProcessing = true; },
-                onFinish: () => { stageProcessing = false; },
+                onStart: () => {
+                    stageProcessing = true;
+                },
+                onFinish: () => {
+                    stageProcessing = false;
+                },
                 onSuccess: () => {
                     showCreateStageModal = false;
                     editingStage = null;
@@ -214,8 +232,12 @@
         } else {
             router.post(`/workflows/${selectedWorkflow.id}/stages`, stageForm, {
                 preserveScroll: true,
-                onStart: () => { stageProcessing = true; },
-                onFinish: () => { stageProcessing = false; },
+                onStart: () => {
+                    stageProcessing = true;
+                },
+                onFinish: () => {
+                    stageProcessing = false;
+                },
                 onSuccess: () => {
                     showCreateStageModal = false;
                     resetStageForm();
@@ -236,14 +258,14 @@
     function handleDragStart(e, stage, wf) {
         draggedStageId = stage.id;
         draggedWorkflowId = wf.id;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', String(stage.id));
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(stage.id));
     }
 
     function handleDragOver(e, stage, wf) {
         if (draggedWorkflowId !== wf.id || draggedStageId === stage.id) return;
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        e.dataTransfer.dropEffect = "move";
     }
 
     function handleDragEnter(stage, wf) {
@@ -266,14 +288,22 @@
 
     function handleDrop(e, targetStage, wf) {
         e.preventDefault();
-        if (draggedWorkflowId !== wf.id || !draggedStageId || draggedStageId === targetStage.id) {
+        if (
+            draggedWorkflowId !== wf.id ||
+            !draggedStageId ||
+            draggedStageId === targetStage.id
+        ) {
             handleDragEnd();
             return;
         }
 
         const stagesList = [...(wf.stages || [])];
-        const sourceIndex = stagesList.findIndex((s) => s.id === draggedStageId);
-        const targetIndex = stagesList.findIndex((s) => s.id === targetStage.id);
+        const sourceIndex = stagesList.findIndex(
+            (s) => s.id === draggedStageId,
+        );
+        const targetIndex = stagesList.findIndex(
+            (s) => s.id === targetStage.id,
+        );
 
         if (sourceIndex === -1 || targetIndex === -1) {
             handleDragEnd();
@@ -300,7 +330,9 @@
             { stage_ids: stageIds },
             {
                 preserveScroll: true,
-                onFinish: () => { reorderProcessing = false; },
+                onFinish: () => {
+                    reorderProcessing = false;
+                },
             },
         );
     }
@@ -327,18 +359,25 @@
             { stage_ids: stageIds },
             {
                 preserveScroll: true,
-                onFinish: () => { reorderProcessing = false; },
+                onFinish: () => {
+                    reorderProcessing = false;
+                },
             },
         );
     }
 
     function getCategoryLabel(category) {
         switch (category) {
-            case 'pending': return 'En Espera';
-            case 'in_progress': return 'En Proceso';
-            case 'blocked': return 'Bloqueado';
-            case 'done': return 'Terminado';
-            default: return category;
+            case "pending":
+                return "En Espera";
+            case "in_progress":
+                return "En Proceso";
+            case "blocked":
+                return "Bloqueado";
+            case "done":
+                return "Terminado";
+            default:
+                return category;
         }
     }
 </script>
@@ -346,16 +385,24 @@
 <AppLayout title="Flujos de Trabajo">
     <div class="space-y-4">
         <!-- ENCABEZADO -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        >
             <div>
-                <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Flujos de Trabajo y Estados Dinámicos</h1>
+                <h1
+                    class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white"
+                >
+                    Flujos de Trabajo y Estados Dinámicos
+                </h1>
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Configura los flujos de producción del taller, edita títulos, personaliza colores en tiempo real y reordena las columnas de los tableros Kanban.
+                    Configura los flujos de producción del taller, edita
+                    títulos, personaliza colores en tiempo real y reordena las
+                    columnas de los tableros Kanban.
                 </p>
             </div>
             <button
                 type="button"
-                onclick={() => showCreateWorkflowModal = true}
+                onclick={() => (showCreateWorkflowModal = true)}
                 class="px-3.5 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs transition shadow-sm flex items-center gap-2 shrink-0 self-start sm:self-auto"
             >
                 <span>+</span>
@@ -363,18 +410,27 @@
             </button>
         </div>
 
-
         <!-- LISTA DE FLUJOS -->
         <div class="space-y-6">
             {#each workflows as wf (wf.id)}
-                <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-6 shadow-sm text-slate-900 dark:text-slate-100">
+                <div
+                    class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-6 shadow-sm text-slate-900 dark:text-slate-100"
+                >
                     <!-- Cabecera del Flujo -->
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-[#26334D]">
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-[#26334D]"
+                    >
                         <div>
                             <div class="flex items-center gap-2 flex-wrap">
-                                <h2 class="text-lg font-bold text-slate-900 dark:text-white">{wf.name}</h2>
+                                <h2
+                                    class="text-lg font-bold text-slate-900 dark:text-white"
+                                >
+                                    {wf.name}
+                                </h2>
                                 {#if wf.is_default}
-                                    <span class="px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                                    <span
+                                        class="px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30"
+                                    >
                                         Predeterminado
                                     </span>
                                 {/if}
@@ -383,8 +439,18 @@
                                     onclick={() => openEditWorkflow(wf)}
                                     class="text-[11px] text-[#4F46E5] dark:text-[#06B6D4] font-semibold px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-[#26334D] transition-colors flex items-center gap-1"
                                 >
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    <svg
+                                        class="w-3 h-3"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                        />
                                     </svg>
                                     <span>Editar</span>
                                 </button>
@@ -393,17 +459,30 @@
                                     disabled={workflows.length <= 1}
                                     onclick={() => openDeleteWorkflowModal(wf)}
                                     class="text-[11px] text-rose-600 dark:text-rose-400 font-semibold px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/40 transition-colors flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                                    title={workflows.length <= 1 ? 'El taller debe mantener al menos 1 flujo de trabajo' : 'Eliminar este flujo de trabajo y reasignar sus productos'}
+                                    title={workflows.length <= 1
+                                        ? "El taller debe mantener al menos 1 flujo de trabajo"
+                                        : "Eliminar este flujo de trabajo y reasignar sus productos"}
                                 >
                                     <span>🗑️</span>
                                     <span>Eliminar Flujo</span>
                                 </button>
                             </div>
-                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{wf.description ?? 'Sin descripción'}</p>
-                            <div class="flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                                <span>{wf.products_count ?? 0} producto(s) en catálogo</span>
+                            <p
+                                class="text-xs text-slate-500 dark:text-slate-400 mt-1"
+                            >
+                                {wf.description ?? "Sin descripción"}
+                            </p>
+                            <div
+                                class="flex items-center gap-3 text-[11px] text-slate-400 dark:text-slate-500 mt-1"
+                            >
+                                <span
+                                    >{wf.products_count ?? 0} producto(s) en catálogo</span
+                                >
                                 <span>•</span>
-                                <span>{wf.production_tasks_count ?? 0} tarea(s) en producción</span>
+                                <span
+                                    >{wf.production_tasks_count ?? 0} tarea(s) en
+                                    producción</span
+                                >
                             </div>
                         </div>
 
@@ -420,52 +499,95 @@
                     <!-- Columnas / Etapas Dinámicas del Flujo -->
                     <div class="mt-4">
                         <div class="flex items-center justify-between mb-3">
-                            <span class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                                Columnas en el Tablero Kanban ({wf.stages?.length ?? 0})
+                            <span
+                                class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block"
+                            >
+                                Columnas en el Tablero Kanban ({wf.stages
+                                    ?.length ?? 0})
                             </span>
-                            <span class="text-[11px] text-slate-400 dark:text-slate-500">
-                                Arrastra las columnas o usa los botones ◀ ▶ para reordenar
+                            <span
+                                class="text-[11px] text-slate-400 dark:text-slate-500"
+                            >
+                                Arrastra las columnas o usa los botones ◀ ▶
+                                para reordenar
                             </span>
                         </div>
 
                         {#if !wf.stages || wf.stages.length === 0}
-                            <div class="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-400 dark:text-slate-500">
-                                No hay etapas definidas para este flujo. Agrega una columna para empezar a operar en el Kanban.
+                            <div
+                                class="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-400 dark:text-slate-500"
+                            >
+                                No hay etapas definidas para este flujo. Agrega
+                                una columna para empezar a operar en el Kanban.
                             </div>
                         {:else}
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3">
+                            <div
+                                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-3"
+                            >
                                 {#each wf.stages as stage, idx (stage.id)}
                                     <div
                                         role="group"
                                         aria-label="Columna: {stage.name}"
                                         draggable="true"
-                                        ondragstart={(e) => handleDragStart(e, stage, wf)}
-                                        ondragover={(e) => handleDragOver(e, stage, wf)}
-                                        ondragenter={() => handleDragEnter(stage, wf)}
-                                        ondragleave={() => handleDragLeave(stage)}
+                                        ondragstart={(e) =>
+                                            handleDragStart(e, stage, wf)}
+                                        ondragover={(e) =>
+                                            handleDragOver(e, stage, wf)}
+                                        ondragenter={() =>
+                                            handleDragEnter(stage, wf)}
+                                        ondragleave={() =>
+                                            handleDragLeave(stage)}
                                         ondragend={handleDragEnd}
                                         ondrop={(e) => handleDrop(e, stage, wf)}
-                                        class="rounded-xl p-3.5 flex flex-col justify-between group transition-all shadow-sm cursor-grab active:cursor-grabbing select-none {draggedStageId === stage.id ? 'opacity-30 scale-95 border-2 border-dashed border-[#4F46E5] bg-slate-100 dark:bg-slate-900/50' : dragOverStageId === stage.id ? 'border-2 border-[#4F46E5] bg-[#4F46E5]/10 scale-[1.03] shadow-lg ring-2 ring-[#4F46E5]/30' : 'bg-slate-50 dark:bg-[#0B0F17]/90 border border-slate-200 dark:border-[#26334D] hover:border-slate-300 dark:hover:border-slate-700'}"
-                                        style="border-top: 3px solid {stage.color || '#64748b'};"
+                                        class="rounded-xl p-3.5 flex flex-col justify-between group transition-all shadow-sm cursor-grab active:cursor-grabbing select-none {draggedStageId ===
+                                        stage.id
+                                            ? 'opacity-30 scale-95 border-2 border-dashed border-[#4F46E5] bg-slate-100 dark:bg-slate-900/50'
+                                            : dragOverStageId === stage.id
+                                              ? 'border-2 border-[#4F46E5] bg-[#4F46E5]/10 scale-[1.03] shadow-lg ring-2 ring-[#4F46E5]/30'
+                                              : 'bg-slate-50 dark:bg-[#0B0F17]/90 border border-slate-200 dark:border-[#26334D] hover:border-slate-300 dark:hover:border-slate-700'}"
+                                        style="border-top: 3px solid {stage.color ||
+                                            '#64748b'};"
                                     >
                                         <div>
                                             <!-- Barra de posición y controles de ordenamiento -->
-                                            <div class="flex items-center justify-between text-xs mb-2">
-                                                <div class="flex items-center gap-1.5">
-                                                    <span class="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 text-xs font-mono select-none" title="Arrastra para mover">⋮⋮</span>
+                                            <div
+                                                class="flex items-center justify-between text-xs mb-2"
+                                            >
+                                                <div
+                                                    class="flex items-center gap-1.5"
+                                                >
+                                                    <span
+                                                        class="text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 text-xs font-mono select-none"
+                                                        title="Arrastra para mover"
+                                                        >⋮⋮</span
+                                                    >
                                                     <div
                                                         class="w-3 h-3 rounded-full shadow-sm"
-                                                        style="background-color: {stage.color || '#64748b'};"
+                                                        style="background-color: {stage.color ||
+                                                            '#64748b'};"
                                                     ></div>
-                                                    <span class="font-mono text-slate-500 dark:text-slate-400 text-[10px] font-bold">Columna #{stage.position}</span>
+                                                    <span
+                                                        class="font-mono text-slate-500 dark:text-slate-400 text-[10px] font-bold"
+                                                        >Columna #{stage.position}</span
+                                                    >
                                                 </div>
 
                                                 <!-- Botones Reordenar ◀ ▶ -->
-                                                <div class="flex items-center gap-1">
+                                                <div
+                                                    class="flex items-center gap-1"
+                                                >
                                                     <button
                                                         type="button"
-                                                        disabled={idx === 0 || reorderProcessing}
-                                                        onclick={(e) => { e.stopPropagation(); moveStage(wf, idx, -1); }}
+                                                        disabled={idx === 0 ||
+                                                            reorderProcessing}
+                                                        onclick={(e) => {
+                                                            e.stopPropagation();
+                                                            moveStage(
+                                                                wf,
+                                                                idx,
+                                                                -1,
+                                                            );
+                                                        }}
                                                         class="p-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white disabled:opacity-20 text-[10px] font-bold border border-slate-200 dark:border-slate-800 transition"
                                                         title="Mover columna a la izquierda"
                                                     >
@@ -473,8 +595,18 @@
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        disabled={idx === wf.stages.length - 1 || reorderProcessing}
-                                                        onclick={(e) => { e.stopPropagation(); moveStage(wf, idx, 1); }}
+                                                        disabled={idx ===
+                                                            wf.stages.length -
+                                                                1 ||
+                                                            reorderProcessing}
+                                                        onclick={(e) => {
+                                                            e.stopPropagation();
+                                                            moveStage(
+                                                                wf,
+                                                                idx,
+                                                                1,
+                                                            );
+                                                        }}
                                                         class="p-1 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white disabled:opacity-20 text-[10px] font-bold border border-slate-200 dark:border-slate-800 transition"
                                                         title="Mover columna a la derecha"
                                                     >
@@ -483,18 +615,32 @@
                                                 </div>
                                             </div>
 
-                                            <h4 class="font-bold text-sm text-slate-900 dark:text-white truncate" title={stage.name}>{stage.name}</h4>
-                                            
-                                            <div class="mt-2.5 flex flex-col gap-1.5">
+                                            <h4
+                                                class="font-bold text-sm text-slate-900 dark:text-white truncate"
+                                                title={stage.name}
+                                            >
+                                                {stage.name}
+                                            </h4>
+
+                                            <div
+                                                class="mt-2.5 flex flex-col gap-1.5"
+                                            >
                                                 <!-- Badge con respeto estricto de color HEX -->
                                                 <span
                                                     class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider text-center"
-                                                    style="background-color: {stage.color || '#64748b'}22; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}55;"
+                                                    style="background-color: {stage.color ||
+                                                        '#64748b'}22; color: {stage.color ||
+                                                        '#64748b'}; border: 1px solid {stage.color ||
+                                                        '#64748b'}55;"
                                                 >
-                                                    {getCategoryLabel(stage.stage_category)}
+                                                    {getCategoryLabel(
+                                                        stage.stage_category,
+                                                    )}
                                                 </span>
                                                 {#if stage.wip_limit}
-                                                    <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono text-center">
+                                                    <span
+                                                        class="text-[10px] text-slate-500 dark:text-slate-400 font-mono text-center"
+                                                    >
                                                         Límite WIP: {stage.wip_limit}
                                                     </span>
                                                 {/if}
@@ -502,19 +648,31 @@
                                         </div>
 
                                         <!-- Acciones de Etapa -->
-                                        <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
-                                            <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500">{stage.color}</span>
-                                            <div class="flex items-center gap-2">
+                                        <div
+                                            class="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px]"
+                                        >
+                                            <span
+                                                class="text-[10px] font-mono text-slate-400 dark:text-slate-500"
+                                                >{stage.color}</span
+                                            >
+                                            <div
+                                                class="flex items-center gap-2"
+                                            >
                                                 <button
                                                     type="button"
-                                                    onclick={() => openEditStage(stage, wf)}
+                                                    onclick={() =>
+                                                        openEditStage(
+                                                            stage,
+                                                            wf,
+                                                        )}
                                                     class="text-slate-500 dark:text-slate-400 hover:text-[#4F46E5] dark:hover:text-[#06B6D4] font-semibold transition-colors"
                                                 >
                                                     Editar
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onclick={() => deleteStage(stage)}
+                                                    onclick={() =>
+                                                        deleteStage(stage)}
                                                     class="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 font-semibold transition-colors"
                                                 >
                                                     Eliminar
@@ -534,16 +692,33 @@
 
 <!-- MODAL NUEVO FLUJO -->
 {#if showCreateWorkflowModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">Crear Nuevo Flujo de Producción</h3>
-                <button type="button" onclick={() => showCreateWorkflowModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
+    <div
+        class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+        >
+            <div
+                class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3"
+            >
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                    Crear Nuevo Flujo de Producción
+                </h3>
+                <button
+                    type="button"
+                    onclick={() => (showCreateWorkflowModal = false)}
+                    class="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                    >✕</button
+                >
             </div>
 
             <form onsubmit={submitWorkflow} class="space-y-4 text-xs">
                 <div>
-                    <label for="wf-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre del Flujo *</label>
+                    <label
+                        for="wf-name"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Nombre del Flujo *</label
+                    >
                     <input
                         id="wf-name"
                         type="text"
@@ -553,12 +728,18 @@
                         class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                     {#if errors.name}
-                        <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">
+                            {errors.name}
+                        </p>
                     {/if}
                 </div>
 
                 <div>
-                    <label for="wf-desc" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Descripción</label>
+                    <label
+                        for="wf-desc"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Descripción</label
+                    >
                     <textarea
                         id="wf-desc"
                         bind:value={workflowForm.description}
@@ -575,13 +756,19 @@
                         bind:checked={workflowForm.is_default}
                         class="rounded bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-[#4F46E5] focus:ring-[#4F46E5]"
                     />
-                    <label for="is_default" class="text-slate-700 dark:text-slate-300 font-medium">Establecer como flujo predeterminado del taller</label>
+                    <label
+                        for="is_default"
+                        class="text-slate-700 dark:text-slate-300 font-medium"
+                        >Establecer como flujo predeterminado del taller</label
+                    >
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]">
+                <div
+                    class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]"
+                >
                     <button
                         type="button"
-                        onclick={() => showCreateWorkflowModal = false}
+                        onclick={() => (showCreateWorkflowModal = false)}
                         class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold"
                     >
                         Cancelar
@@ -601,16 +788,33 @@
 
 <!-- MODAL EDITAR FLUJO -->
 {#if showEditWorkflowModal && editingWorkflow}
-    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">Editar Flujo: {editingWorkflow.name}</h3>
-                <button type="button" onclick={() => showEditWorkflowModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
+    <div
+        class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+        >
+            <div
+                class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3"
+            >
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">
+                    Editar Flujo: {editingWorkflow.name}
+                </h3>
+                <button
+                    type="button"
+                    onclick={() => (showEditWorkflowModal = false)}
+                    class="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                    >✕</button
+                >
             </div>
 
             <form onsubmit={submitEditWorkflow} class="space-y-4 text-xs">
                 <div>
-                    <label for="edit-wf-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre del Flujo *</label>
+                    <label
+                        for="edit-wf-name"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Nombre del Flujo *</label
+                    >
                     <input
                         id="edit-wf-name"
                         type="text"
@@ -622,7 +826,11 @@
                 </div>
 
                 <div>
-                    <label for="edit-wf-desc" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Descripción</label>
+                    <label
+                        for="edit-wf-desc"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Descripción</label
+                    >
                     <textarea
                         id="edit-wf-desc"
                         bind:value={editWorkflowForm.description}
@@ -639,13 +847,19 @@
                         bind:checked={editWorkflowForm.is_default}
                         class="rounded bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-[#4F46E5] focus:ring-[#4F46E5]"
                     />
-                    <label for="edit_is_default" class="text-slate-700 dark:text-slate-300 font-medium">Establecer como flujo predeterminado del taller</label>
+                    <label
+                        for="edit_is_default"
+                        class="text-slate-700 dark:text-slate-300 font-medium"
+                        >Establecer como flujo predeterminado del taller</label
+                    >
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]">
+                <div
+                    class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]"
+                >
                     <button
                         type="button"
-                        onclick={() => showEditWorkflowModal = false}
+                        onclick={() => (showEditWorkflowModal = false)}
                         class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold"
                     >
                         Cancelar
@@ -665,18 +879,35 @@
 
 <!-- MODAL CREAR / EDITAR ETAPA -->
 {#if showCreateStageModal}
-    <div class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
+    <div
+        class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] text-slate-900 dark:text-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+        >
+            <div
+                class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3"
+            >
                 <h3 class="text-base font-bold text-slate-900 dark:text-white">
-                    {editingStage ? `Editar Columna: ${editingStage.name}` : `Nueva Columna en: ${selectedWorkflow?.name}`}
+                    {editingStage
+                        ? `Editar Columna: ${editingStage.name}`
+                        : `Nueva Columna en: ${selectedWorkflow?.name}`}
                 </h3>
-                <button type="button" onclick={() => showCreateStageModal = false} class="text-slate-400 hover:text-slate-700 dark:hover:text-white">✕</button>
+                <button
+                    type="button"
+                    onclick={() => (showCreateStageModal = false)}
+                    class="text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                    >✕</button
+                >
             </div>
 
             <form onsubmit={submitStage} class="space-y-4 text-xs">
                 <div>
-                    <label for="stage-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nombre de la Etapa *</label>
+                    <label
+                        for="stage-name"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Nombre de la Etapa *</label
+                    >
                     <input
                         id="stage-name"
                         type="text"
@@ -686,12 +917,18 @@
                         class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5] text-xs"
                     />
                     {#if errors.name}
-                        <p class="text-[10px] text-rose-500 mt-1">{errors.name}</p>
+                        <p class="text-[10px] text-rose-500 mt-1">
+                            {errors.name}
+                        </p>
                     {/if}
                 </div>
 
                 <div>
-                    <label for="stage-color" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Color Identificador</label>
+                    <label
+                        for="stage-color"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Color Identificador</label
+                    >
                     <div class="flex items-center gap-2">
                         <input
                             id="stage-color"
@@ -700,7 +937,9 @@
                             class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
                             title="Seleccionar color"
                         />
-                        <label for="stage-color-hex" class="sr-only">Código Hexadecimal</label>
+                        <label for="stage-color-hex" class="sr-only"
+                            >Código Hexadecimal</label
+                        >
                         <input
                             id="stage-color-hex"
                             type="text"
@@ -712,13 +951,19 @@
 
                 <!-- Paleta de colores predefinidos para selección rápida -->
                 <div>
-                    <span class="block font-semibold text-slate-500 dark:text-slate-400 text-[11px] mb-1.5">Paleta Rápida de Colores</span>
+                    <span
+                        class="block font-semibold text-slate-500 dark:text-slate-400 text-[11px] mb-1.5"
+                        >Paleta Rápida de Colores</span
+                    >
                     <div class="flex items-center gap-1.5 flex-wrap">
                         {#each COLOR_PALETTE as hex}
                             <button
                                 type="button"
-                                onclick={() => stageForm.color = hex}
-                                class="w-6 h-6 rounded-full border transition-transform hover:scale-110 {stageForm.color === hex ? 'ring-2 ring-[#4F46E5] ring-offset-2 ring-offset-white dark:ring-offset-slate-900 border-white' : 'border-black/20'}"
+                                onclick={() => (stageForm.color = hex)}
+                                class="w-6 h-6 rounded-full border transition-transform hover:scale-110 {stageForm.color ===
+                                hex
+                                    ? 'ring-2 ring-[#4F46E5] ring-offset-2 ring-offset-white dark:ring-offset-slate-900 border-white'
+                                    : 'border-black/20'}"
                                 style="background-color: {hex};"
                                 title={hex}
                             ></button>
@@ -727,7 +972,11 @@
                 </div>
 
                 <div>
-                    <label for="stage-cat" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Comportamiento / Estado en Sistema *</label>
+                    <label
+                        for="stage-cat"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Comportamiento / Estado en Sistema *</label
+                    >
                     <select
                         id="stage-cat"
                         bind:value={stageForm.stage_category}
@@ -735,17 +984,25 @@
                         class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5] text-xs"
                     >
                         <option value="pending">pending — En Espera</option>
-                        <option value="in_progress">in_progress — En Fabricación / Operación</option>
-                        <option value="blocked">blocked — Bloqueado / Detenido</option>
+                        <option value="in_progress"
+                            >in_progress — En Fabricación / Operación</option
+                        >
+                        <option value="blocked"
+                            >blocked — Bloqueado / Detenido</option
+                        >
                         <option value="done">done — Terminado / Listo</option>
                     </select>
                     <p class="text-[10px] text-slate-500 mt-1">
-                        {categoryDescriptions[stageForm.stage_category] ?? ''}
+                        {categoryDescriptions[stageForm.stage_category] ?? ""}
                     </p>
                 </div>
 
                 <div>
-                    <label for="stage-wip" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Límite WIP (Opcional)</label>
+                    <label
+                        for="stage-wip"
+                        class="block font-semibold text-slate-700 dark:text-slate-300 mb-1"
+                        >Límite WIP (Opcional)</label
+                    >
                     <input
                         id="stage-wip"
                         type="number"
@@ -756,10 +1013,12 @@
                     />
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]">
+                <div
+                    class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#26334D]"
+                >
                     <button
                         type="button"
-                        onclick={() => showCreateStageModal = false}
+                        onclick={() => (showCreateStageModal = false)}
                         class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold"
                     >
                         Cancelar
@@ -769,7 +1028,9 @@
                         disabled={stageProcessing}
                         class="px-4 py-2 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold shadow-sm disabled:opacity-50"
                     >
-                        {editingStage ? 'Actualizar Columna' : 'Guardar Columna'}
+                        {editingStage
+                            ? "Actualizar Columna"
+                            : "Guardar Columna"}
                     </button>
                 </div>
             </form>
@@ -779,35 +1040,67 @@
 
 <!-- MODAL DE DOBLE CONFIRMACIÓN Y REASIGNACIÓN PARA ELIMINAR FLUJO -->
 {#if showDeleteWorkflowModal && workflowToDelete}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4"
+        >
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center text-xl shrink-0">
+                <div
+                    class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center text-xl shrink-0"
+                >
                     ⚠️
                 </div>
                 <div>
-                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Eliminar Flujo de Trabajo</h3>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Flujo: <strong class="text-slate-800 dark:text-slate-200">{workflowToDelete.name}</strong></p>
+                    <h3
+                        class="text-base font-bold text-slate-900 dark:text-white"
+                    >
+                        Eliminar Flujo de Trabajo
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Flujo: <strong
+                            class="text-slate-800 dark:text-slate-200"
+                            >{workflowToDelete.name}</strong
+                        >
+                    </p>
                 </div>
             </div>
 
             <!-- Paso 1: Alerta informativa -->
-            <div class="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl text-xs space-y-1.5 text-amber-800 dark:text-amber-300">
+            <div
+                class="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30 rounded-xl text-xs space-y-1.5 text-amber-800 dark:text-amber-300"
+            >
                 <div class="font-bold flex items-center gap-1.5">
                     <span>📌 Impacto actual en el taller:</span>
                 </div>
-                <ul class="list-disc list-inside space-y-0.5 text-[11px] text-amber-700 dark:text-amber-400">
-                    <li><strong>{workflowToDelete.products_count ?? 0}</strong> producto(s) del catálogo asignados a este flujo.</li>
-                    <li><strong>{workflowToDelete.production_tasks_count ?? 0}</strong> tarea(s) en producción activas en sus etapas.</li>
+                <ul
+                    class="list-disc list-inside space-y-0.5 text-[11px] text-amber-700 dark:text-amber-400"
+                >
+                    <li>
+                        <strong>{workflowToDelete.products_count ?? 0}</strong> producto(s)
+                        del catálogo asignados a este flujo.
+                    </li>
+                    <li>
+                        <strong
+                            >{workflowToDelete.production_tasks_count ??
+                                0}</strong
+                        > tarea(s) en producción activas en sus etapas.
+                    </li>
                 </ul>
                 <p class="text-[11px] text-amber-700 dark:text-amber-400 pt-1">
-                    Para no dejar ningún producto ni pedido huérfano, todos los elementos se reasignarán automáticamente al flujo que selecciones.
+                    Para no dejar ningún producto ni pedido huérfano, todos los
+                    elementos se reasignarán automáticamente al flujo que
+                    selecciones.
                 </p>
             </div>
 
             <!-- Selector de reasignación -->
             <div>
-                <label for="reassign-workflow" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label
+                    for="reassign-workflow"
+                    class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5"
+                >
                     Reasignar productos y tareas activas al flujo: *
                 </label>
                 <select
@@ -818,34 +1111,59 @@
                 >
                     {#each localWorkflows.filter((w) => Number(w.id) !== Number(workflowToDelete.id)) as target}
                         <option value={target.id}>
-                            {target.name} {target.is_default ? '(Predeterminado)' : ''}
+                            {target.name}
+                            {target.is_default ? "(Predeterminado)" : ""}
                         </option>
                     {/each}
                 </select>
                 <p class="text-[10px] text-slate-400 mt-1">
-                    Las tareas activas se moverán a la primera columna del flujo destino seleccionado.
+                    Las tareas activas se moverán a la primera columna del flujo
+                    destino seleccionado.
                 </p>
             </div>
 
+            <!-- Aviso de Papelera de Reciclaje (8 días) -->
+            <div
+                class="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-800 dark:text-sky-300 text-[11px] leading-relaxed"
+            >
+                ♻️ Este elemento se moverá a la <strong
+                    >Papelera de Reciclaje</strong
+                >
+                y podrás recuperarlo durante <strong>8 días calendario</strong> antes
+                de que se elimine de forma permanente (conservando sus columnas originales).
+            </div>
+
             <!-- Paso 2: Checkbox obligatorio de doble confirmación -->
-            <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D]">
-                <label class="flex items-start gap-2.5 cursor-pointer text-xs select-none">
+            <div
+                class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-xl border border-slate-200 dark:border-[#26334D]"
+            >
+                <label
+                    class="flex items-start gap-2.5 cursor-pointer text-xs select-none"
+                >
                     <input
                         type="checkbox"
                         bind:checked={confirmDeleteUnderstood}
                         class="rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500 mt-0.5"
                     />
-                    <span class="text-slate-700 dark:text-slate-300 text-[11px] font-medium leading-tight">
-                        Entiendo que este flujo será eliminado permanentemente y sus productos pasarán al flujo seleccionado
+                    <span
+                        class="text-slate-700 dark:text-slate-300 text-[11px] font-medium leading-tight"
+                    >
+                        Entiendo que este flujo se moverá a la Papelera de
+                        Reciclaje y sus productos pasarán al flujo seleccionado
                     </span>
                 </label>
             </div>
 
             <!-- Acciones -->
-            <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-[#26334D]">
+            <div
+                class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-[#26334D]"
+            >
                 <button
                     type="button"
-                    onclick={() => { showDeleteWorkflowModal = false; workflowToDelete = null; }}
+                    onclick={() => {
+                        showDeleteWorkflowModal = false;
+                        workflowToDelete = null;
+                    }}
                     disabled={deleteWorkflowProcessing}
                     class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
                 >
@@ -854,7 +1172,9 @@
                 <button
                     type="button"
                     onclick={submitDeleteWorkflow}
-                    disabled={!confirmDeleteUnderstood || !targetWorkflowId || deleteWorkflowProcessing}
+                    disabled={!confirmDeleteUnderstood ||
+                        !targetWorkflowId ||
+                        deleteWorkflowProcessing}
                     class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
                     {#if deleteWorkflowProcessing}
@@ -870,22 +1190,37 @@
 
 <!-- MODAL ESTILIZADO PARA ELIMINAR ETAPA / COLUMNA (SIN WINDOW.CONFIRM) -->
 {#if showDeleteStageModal && stageToDelete}
-    <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-3.5">
-            <div class="flex items-center gap-2.5 text-rose-600 dark:text-rose-400 font-bold text-sm">
+    <div
+        class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+        <div
+            class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl shadow-xl max-w-sm w-full p-5 space-y-3.5"
+        >
+            <div
+                class="flex items-center gap-2.5 text-rose-600 dark:text-rose-400 font-bold text-sm"
+            >
                 <span class="text-lg">🗑️</span>
                 <span>Eliminar Columna de Flujo</span>
             </div>
             <p class="text-xs text-slate-600 dark:text-slate-300">
-                ¿Estás seguro de eliminar la columna <strong class="text-slate-900 dark:text-white">"{stageToDelete.name}"</strong>?
+                ¿Estás seguro de eliminar la columna <strong
+                    class="text-slate-900 dark:text-white"
+                    >"{stageToDelete.name}"</strong
+                >?
             </p>
             <p class="text-[11px] text-slate-400 dark:text-slate-500">
-                Nota: Solo se pueden eliminar columnas que no contengan productos o tareas de producción activas.
+                Nota: Solo se pueden eliminar columnas que no contengan
+                productos o tareas de producción activas.
             </p>
-            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#26334D]">
+            <div
+                class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-[#26334D]"
+            >
                 <button
                     type="button"
-                    onclick={() => { showDeleteStageModal = false; stageToDelete = null; }}
+                    onclick={() => {
+                        showDeleteStageModal = false;
+                        stageToDelete = null;
+                    }}
                     disabled={deleteStageProcessing}
                     class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition"
                 >
@@ -897,7 +1232,9 @@
                     disabled={deleteStageProcessing}
                     class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-sm disabled:opacity-50"
                 >
-                    {deleteStageProcessing ? 'Eliminando...' : 'Eliminar Columna'}
+                    {deleteStageProcessing
+                        ? "Eliminando..."
+                        : "Eliminar Columna"}
                 </button>
             </div>
         </div>
