@@ -143,6 +143,20 @@
         currency: 'COP',
     });
 
+    // Formulario de Datos de Remitente para Guías de Envío
+    let senderForm = $state({
+        shipping_header: '',
+        name: '',
+        tax_id: '',
+        phone: '',
+        email: '',
+        address: '',
+        city: '',
+        department: '',
+    });
+    let senderProcessing = $state(false);
+    let senderFeedback = $state({ type: '', message: '' });
+
     let prevTenantId = null;
     $effect(() => {
         const curTId = tenant?.id ?? null;
@@ -155,6 +169,15 @@
                 settingsForm.parallel_workers = tenant.settings?.parallel_workers ?? 1;
                 settingsForm.workdays = tenant.settings?.workdays ?? [1, 2, 3, 4, 5, 6];
                 settingsForm.currency = tenant.settings?.currency ?? 'COP';
+
+                senderForm.shipping_header = tenant.shipping_header ?? '';
+                senderForm.name = tenant.name ?? '';
+                senderForm.tax_id = tenant.tax_id ?? '';
+                senderForm.phone = tenant.phone ?? '';
+                senderForm.email = tenant.email ?? '';
+                senderForm.address = tenant.address ?? '';
+                senderForm.city = tenant.city ?? '';
+                senderForm.department = tenant.department ?? '';
             });
         }
     });
@@ -223,6 +246,53 @@
             onStart: () => { settingsProcessing = true; },
             onFinish: () => { settingsProcessing = false; },
         });
+    }
+
+    async function submitSenderProfile(e) {
+        e.preventDefault();
+        senderFeedback = { type: '', message: '' };
+        senderProcessing = true;
+        try {
+            const res = await csrfFetch('/settings/sender-profile', {
+                method: 'PUT',
+                body: JSON.stringify(senderForm),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                if (data.errors && typeof data.errors === 'object') {
+                    const firstErr = Object.values(data.errors)[0];
+                    senderFeedback = {
+                        type: 'error',
+                        message: Array.isArray(firstErr) ? firstErr[0] : String(firstErr),
+                    };
+                } else {
+                    senderFeedback = {
+                        type: 'error',
+                        message: data.message || 'No se pudieron guardar los datos del remitente.',
+                    };
+                }
+                return;
+            }
+            if (data.senderProfile?.name) {
+                settingsForm.name = data.senderProfile.name;
+            }
+            senderFeedback = {
+                type: 'success',
+                message: data.message || 'Datos de remitente actualizados correctamente.',
+            };
+            setTimeout(() => {
+                if (senderFeedback.type === 'success') {
+                    senderFeedback = { type: '', message: '' };
+                }
+            }, 5000);
+        } catch (err) {
+            senderFeedback = {
+                type: 'error',
+                message: err?.message || 'Error de conexión al guardar datos del remitente.',
+            };
+        } finally {
+            senderProcessing = false;
+        }
     }
 
     async function submitMember(e) {
@@ -689,6 +759,150 @@
                             class="px-6 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm transition-all disabled:opacity-50"
                         >
                             {settingsProcessing ? 'Guardando...' : 'Guardar Ajustes del Taller'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- BLOQUE: DATOS DE REMITENTE PARA GUÍAS DE ENVÍO -->
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl p-6 shadow-sm space-y-5 text-slate-900 dark:text-slate-100">
+                <div class="border-b border-slate-100 dark:border-[#26334D] pb-3">
+                    <h2 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>📦</span> Datos de Remitente para Guías de Envío
+                    </h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Información de origen que se precargará automáticamente en las guías de envío generadas para tus clientes.
+                    </p>
+                </div>
+
+                {#if senderFeedback.message}
+                    <div
+                        class="p-3 rounded-xl text-xs font-semibold border {senderFeedback.type === 'success'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'}"
+                    >
+                        {senderFeedback.type === 'success' ? '✓ ' : '⚠ '}{senderFeedback.message}
+                    </div>
+                {/if}
+
+                <form onsubmit={submitSenderProfile} class="space-y-4 text-xs">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="s-header" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                Encabezado de Guía
+                            </label>
+                            <input
+                                id="s-header"
+                                type="text"
+                                bind:value={senderForm.shipping_header}
+                                placeholder="Ej. LOGÍSTICA & ENVÍOS EXPRESS o Nombre del Taller"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none focus:border-[#4F46E5]"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="s-name" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                Nombre / Razón Social
+                            </label>
+                            <input
+                                id="s-name"
+                                type="text"
+                                bind:value={senderForm.name}
+                                placeholder="Ej. Taller Creativo S.A.S."
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none focus:border-[#4F46E5]"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="s-tax-id" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                NIT / Cédula
+                            </label>
+                            <input
+                                id="s-tax-id"
+                                type="text"
+                                bind:value={senderForm.tax_id}
+                                placeholder="Ej. 900.123.456-7"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs font-mono focus:outline-none focus:border-[#4F46E5]"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="s-phone" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                Celular
+                            </label>
+                            <input
+                                id="s-phone"
+                                type="text"
+                                bind:value={senderForm.phone}
+                                placeholder="Ej. +57 300 123 4567"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none focus:border-[#4F46E5]"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="s-email" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                Email de Despachos
+                            </label>
+                            <input
+                                id="s-email"
+                                type="email"
+                                bind:value={senderForm.email}
+                                placeholder="Ej. despachos@mitaller.com"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none focus:border-[#4F46E5]"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="sm:col-span-1">
+                            <label for="s-address" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                Dirección de Origen
+                            </label>
+                            <input
+                                id="s-address"
+                                type="text"
+                                bind:value={senderForm.address}
+                                placeholder="Ej. Calle 10 # 40-50, Bodega 2"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none focus:border-[#4F46E5]"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="s-city" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                Ciudad
+                            </label>
+                            <input
+                                id="s-city"
+                                type="text"
+                                bind:value={senderForm.city}
+                                placeholder="Ej. Medellín"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none focus:border-[#4F46E5]"
+                            />
+                        </div>
+
+                        <div>
+                            <label for="s-dept" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                                Departamento
+                            </label>
+                            <input
+                                id="s-dept"
+                                type="text"
+                                bind:value={senderForm.department}
+                                placeholder="Ej. Antioquia"
+                                class="w-full bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white placeholder-slate-400 text-xs focus:outline-none focus:border-[#4F46E5]"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100 dark:border-[#26334D] flex justify-end">
+                        <button
+                            type="submit"
+                            disabled={senderProcessing}
+                            class="px-6 py-2.5 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] text-white font-semibold text-xs shadow-sm transition-all disabled:opacity-50"
+                        >
+                            {senderProcessing ? 'Guardando...' : '💾 Guardar Datos de Remitente'}
                         </button>
                     </div>
                 </form>

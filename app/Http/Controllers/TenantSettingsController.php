@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\Shipping\UpdateSenderProfileAction;
 use App\Actions\Team\AddTeamMemberAction;
 use App\Models\Tenant;
 use App\Models\User;
@@ -40,12 +41,19 @@ class TenantSettingsController extends Controller
             'workdays' => ['nullable', 'array'],
             'workdays.*' => ['integer', 'between:1,7'],
             'currency' => ['nullable', 'string', 'max:10'],
+            'shipping_header' => ['nullable', 'string', 'max:150'],
+            'tax_id' => ['nullable', 'string', 'max:60'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'email' => ['nullable', 'email', 'max:150'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'department' => ['nullable', 'string', 'max:100'],
         ]);
 
         $tenant = $this->resolveTenant();
         $dailyMinutes = (int) round(((float) $validated['daily_hours']) * 60);
 
-        $tenant->update([
+        $updatePayload = [
             'name' => $validated['name'],
             'daily_productive_minutes' => $dailyMinutes,
             'default_buffer_percent' => (int) $validated['default_buffer_percent'],
@@ -55,9 +63,47 @@ class TenantSettingsController extends Controller
                 'workdays' => $validated['workdays'] ?? [1, 2, 3, 4, 5, 6],
                 'currency' => $validated['currency'] ?? 'COP',
             ],
-        ]);
+        ];
+
+        foreach (['shipping_header', 'tax_id', 'phone', 'email', 'address', 'city', 'department'] as $senderField) {
+            if (array_key_exists($senderField, $validated)) {
+                $val = trim((string) ($validated[$senderField] ?? ''));
+                $updatePayload[$senderField] = $val !== '' ? $val : null;
+            }
+        }
+
+        $tenant->update($updatePayload);
 
         return redirect()->back()->with('success', 'Configuración del taller actualizada correctamente.');
+    }
+
+    /**
+     * Update the tenant's shipping sender profile via JSON (from Settings or ShippingGuideModal).
+     */
+    public function updateSenderProfile(Request $request, UpdateSenderProfileAction $action): JsonResponse
+    {
+        $user = $request->user();
+        abort_if(!$user || (!$user->isSuperAdmin() && $user->currentRole() !== 'owner'), 403);
+
+        $validated = $request->validate([
+            'shipping_header' => ['nullable', 'string', 'max:150'],
+            'name' => ['nullable', 'string', 'max:150'],
+            'tax_id' => ['nullable', 'string', 'max:60'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'email' => ['nullable', 'email', 'max:150'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'department' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $tenant = $this->resolveTenant();
+        $updated = $action->execute($tenant, $validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Datos del remitente guardados como predeterminados del taller.',
+            'senderProfile' => $updated->senderProfile(),
+        ]);
     }
 
     /**

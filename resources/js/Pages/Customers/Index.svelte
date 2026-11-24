@@ -4,8 +4,28 @@
     import AppLayout from "../../Layouts/AppLayout.svelte";
     import ViewToggle from "../../Components/ViewToggle.svelte";
     import ConfirmTrashModal from "../../Components/ConfirmTrashModal.svelte";
+    import ShippingGuideModal from "../../Components/ShippingGuideModal.svelte";
 
-    let { customers, filters = { search: "" }, errors = {} } = $props();
+    let { customers, filters = { search: "" }, senderProfile = null, errors = {} } = $props();
+
+    let localSenderProfile = $state(null);
+    $effect(() => {
+        const incoming = senderProfile;
+        untrack(() => {
+            if (incoming) {
+                localSenderProfile = { ...incoming };
+            }
+        });
+    });
+
+    let showShippingGuideModal = $state(false);
+    let shippingGuideCustomer = $state(null);
+
+    function openShippingGuide(customer) {
+        openActionMenuId = null;
+        shippingGuideCustomer = customer;
+        showShippingGuideModal = true;
+    }
 
     let search = $state("");
     $effect(() => {
@@ -437,6 +457,19 @@
                                                             >Editar Cliente</span
                                                         >
                                                     </button>
+                                                    <button
+                                                        type="button"
+                                                        onclick={() =>
+                                                            openShippingGuide(
+                                                                customer,
+                                                            )}
+                                                        class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-indigo-700 dark:text-indigo-300 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors"
+                                                    >
+                                                        <span>🏷️</span>
+                                                        <span
+                                                            >Generar Guía de Envío</span
+                                                        >
+                                                    </button>
                                                     <Link
                                                         href={`/orders?customer_id=${customer.id}`}
                                                         class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#0B0F17] transition-colors"
@@ -783,7 +816,7 @@
 
                         <!-- Acciones -->
                         <div
-                            class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex items-center justify-between"
+                            class="mt-4 pt-3 border-t border-slate-100 dark:border-[#26334D] flex flex-wrap items-center justify-between gap-2"
                         >
                             <Link
                                 href={`/orders?search=${encodeURIComponent(customer.name)}`}
@@ -791,7 +824,14 @@
                             >
                                 Ver pedidos
                             </Link>
-                            <div class="flex items-center gap-1.5">
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onclick={() => openShippingGuide(customer)}
+                                    class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-[#4F46E5] dark:text-indigo-300 text-xs font-semibold border border-indigo-200 dark:border-indigo-800/50 transition"
+                                >
+                                    🏷️ Guía de Envío
+                                </button>
                                 <button
                                     type="button"
                                     onclick={() => openEdit(customer)}
@@ -1055,4 +1095,16 @@
         if (!deleteCustomerProcessing) customerToDelete = null;
     }}
     onConfirm={confirmDeleteCustomer}
+/>
+
+<ShippingGuideModal
+    open={showShippingGuideModal}
+    customer={shippingGuideCustomer}
+    senderProfile={localSenderProfile ?? senderProfile}
+    onClose={() => {
+        showShippingGuideModal = false;
+    }}
+    onSenderProfileSaved={(updated) => {
+        localSenderProfile = { ...updated };
+    }}
 />

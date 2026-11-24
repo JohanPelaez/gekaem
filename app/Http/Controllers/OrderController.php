@@ -60,6 +60,7 @@ class OrderController extends Controller
             'wipQueueMinutes' => (int) ProductionTask::whereHas('order')->whereHas('currentStage', fn ($q) => $q->whereIn('stage_category', ['pending', 'in_progress']))->sum('estimated_minutes'),
             'dailyProductiveMinutes' => $tenant->daily_productive_minutes ?? 480,
             'defaultBufferPercent' => $tenant->default_buffer_percent ?? 20,
+            'senderProfile' => $tenant ? $tenant->senderProfile() : null,
         ]);
     }
 

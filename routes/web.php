@@ -137,6 +137,7 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
             Route::post('/', [CustomerController::class, 'store'])->name('store');
             Route::patch('/{customer}', [CustomerController::class, 'update'])->name('update');
             Route::delete('/{customer}', [CustomerController::class, 'destroy'])->name('destroy');
+            Route::post('/{customer}/shipping-guide/next-number', [CustomerController::class, 'nextShippingGuideNumber'])->name('shipping-guide.next-number');
         });
 
         // Módulo 4: Proveedores y Lead Time
@@ -203,6 +204,7 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
         // Configuración del Taller y Equipo (Solo Dueño o Admin)
         Route::prefix('settings')->name('settings.')->group(function (): void {
             Route::patch('/tenant', [TenantSettingsController::class, 'update'])->name('tenant.update');
+            Route::put('/sender-profile', [TenantSettingsController::class, 'updateSenderProfile'])->name('sender-profile.update');
             Route::patch('/', [TenantSettingsController::class, 'update'])->name('update');
             Route::post('/members', [TenantSettingsController::class, 'addMember'])->name('members.store');
             Route::put('/members/{user}', [TenantSettingsController::class, 'updateMember'])->name('members.update');

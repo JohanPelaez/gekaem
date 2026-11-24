@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\Shipping\GenerateNextShippingGuideNumberAction;
 use App\Models\Customer;
+use App\Models\Order;
+use App\Models\Tenant;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,7 +18,7 @@ use Inertia\Response;
 class CustomerController extends Controller
 {
     /**
-     * Display a listing of customers with quick search and order count.
+     * Display a listing of customers with quick search, order count and recent orders summary.
      */
     public function index(Request $request): Response
     {
@@ -38,10 +42,79 @@ class CustomerController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        $customerIds = $customers->getCollection()->pluck('id')->all();
+        $recentOrdersByCustomer = [];
+
+        if (!empty($customerIds)) {
+            $orders = Order::query()
+                ->whereIn('customer_id', $customerIds)
+                ->orderByDesc('id')
+                ->get(['id', 'customer_id', 'order_number', 'shipping_type', 'committed_delivery_at', 'predicted_delivery_at', 'notes'])
+                ->each->setAppends([]);
+
+            foreach ($orders as $order) {
+                $cid = (int) $order->customer_id;
+                if (!isset($recentOrdersByCustomer[$cid])) {
+                    $recentOrdersByCustomer[$cid] = [];
+                }
+                if (count($recentOrdersByCustomer[$cid]) < 10) {
+                    $promised = $order->committed_delivery_at ?? $order->predicted_delivery_at;
+                    $recentOrdersByCustomer[$cid][] = [
+                        'id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'shipping_type' => $order->shipping_type ?? 'contraentrega',
+                        'promised_date' => $promised ? $promised->format('Y-m-d') : null,
+                        'notes' => $order->notes,
+                    ];
+                }
+            }
+        }
+
+        $customers->getCollection()->transform(function (Customer $customer) use ($recentOrdersByCustomer): Customer {
+            $customer->setAttribute('recent_orders', $recentOrdersByCustomer[$customer->id] ?? []);
+            return $customer;
+        });
+
+        $tenant = $this->resolveTenant();
+
         return Inertia::render('Customers/Index', [
             'customers' => $customers,
             'filters' => ['search' => $search],
+            'senderProfile' => $tenant?->senderProfile(),
         ]);
+    }
+
+    /**
+     * Atomically generate the next shipping guide number for the active tenant.
+     */
+    public function nextShippingGuideNumber(
+        Request $request,
+        Customer $customer,
+        GenerateNextShippingGuideNumberAction $action
+    ): JsonResponse {
+        $user = $request->user();
+        abort_if(!$user || (!$user->isSuperAdmin() && $user->currentRole() !== 'owner'), 403);
+
+        $tenant = $this->resolveTenant();
+        abort_if(!$tenant || (int) $customer->tenant_id !== (int) $tenant->id, 403, 'El cliente no pertenece a tu taller activo.');
+
+        $nextNumber = $action->execute($tenant);
+
+        return response()->json([
+            'success' => true,
+            'guide_number' => (string) $nextNumber,
+            'shipping_guide_sequence' => $nextNumber,
+        ]);
+    }
+
+    /**
+     * Resolve the active tenant.
+     */
+    protected function resolveTenant(): ?Tenant
+    {
+        return auth()->user()?->currentTenant()
+            ?? (session('current_tenant_id') ? Tenant::find(session('current_tenant_id')) : null)
+            ?? Tenant::first();
     }
 
     /**

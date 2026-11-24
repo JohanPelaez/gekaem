@@ -21,6 +21,14 @@ class Tenant extends Model
     protected $fillable = [
         'name',
         'slug',
+        'shipping_header',
+        'tax_id',
+        'phone',
+        'email',
+        'address',
+        'city',
+        'department',
+        'shipping_guide_sequence',
         'daily_productive_minutes',
         'default_buffer_percent',
         'settings',
@@ -49,6 +57,7 @@ class Tenant extends Model
         return [
             'daily_productive_minutes' => 'integer',
             'default_buffer_percent' => 'integer',
+            'shipping_guide_sequence' => 'integer',
             'settings' => 'array',
             'trial_ends_at' => 'datetime',
             'paid_seats' => 'integer',
@@ -56,6 +65,26 @@ class Tenant extends Model
             'extra_worker_seats' => 'integer',
             'extra_workflows' => 'integer',
             'current_period_ends_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * Build the normalized sender profile array for shipping guides.
+     *
+     * @return array<string, mixed>
+     */
+    public function senderProfile(): array
+    {
+        return [
+            'name' => $this->name ?? '',
+            'shipping_header' => $this->shipping_header ?? '',
+            'tax_id' => $this->tax_id ?? '',
+            'phone' => $this->phone ?? '',
+            'email' => $this->email ?? '',
+            'address' => $this->address ?? '',
+            'city' => $this->city ?? '',
+            'department' => $this->department ?? '',
+            'shipping_guide_sequence' => (int) ($this->shipping_guide_sequence ?? 1000000000),
         ];
     }
 

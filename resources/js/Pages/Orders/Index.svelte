@@ -7,6 +7,7 @@
     import OrderFormModal from '../../Components/OrderFormModal.svelte';
     import OrderPaymentsManager from '../../Components/OrderPaymentsManager.svelte';
     import ConfirmTrashModal from '../../Components/ConfirmTrashModal.svelte';
+    import ShippingGuideModal from '../../Components/ShippingGuideModal.svelte';
     import CalendarView from './CalendarView.svelte';
     import { canViewPrices } from '../../Utils/permissions.js';
     import { getPaymentScheduleAlert } from '../../Utils/paymentScheduleAlerts.js';
@@ -28,9 +29,30 @@
         wipQueueMinutes = 0,
         dailyProductiveMinutes = 480,
         defaultBufferPercent = 20,
+        senderProfile = null,
         filters = { search: '', status: '', customer_id: '', payment_status: '', delivery_range: '', exact_date: '' },
         errors = {},
     } = $props();
+
+    let localSenderProfile = $state(null);
+    $effect(() => {
+        const incoming = senderProfile;
+        untrack(() => {
+            if (incoming) {
+                localSenderProfile = { ...incoming };
+            }
+        });
+    });
+
+    let showShippingGuideModal = $state(false);
+    let shippingGuideOrder = $state(null);
+
+    function openShippingGuideForOrder(order) {
+        openActionMenuOrderId = null;
+        if (!order?.customer) return;
+        shippingGuideOrder = order;
+        showShippingGuideModal = true;
+    }
 
     // Sincronización reactiva local para clientes y productos
     let localCustomers = $state([]);
@@ -901,6 +923,16 @@
                                                             <span>Gestionar Abonos</span>
                                                         </button>
                                                     {/if}
+                                                    {#if authUser?.role !== 'worker' && order.customer}
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => openShippingGuideForOrder(order)}
+                                                            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-indigo-700 dark:text-indigo-300 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-colors"
+                                                        >
+                                                            <span>🏷️</span>
+                                                            <span>Guía de Envío</span>
+                                                        </button>
+                                                    {/if}
                                                     {#if order.derived_status === 'ready'}
                                                         <button
                                                             type="button"
@@ -1717,6 +1749,19 @@
     processing={deleteOrderProcessing}
     onCancel={() => { if (!deleteOrderProcessing) orderToDelete = null; }}
     onConfirm={confirmDeleteOrder}
+/>
+
+<ShippingGuideModal
+    open={showShippingGuideModal}
+    customer={shippingGuideOrder?.customer ?? null}
+    order={shippingGuideOrder}
+    senderProfile={localSenderProfile ?? senderProfile}
+    onClose={() => {
+        showShippingGuideModal = false;
+    }}
+    onSenderProfileSaved={(updated) => {
+        localSenderProfile = { ...updated };
+    }}
 />
 
 
