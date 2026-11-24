@@ -80,7 +80,12 @@ class GetOrdersListAction
             ->withQueryString();
 
         $calendarOrders = (clone $query)
-            ->with(['customer:id,name,phone', 'productionTasks.currentStage:id,name,color,stage_category', 'payments', 'paymentSchedules'])
+            ->with([
+                'customer:id,name,document_number,tax_id,phone,email,address,neighborhood,city,department,notes',
+                'productionTasks.currentStage:id,name,color,stage_category',
+                'payments',
+                'paymentSchedules',
+            ])
             ->orderBy('committed_delivery_at')
             ->get();
 
@@ -91,11 +96,11 @@ class GetOrdersListAction
             })
             ->where('derived_status', '!=', 'delivered')
             ->with([
-                'customer:id,name',
+                'customer:id,name,document_number,tax_id,phone,email,address,neighborhood,city,department,notes',
                 'productionTasks:id,order_id,quantity,item_name_snapshot,current_stage_id',
                 'productionTasks.currentStage:id,name,color,stage_category',
             ])
-            ->select('id', 'order_number', 'customer_id', 'committed_delivery_at', 'predicted_delivery_at', 'derived_status', 'shipping_type')
+            ->select('id', 'order_number', 'customer_id', 'committed_delivery_at', 'predicted_delivery_at', 'derived_status', 'shipping_type', 'notes')
             ->orderByRaw('COALESCE(committed_delivery_at, predicted_delivery_at) ASC')
             ->get();
 

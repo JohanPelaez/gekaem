@@ -99,6 +99,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'planQuotas' => $tenant?->getQuotaSummary(),
             'plansCatalog' => config('plans'),
+            'senderProfile' => $tenant?->senderProfile(),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

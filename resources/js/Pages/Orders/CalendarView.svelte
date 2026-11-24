@@ -1,5 +1,7 @@
 <script>
-    import { router, Link } from '@inertiajs/svelte';
+    import { untrack } from 'svelte';
+    import { router, Link, page } from '@inertiajs/svelte';
+    import ShippingGuideModal from '../../Components/ShippingGuideModal.svelte';
 
     /**
      * CalendarView Component (Svelte 5 Runes)
@@ -28,6 +30,21 @@
     let viewYear = $state(todayObj.getFullYear());
     let viewMonth = $state(todayObj.getMonth()); // 0-11
     let selectedOrderForDetail = $state(null);
+
+    let authUser = $derived(page.props.auth?.user);
+    let canGenerateShippingGuide = $derived(Boolean(authUser && authUser.role !== 'worker'));
+
+    let showShippingGuideModal = $state(false);
+    let localSenderProfile = $state(null);
+
+    $effect(() => {
+        const incoming = page.props.senderProfile;
+        untrack(() => {
+            if (incoming) {
+                localSenderProfile = { ...incoming };
+            }
+        });
+    });
 
     const monthNames = [
         'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -402,7 +419,7 @@
     {@const badge = getDerivedStatusBadge(order.derived_status)}
     {@const tasks = order.production_tasks || order.tasks || []}
     <div class="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100">
             <!-- Encabezado del Modal -->
             <div class="flex items-start justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div>
@@ -513,13 +530,13 @@
             </div>
 
             <!-- Acciones -->
-            <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex flex-wrap items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
+            <div class="pt-4 border-t border-slate-200 dark:border-[#26334D] flex items-end justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2 flex-1 min-w-0">
                     <!-- Botón directo para Ir al Tablero Kanban aislado -->
                     <button
                         type="button"
                         onclick={() => router.visit(`/kanban?order_id=${order.id}`)}
-                        class="px-3.5 py-2 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 text-[#06B6D4] text-xs font-bold border border-[#06B6D4]/30 flex items-center gap-1.5 transition-colors shadow-sm"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 text-[#06B6D4] text-xs font-bold border border-[#06B6D4]/30 transition-colors shadow-sm"
                         title="Abrir este pedido en el Tablero Kanban"
                     >
                         <span>📋</span>
@@ -534,7 +551,7 @@
                             selectedOrderForDetail = null;
                             onEditOrder?.(target);
                         }}
-                        class="px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-[#4F46E5] dark:text-indigo-300 font-semibold text-xs border border-indigo-500/30 flex items-center gap-1.5 transition-colors shadow-sm"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-[#4F46E5] dark:text-indigo-300 font-semibold text-xs border border-indigo-500/30 transition-colors shadow-sm"
                         title="Editar Pedido"
                     >
                         <span>✏️</span>
@@ -551,10 +568,22 @@
                                     onOpenPaymentModal(target);
                                 }
                             }}
-                            class="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-semibold text-xs border border-emerald-500/30 flex items-center gap-1.5 transition-colors shadow-sm"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-semibold text-xs border border-emerald-500/30 transition-colors shadow-sm"
                         >
                             <span>💳</span>
                             <span>Abonos</span>
+                        </button>
+                    {/if}
+
+                    {#if canGenerateShippingGuide && order.customer}
+                        <button
+                            type="button"
+                            onclick={() => (showShippingGuideModal = true)}
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-[#1E293B] hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:border-[#4F46E5] text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-[#26334D] text-xs font-semibold transition shadow-sm"
+                            title="Generar e imprimir Guía de Envío para el pedido #{order.order_number}"
+                        >
+                            <span>🏷️</span>
+                            <span>Guía de Envío</span>
                         </button>
                     {/if}
 
@@ -568,7 +597,7 @@
                                     onMarkDelivered(target);
                                 }
                             }}
-                            class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-sm"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow-sm"
                         >
                             ✓ Entregar
                         </button>
@@ -578,7 +607,7 @@
                 <button
                     type="button"
                     onclick={() => selectedOrderForDetail = null}
-                    class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs"
+                    class="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs shrink-0 ml-auto whitespace-nowrap transition-colors"
                 >
                     Cerrar
                 </button>
@@ -586,3 +615,16 @@
         </div>
     </div>
 {/if}
+
+<ShippingGuideModal
+    open={showShippingGuideModal}
+    customer={selectedOrderForDetail?.customer ?? null}
+    initialOrder={selectedOrderForDetail}
+    senderProfile={localSenderProfile ?? page.props.senderProfile ?? null}
+    onClose={() => {
+        showShippingGuideModal = false;
+    }}
+    onSenderProfileSaved={(updated) => {
+        localSenderProfile = { ...updated };
+    }}
+/>

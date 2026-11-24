@@ -2,6 +2,7 @@
     import { untrack } from 'svelte';
     import { router, page } from '@inertiajs/svelte';
     import CurrencyInput from '../../Components/CurrencyInput.svelte';
+    import ShippingGuideModal from '../../Components/ShippingGuideModal.svelte';
 
     let {
         isOpen = $bindable(false),
@@ -23,6 +24,20 @@
 
     let authUser = $derived(page.props.auth?.user);
     let isOwnerOrAdmin = $derived(Boolean(authUser?.is_super_admin || authUser?.role === 'owner' || authUser?.role === 'admin'));
+    let canGenerateShippingGuide = $derived(Boolean(authUser && authUser.role !== 'worker' && order?.customer));
+
+    // Estado del modal de Guía de Envío
+    let showShippingGuideModal = $state(false);
+    let localSenderProfile = $state(null);
+
+    $effect(() => {
+        const incoming = page.props.senderProfile;
+        untrack(() => {
+            if (incoming) {
+                localSenderProfile = { ...incoming };
+            }
+        });
+    });
 
     // Estado del formulario rápido de abonos colapsable
     let showNewPaymentForm = $state(false);
@@ -82,6 +97,27 @@
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
+        });
+    }
+
+    function formatPaymentDate(dateStr) {
+        if (!dateStr) return 'Sin fecha';
+        const match = String(dateStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            const [, y, m, d] = match;
+            const localDate = new Date(Number(y), Number(m) - 1, Number(d));
+            return localDate.toLocaleDateString('es-CO', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+            });
+        }
+        const parsed = new Date(dateStr);
+        if (Number.isNaN(parsed.getTime())) return String(dateStr);
+        return parsed.toLocaleDateString('es-CO', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
         });
     }
 
@@ -515,7 +551,7 @@
                                                 {pay.payment_method}
                                             </span>
                                             <span class="text-[#64748B] dark:text-slate-400 font-mono text-[11px]">
-                                                📅 {pay.payment_date}
+                                                📅 {formatPaymentDate(pay.payment_date)}
                                             </span>
                                             {#if pay.notes}
                                                 <span class="text-[#64748B] dark:text-slate-500 truncate max-w-xs">• "{pay.notes}"</span>
@@ -559,8 +595,8 @@
             {/if}
 
             <!-- PIE DEL MODAL (ACCIONES) -->
-            <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div class="flex items-center gap-2">
+            <div class="pt-4 border-t border-slate-200 dark:border-[#26334D] flex items-end justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2 flex-1 min-w-0">
                     {#if isOwnerOrAdmin}
                         <button
                             type="button"
@@ -572,6 +608,18 @@
                         >
                             <span>✏️</span>
                             <span>Editar Pedido</span>
+                        </button>
+                    {/if}
+
+                    {#if canGenerateShippingGuide}
+                        <button
+                            type="button"
+                            onclick={() => (showShippingGuideModal = true)}
+                            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-300 dark:border-[#26334D] bg-white dark:bg-[#1E293B] hover:border-[#4F46E5] text-slate-800 dark:text-slate-100 text-xs font-semibold transition"
+                            title="Generar e imprimir Guía de Envío para el pedido #{order.order_number}"
+                        >
+                            <span>🏷️</span>
+                            <span>Guía de Envío</span>
                         </button>
                     {/if}
 
@@ -599,7 +647,7 @@
                 <button
                     type="button"
                     onclick={closeModal}
-                    class="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition"
+                    class="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-[#26334D] font-semibold text-xs transition shrink-0 ml-auto whitespace-nowrap"
                 >
                     Cerrar
                 </button>
@@ -607,3 +655,16 @@
         </div>
     </div>
 {/if}
+
+<ShippingGuideModal
+    open={showShippingGuideModal}
+    customer={order?.customer ?? null}
+    initialOrder={order}
+    senderProfile={localSenderProfile ?? page.props.senderProfile ?? null}
+    onClose={() => {
+        showShippingGuideModal = false;
+    }}
+    onSenderProfileSaved={(updated) => {
+        localSenderProfile = { ...updated };
+    }}
+/>

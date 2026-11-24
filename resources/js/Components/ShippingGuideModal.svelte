@@ -1,5 +1,6 @@
 <script>
     import { untrack } from 'svelte';
+    import { page } from '@inertiajs/svelte';
     import { csrfFetch } from '../Utils/csrfFetch.js';
     import {
         formatDateDDMMYYYY,
@@ -11,10 +12,14 @@
         open = false,
         customer = null,
         order = null,
+        initialOrder = null,
         senderProfile = null,
         onClose = () => {},
         onSenderProfileSaved = () => {},
     } = $props();
+
+    let resolvedOrder = $derived(initialOrder ?? order);
+    let resolvedSenderProfile = $derived(senderProfile ?? page.props.senderProfile ?? null);
 
     function getTodayIso() {
         const now = new Date();
@@ -63,13 +68,14 @@
 
     let recentOrders = $derived.by(() => {
         const list = [];
-        if (order && order.id) {
+        const ord = resolvedOrder;
+        if (ord && ord.id) {
             list.push({
-                id: order.id,
-                order_number: order.order_number,
-                shipping_type: order.shipping_type ?? 'contraentrega',
-                promised_date: order.promised_date ?? null,
-                notes: order.notes ?? '',
+                id: ord.id,
+                order_number: ord.order_number,
+                shipping_type: ord.shipping_type ?? 'contraentrega',
+                promised_date: ord.promised_date ?? null,
+                notes: ord.notes ?? '',
             });
         }
         const custOrders = customer?.recent_orders ?? [];
@@ -91,12 +97,16 @@
     let missingSenderData = $derived(
         !String(sender.tax_id || '').trim() || !String(sender.address || '').trim(),
     );
+    let missingRecipientData = $derived(
+        !String(recipient.phone || '').trim() || !String(recipient.address || '').trim(),
+    );
 
     let initializedKey = null;
     $effect(() => {
         const isOpen = open;
         const custId = customer?.id ?? null;
-        const ordId = order?.id ?? null;
+        const activeOrd = resolvedOrder;
+        const ordId = activeOrd?.id ?? null;
 
         if (!isOpen) {
             initializedKey = null;
@@ -108,7 +118,7 @@
             initializedKey = key;
             untrack(() => {
                 // Sender profile
-                const sp = senderProfile ?? {};
+                const sp = resolvedSenderProfile ?? {};
                 sender.shipping_header = sp.shipping_header ?? '';
                 sender.name = sp.name ?? '';
                 sender.tax_id = sp.tax_id ?? '';
@@ -120,7 +130,8 @@
 
                 // Open sender accordion automatically if key data is missing
                 senderOpen = !String(sp.tax_id || '').trim() || !String(sp.address || '').trim();
-                recipientOpen = false;
+                // Open recipient accordion automatically if phone or address is missing
+                recipientOpen = !String(customer?.phone || '').trim() || !String(customer?.address || '').trim();
 
                 // Recipient (from customer)
                 recipient.name = customer?.name ?? '';
@@ -139,10 +150,10 @@
                 numberFeedback = { type: '', message: '' };
                 senderFeedback = { type: '', message: '' };
 
-                if (order && order.id) {
-                    selectedOrderId = String(order.id);
-                    paymentMode = order.shipping_type === 'envio_incluido' ? 'origen' : 'contraentrega';
-                    observations = customer?.notes || order.notes || '';
+                if (activeOrd && activeOrd.id) {
+                    selectedOrderId = String(activeOrd.id);
+                    paymentMode = activeOrd.shipping_type === 'envio_incluido' ? 'origen' : 'contraentrega';
+                    observations = customer?.notes || activeOrd.notes || '';
                 } else {
                     selectedOrderId = '';
                     paymentMode = 'contraentrega';
@@ -282,7 +293,7 @@
 
 {#if open && customer}
     <div
-        class="fixed inset-0 z-50 bg-slate-900/70 dark:bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+        class="fixed inset-0 z-[70] bg-slate-900/70 dark:bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="shipping-guide-modal-title"
@@ -559,6 +570,12 @@
                             </span>
                             <span class="text-slate-400 text-[11px]">{recipientOpen ? '▲' : '▼'}</span>
                         </button>
+
+                        {#if missingRecipientData}
+                            <div class="px-3.5 py-2 bg-amber-50 dark:bg-amber-950/40 border-t border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-200 text-[11px] font-medium">
+                                ⚠️ Faltan datos del destinatario (celular o dirección). Puedes completarlos aquí antes de imprimir o descargar.
+                            </div>
+                        {/if}
 
                         {#if recipientOpen}
                             <div class="p-3.5 space-y-2.5 border-t border-slate-200 dark:border-[#26334D] bg-white dark:bg-[#151D2C]">
