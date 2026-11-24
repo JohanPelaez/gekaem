@@ -13,6 +13,8 @@
     let userMenuOpen = $state(false);
     let notificationsOpen = $state(false);
     let flashDismissed = $state(false);
+    let flashHovered = $state(false);
+    let flashEpoch = $state(0);
     let isDark = $state(false);
     let searchQuery = $state('');
     let isSidebarCollapsed = $state(
@@ -28,11 +30,53 @@
     let counts = $derived(page.props.counts);
     let currentUrl = $derived(page.url);
 
-    // Restablecer estado de descarte cuando llegue un nuevo mensaje flash
+    // Escuchar cada respuesta exitosa de Inertia para detectar incluso mensajes flash consecutivos idénticos
     $effect(() => {
-        if (flash?.success || flash?.error) {
+        if (typeof window === 'undefined') return;
+        const removeListener = router.on('success', () => {
+            flashEpoch += 1;
+        });
+        return () => {
+            if (typeof removeListener === 'function') {
+                removeListener();
+            }
+        };
+    });
+
+    // Restablecer estado de descarte cuando llegue un nuevo mensaje flash o navegación
+    $effect(() => {
+        const successMsg = flash?.success;
+        const errorMsg = flash?.error;
+        const _epoch = flashEpoch;
+        const _url = currentUrl;
+
+        if (successMsg || errorMsg) {
             flashDismissed = false;
         }
+    });
+
+    // Auto-cierre automático del toast flotante (pausado al pasar el cursor encima)
+    $effect(() => {
+        const successMsg = flash?.success;
+        const errorMsg = flash?.error;
+        const _epoch = flashEpoch;
+
+        if (flashDismissed || flashHovered || (!successMsg && !errorMsg)) {
+            return;
+        }
+
+        const hasAction =
+            Boolean(errorMsg) ||
+            Boolean(flash?.trashed) ||
+            String(successMsg || '').includes('Papelera de Reciclaje') ||
+            String(successMsg || '').includes('Historial');
+
+        const durationMs = hasAction ? 5500 : 3500;
+        const timer = setTimeout(() => {
+            flashDismissed = true;
+        }, durationMs);
+
+        return () => clearTimeout(timer);
     });
 
     // Inicializar y sincronizar tema Claro / Oscuro con localStorage (Modo Claro por defecto)
@@ -752,44 +796,72 @@
 
         <!-- CONTENEDOR PRINCIPAL: Fixed y Scrollable de Pantalla Completa sin max-w artificial -->
         <main class="flex-1 overflow-y-auto overflow-x-hidden w-full max-w-none p-3 sm:p-4 lg:p-5">
-            <!-- NOTIFICACIONES FLASH -->
-            {#if (flash?.success || flash?.error) && !flashDismissed}
-                <div class="w-full max-w-none mb-3">
-                    {#if flash?.success}
-                        <div class="bg-emerald-500/10 border border-emerald-500/25 text-emerald-800 dark:text-emerald-300 px-4 py-2.5 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs">
-                            <div class="flex items-center gap-2 min-w-0">
-                                <span class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[11px] shrink-0">✓</span>
-                                <span class="font-medium">{flash.success}</span>
-                            </div>
-                            <div class="flex items-center gap-2 shrink-0">
-                                {#if (flash?.trashed || String(flash.success).includes('Papelera de Reciclaje')) && (auth?.user?.role === 'owner' || auth?.user?.is_super_admin)}
-                                    <Link
-                                        href="/trash"
-                                        class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors whitespace-nowrap"
-                                    >
-                                        Ir a la Papelera
-                                    </Link>
-                                {/if}
-                                <button type="button" onclick={() => flashDismissed = true} class="text-emerald-600 dark:text-emerald-400 font-bold text-xs px-2 py-0.5">✕</button>
-                            </div>
-                        </div>
-                    {/if}
-                    {#if flash?.error}
-                        <div class="bg-rose-500/10 border border-rose-500/25 text-rose-800 dark:text-rose-300 px-4 py-2.5 rounded-2xl flex items-center justify-between text-xs shadow-xs">
-                            <div class="flex items-center gap-2">
-                                <span class="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-[11px] shrink-0">⚠</span>
-                                <span class="font-medium">{flash.error}</span>
-                            </div>
-                            <button type="button" onclick={() => flashDismissed = true} class="text-rose-600 dark:text-rose-400 font-bold text-xs px-2 py-0.5">✕</button>
-                        </div>
-                    {/if}
-                </div>
-            {/if}
-
             <!-- CONTENIDO DE LAS VISTAS (Ancho completo) -->
             <div class="w-full max-w-none">
                 {@render children?.()}
             </div>
         </main>
     </div>
+
+    <!-- TOAST FLOTANTE DE NOTIFICACIONES FLASH (Sin layout shift) -->
+    {#if (flash?.success || flash?.error) && !flashDismissed}
+        <div
+            class="fixed top-[72px] right-5 z-[80] flex flex-col gap-2 w-[calc(100vw-2.5rem)] max-w-sm pointer-events-none"
+            role="status"
+            aria-live="polite"
+        >
+            {#if flash?.success}
+                <div
+                    role="status"
+                    onmouseenter={() => flashHovered = true}
+                    onmouseleave={() => flashHovered = false}
+                    class="pointer-events-auto shadow-xl rounded-xl border backdrop-blur-sm bg-white/95 dark:bg-[#151D2C]/95 border-emerald-200 dark:border-emerald-500/35 text-emerald-900 dark:text-emerald-200 px-3.5 py-3 flex items-start justify-between gap-2.5 text-xs transition-all"
+                >
+                    <div class="flex items-start gap-2.5 min-w-0">
+                        <span class="w-5 h-5 mt-0.5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[11px] shrink-0 shadow-xs">✓</span>
+                        <div class="min-w-0 space-y-1.5">
+                            <p class="font-semibold leading-snug break-words">{flash.success}</p>
+                            {#if (flash?.trashed || String(flash.success).includes('Papelera de Reciclaje')) && (auth?.user?.role === 'owner' || auth?.user?.is_super_admin)}
+                                <Link
+                                    href="/trash"
+                                    class="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors whitespace-nowrap"
+                                >
+                                    Ir a la Papelera
+                                </Link>
+                            {/if}
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onclick={() => { flashDismissed = true; flashHovered = false; }}
+                        class="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white font-bold text-sm leading-none px-1 py-0.5 rounded-md transition-colors shrink-0 cursor-pointer"
+                        aria-label="Cerrar notificación"
+                    >
+                        ×
+                    </button>
+                </div>
+            {/if}
+            {#if flash?.error}
+                <div
+                    role="alert"
+                    onmouseenter={() => flashHovered = true}
+                    onmouseleave={() => flashHovered = false}
+                    class="pointer-events-auto shadow-xl rounded-xl border backdrop-blur-sm bg-white/95 dark:bg-[#151D2C]/95 border-rose-200 dark:border-rose-500/35 text-rose-900 dark:text-rose-200 px-3.5 py-3 flex items-start justify-between gap-2.5 text-xs transition-all"
+                >
+                    <div class="flex items-start gap-2.5 min-w-0">
+                        <span class="w-5 h-5 mt-0.5 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-[11px] shrink-0 shadow-xs">⚠</span>
+                        <p class="font-semibold leading-snug break-words">{flash.error}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onclick={() => { flashDismissed = true; flashHovered = false; }}
+                        class="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white font-bold text-sm leading-none px-1 py-0.5 rounded-md transition-colors shrink-0 cursor-pointer"
+                        aria-label="Cerrar notificación"
+                    >
+                        ×
+                    </button>
+                </div>
+            {/if}
+        </div>
+    {/if}
 </div>

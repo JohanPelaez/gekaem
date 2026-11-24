@@ -4,6 +4,7 @@
     import AppLayout from '../../Layouts/AppLayout.svelte';
     import { csrfFetch } from '../../Utils/csrfFetch';
     import { canViewPrices } from '../../Utils/permissions';
+    import { kanbanBoardScroll, fitKanbanViewport } from '../../Utils/kanbanBoardScroll';
     import OrderFormModal from '../../Components/OrderFormModal.svelte';
     import OrderStatusModal from './OrderStatusModal.svelte';
     import OrderDetailModal from './OrderDetailModal.svelte';
@@ -136,6 +137,21 @@
     let draggedTaskId = $state(null);
     let dragOverStageId = $state(null);
     let isMoving = $state(false);
+    let isDraggingCard = $derived(Boolean(draggedOrderId || draggedTaskId));
+
+    // Referencias y estado de scroll horizontal para los 3 modos de tablero Kanban
+    let macroBoardEl = $state(null);
+    let workflowBoardEl = $state(null);
+    let isolatedBoardEl = $state(null);
+
+    let macroScrollState = $state({ canScrollLeft: false, canScrollRight: false, isDraggingNearEdge: null });
+    let workflowScrollState = $state({ canScrollLeft: false, canScrollRight: false, isDraggingNearEdge: null });
+    let isolatedScrollState = $state({ canScrollLeft: false, canScrollRight: false, isDraggingNearEdge: null });
+
+    function scrollBoardBy(boardEl, deltaX) {
+        if (!boardEl) return;
+        boardEl.scrollBy({ left: deltaX, behavior: 'smooth' });
+    }
 
     // Modales
     let isStatusModalOpen = $state(false);
@@ -769,6 +785,11 @@
         draggedOrderId = null;
     }
 
+    function handleMacroDragEnd() {
+        draggedOrderId = null;
+        dragOverMacroStatusId = null;
+    }
+
     async function updateOrderStatus(orderId, newStatusId) {
         const order = localOrders.find((o) => o.id === orderId);
         if (!order) return;
@@ -847,6 +868,11 @@
 
         moveTask(draggedTaskId, targetStageId);
         draggedTaskId = null;
+    }
+
+    function handleTaskDragEnd() {
+        draggedTaskId = null;
+        dragOverStageId = null;
     }
 
     function moveTask(taskId, targetStageId) {
@@ -1003,13 +1029,60 @@
 </script>
 
 <AppLayout title={generalViewMode === 'workflows' ? 'Flujo de Trabajo' : generalViewMode === 'table' ? 'Tabla de Producción' : 'Tablero de Pedidos'}>
-    <div class="space-y-4 w-full max-w-none min-w-0">
+    {#snippet boardScrollOverlays(boardEl, scrollState)}
+        <!-- Degradados sutiles de señal visual de auto-scroll al arrastrar una tarjeta -->
+        {#if isDraggingCard && scrollState.canScrollLeft}
+            <div
+                class="pointer-events-none absolute inset-y-0 left-0 w-16 z-10 rounded-l-2xl bg-gradient-to-r transition-opacity duration-150 {scrollState.isDraggingNearEdge === 'left'
+                    ? 'from-[#4F46E5]/35 via-[#4F46E5]/15 to-transparent dark:from-[#4F46E5]/45 dark:via-[#4F46E5]/20'
+                    : 'from-[#4F46E5]/20 via-[#4F46E5]/5 to-transparent dark:from-[#4F46E5]/25 dark:via-[#4F46E5]/10'}"
+                aria-hidden="true"
+            ></div>
+        {/if}
+
+        {#if isDraggingCard && scrollState.canScrollRight}
+            <div
+                class="pointer-events-none absolute inset-y-0 right-0 w-16 z-10 rounded-r-2xl bg-gradient-to-l transition-opacity duration-150 {scrollState.isDraggingNearEdge === 'right'
+                    ? 'from-[#4F46E5]/35 via-[#4F46E5]/15 to-transparent dark:from-[#4F46E5]/45 dark:via-[#4F46E5]/20'
+                    : 'from-[#4F46E5]/20 via-[#4F46E5]/5 to-transparent dark:from-[#4F46E5]/25 dark:via-[#4F46E5]/10'}"
+                aria-hidden="true"
+            ></div>
+        {/if}
+
+        <!-- Botón flotante de navegación izquierda -->
+        {#if scrollState.canScrollLeft}
+            <button
+                type="button"
+                onclick={() => scrollBoardBy(boardEl, -340)}
+                class="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/95 dark:bg-[#151D2C]/95 hover:bg-white dark:hover:bg-[#1E293B] text-slate-700 dark:text-slate-200 hover:text-[#4F46E5] dark:hover:text-indigo-400 border border-slate-200/90 dark:border-[#26334D] shadow-lg backdrop-blur-xs flex items-center justify-center text-xl font-bold leading-none transition-all {isDraggingCard ? 'pointer-events-none opacity-40' : 'cursor-pointer'}"
+                title="Desplazar tablero a la izquierda"
+                aria-label="Desplazar tablero a la izquierda"
+            >
+                ‹
+            </button>
+        {/if}
+
+        <!-- Botón flotante de navegación derecha -->
+        {#if scrollState.canScrollRight}
+            <button
+                type="button"
+                onclick={() => scrollBoardBy(boardEl, 340)}
+                class="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/95 dark:bg-[#151D2C]/95 hover:bg-white dark:hover:bg-[#1E293B] text-slate-700 dark:text-slate-200 hover:text-[#4F46E5] dark:hover:text-indigo-400 border border-slate-200/90 dark:border-[#26334D] shadow-lg backdrop-blur-xs flex items-center justify-center text-xl font-bold leading-none transition-all {isDraggingCard ? 'pointer-events-none opacity-40' : 'cursor-pointer'}"
+                title="Desplazar tablero a la derecha"
+                aria-label="Desplazar tablero a la derecha"
+            >
+                ›
+            </button>
+        {/if}
+    {/snippet}
+
+    <div class="space-y-3 w-full max-w-none min-w-0">
         <!-- ========================================== -->
         <!-- MODO 1: TABLERO GENERAL CENTRADO EN PEDIDOS -->
         <!-- ========================================== -->
         {#if !activeOrder}
             <!-- ENCABEZADO Y CONTROLES GENERALES -->
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-1">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
                 <div>
                     <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                         {generalViewMode === 'workflows' ? 'Flujo de Trabajo' : generalViewMode === 'table' ? 'Tabla de Producción' : 'Tablero de Pedidos'}
@@ -1091,7 +1164,7 @@
             </div>
 
             <!-- BARRA DE FILTROS PROGRESIVOS -->
-            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-4 rounded-3xl space-y-3 shadow-sm">
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] p-3.5 rounded-2xl space-y-2.5 shadow-sm">
                 {#if generalViewMode === 'workflows'}
                     <!-- BARRA UNIFICADA DEL TABLERO DE TRABAJO -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
@@ -1328,47 +1401,59 @@
 
             <!-- VISTA A: TABLERO KANBAN MACRO (COLUMNAS DINÁMICAS POR ESTADOS DE PEDIDO) -->
             {#if generalViewMode === 'kanban'}
-                <div class="flex flex-nowrap items-start gap-4 overflow-x-auto pb-4 w-full min-w-0">
-                    {#each localStatuses as col (col.id)}
-                        {@const colOrders = col.is_history_status ? [] : (ordersByStatusId.get(col.id) || [])}
-                        {@const isDragOverCol = dragOverMacroStatusId === col.id}
-                        <div
-                            class="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {isDragOverCol ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
-                            style="border-top: 4px solid {col.color || '#64748b'};"
-                            ondragover={(e) => handleMacroDragOver(e, col.id)}
-                            ondragleave={() => { if (dragOverMacroStatusId === col.id) dragOverMacroStatusId = null; }}
-                            ondrop={(e) => handleMacroDrop(e, col.id)}
-                            role="region"
-                            aria-label={`Columna ${col.name}`}
-                        >
-                            <!-- Cabecera de la Columna Dinámica -->
-                            <div class="p-4 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <div class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background-color: {col.color || '#64748b'};"></div>
-                                    <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide truncate" title={col.name}>
-                                        {col.name}
-                                    </h3>
+                <div
+                    use:fitKanbanViewport={{ bottomGap: 20 }}
+                    class="relative w-full min-w-0"
+                >
+                    {@render boardScrollOverlays(macroBoardEl, macroScrollState)}
+                    <div
+                        bind:this={macroBoardEl}
+                        use:kanbanBoardScroll={{ onScrollStateChange: (state) => { macroScrollState = state; } }}
+                        class="flex gap-4 overflow-x-auto overflow-y-hidden h-full pb-2 px-1 items-stretch kanban-horizontal-scroll {macroScrollState.canScrollLeft || macroScrollState.canScrollRight ? 'cursor-grab' : ''}"
+                    >
+                        {#each localStatuses as col (col.id)}
+                            {@const colOrders = col.is_history_status ? [] : (ordersByStatusId.get(col.id) || [])}
+                            {@const isDragOverCol = dragOverMacroStatusId === col.id}
+                            <div
+                                class="flex flex-col h-full max-h-full w-80 sm:w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl shadow-sm transition-colors {isDragOverCol ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
+                                style="border-top: 4px solid {col.color || '#64748b'};"
+                                ondragover={(e) => handleMacroDragOver(e, col.id)}
+                                ondragleave={() => { if (dragOverMacroStatusId === col.id) dragOverMacroStatusId = null; }}
+                                ondrop={(e) => handleMacroDrop(e, col.id)}
+                                role="region"
+                                aria-label={`Columna ${col.name}`}
+                            >
+                                <!-- Cabecera de la Columna Dinámica -->
+                                <div class="p-4 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between gap-2 shrink-0">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <div class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background-color: {col.color || '#64748b'};"></div>
+                                        <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide truncate" title={col.name}>
+                                            {col.name}
+                                        </h3>
+                                    </div>
+                                    {#if col.is_history_status}
+                                        <span
+                                            class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold shrink-0 shadow-sm"
+                                            style="background-color: {col.color || '#64748b'}18; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}35;"
+                                            title="Pedidos archivados en el Historial de Pedidos"
+                                        >
+                                            📦 {localShippedCount}
+                                        </span>
+                                    {:else}
+                                        <span
+                                            class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold shrink-0 shadow-sm"
+                                            style="background-color: {col.color || '#64748b'}18; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}35;"
+                                        >
+                                            {colOrders.length}
+                                        </span>
+                                    {/if}
                                 </div>
-                                {#if col.is_history_status}
-                                    <span
-                                        class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold shrink-0 shadow-sm"
-                                        style="background-color: {col.color || '#64748b'}18; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}35;"
-                                        title="Pedidos archivados en el Historial de Pedidos"
-                                    >
-                                        📦 {localShippedCount}
-                                    </span>
-                                {:else}
-                                    <span
-                                        class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold shrink-0 shadow-sm"
-                                        style="background-color: {col.color || '#64748b'}18; color: {col.color || '#64748b'}; border: 1px solid {col.color || '#64748b'}35;"
-                                    >
-                                        {colOrders.length}
-                                    </span>
-                                {/if}
-                            </div>
 
-                            <!-- Lista de Tarjetas o Zona de Envío (Drop Zone) para Historial -->
-                            <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[780px] {col.is_history_status ? 'flex flex-col' : ''}">
+                                <!-- Lista de Tarjetas o Zona de Envío (Drop Zone) para Historial -->
+                                <div
+                                    data-kanban-column-body
+                                    class="p-3 flex-1 overflow-y-auto min-h-0 space-y-3 pr-1 pb-2 kanban-column-scroll {col.is_history_status ? 'flex flex-col' : ''}"
+                                >
                                 {#if col.is_history_status}
                                     <div
                                         class="flex-1 rounded-2xl border-2 border-dashed p-6 flex flex-col items-center justify-center text-center gap-3 transition-all {isDragOverCol
@@ -1416,6 +1501,7 @@
                                             class="bg-white dark:bg-[#0B0F17]/90 border border-slate-200/90 dark:border-[#26334D] hover:border-[#4F46E5] dark:hover:border-[#06B6D4] rounded-xl p-3.5 space-y-3 shadow-sm transition-all cursor-pointer group"
                                             draggable="true"
                                             ondragstart={(e) => handleMacroDragStart(e, order.id)}
+                                            ondragend={handleMacroDragEnd}
                                             onclick={() => openDetailModal(order)}
                                             onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openDetailModal(order); }}
                                             role="button"
@@ -1517,18 +1603,27 @@
                             </div>
                         </div>
                     {/each}
+                    </div>
                 </div>
 
             <!-- VISTA B: KANBAN DE FLUJOS (TODOS LOS PRODUCTOS DE TODOS LOS PEDIDOS ACTIVOS) -->
             {:else if generalViewMode === 'workflows'}
-                <div class="space-y-4">
+                <div
+                    use:fitKanbanViewport={{ bottomGap: 20 }}
+                    class="relative w-full min-w-0"
+                >
+                    {@render boardScrollOverlays(workflowBoardEl, workflowScrollState)}
                     <!-- COLUMNAS DEL FLUJO DE TRABAJO -->
-                    <div class="flex flex-nowrap items-start gap-4 overflow-x-auto pb-4 w-full min-w-0">
+                    <div
+                        bind:this={workflowBoardEl}
+                        use:kanbanBoardScroll={{ onScrollStateChange: (state) => { workflowScrollState = state; } }}
+                        class="flex gap-4 overflow-x-auto overflow-y-hidden h-full pb-2 px-1 items-stretch kanban-horizontal-scroll {workflowScrollState.canScrollLeft || workflowScrollState.canScrollRight ? 'cursor-grab' : ''}"
+                    >
                         {#each visibleWorkflowStages as stage (stage.id)}
                             {@const stageTasks = tasksByStageId.get(Number(stage.id)) || []}
                             {@const isOverThisStage = Number(dragOverStageId) === Number(stage.id)}
                             <div
-                                class="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[580px] shadow-sm transition-colors {isOverThisStage ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
+                                class="flex flex-col h-full max-h-full w-80 sm:w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl shadow-sm transition-colors {isOverThisStage ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
                                 style="border-top: 4px solid {stage.color || '#64748b'};"
                                 ondragover={(e) => handleTaskDragOver(e, stage.id)}
                                 ondrop={(e) => handleTaskDrop(e, stage.id)}
@@ -1536,7 +1631,7 @@
                                 aria-label={`Etapa ${stage.name}`}
                             >
                                 <!-- Cabecera de la Etapa -->
-                                <div class="p-3.5 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between">
+                                <div class="p-3.5 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between shrink-0">
                                     <div class="flex items-center gap-2 min-w-0">
                                         <div class="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style="background-color: {stage.color || '#64748b'};"></div>
                                         <h3 class="text-sm font-bold text-slate-900 dark:text-white tracking-wide truncate" title={stage.name}>
@@ -1552,7 +1647,10 @@
                                 </div>
 
                                 <!-- Lista de Tarjetas de Producto / Tarea -->
-                                <div class="p-2.5 space-y-2 overflow-y-auto flex-1 min-h-[140px]">
+                                <div
+                                    data-kanban-column-body
+                                    class="p-2.5 flex-1 overflow-y-auto min-h-0 space-y-3 pr-1 pb-2 kanban-column-scroll"
+                                >
                                     {#if stageTasks.length === 0}
                                         <div class="h-28 border border-dashed border-slate-300 dark:border-slate-700/60 rounded-xl flex items-center justify-center text-[11px] text-slate-400 dark:text-slate-500 italic">
                                             Sin productos en esta etapa
@@ -1563,6 +1661,7 @@
                                             <div
                                                 draggable="true"
                                                 ondragstart={(e) => handleTaskDragStart(e, task.id)}
+                                                ondragend={handleTaskDragEnd}
                                                 onclick={() => openTaskDetailModal(task)}
                                                 onkeydown={(e) => { if (e.key === 'Enter') openTaskDetailModal(task); }}
                                                 tabindex="0"
@@ -1737,7 +1836,7 @@
             </div>
 
             <!-- FICHA PRINCIPAL DEL PEDIDO AISLADO -->
-            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-2xl p-3.5 shadow-sm space-y-3">
                 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div>
                         <div class="flex items-center gap-2 flex-wrap">
@@ -1806,75 +1905,89 @@
                     Este flujo no tiene etapas configuradas. Ve a Tipos de Flujos para agregar etapas.
                 </div>
             {:else}
-                <div class="flex flex-nowrap items-start gap-4 overflow-x-auto pb-4 w-full min-w-0">
-                    {#each activeOrderStages as stage (stage.id)}
-                        {@const stageTasks = activeOrderTasks.filter(t => Number(t.current_stage_id ?? getTaskStage(t)?.id) === Number(stage.id))}
-                        <div
-                            class="w-80 min-w-[300px] max-w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl flex flex-col min-h-[500px] shadow-sm transition-colors {dragOverStageId === stage.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
-                            style="border-top: 4px solid {stage.color || '#64748b'};"
-                            ondragover={(e) => handleTaskDragOver(e, stage.id)}
-                            ondrop={(e) => handleTaskDrop(e, stage.id)}
-                            role="region"
-                            aria-label={`Etapa ${stage.name}`}
-                        >
-                            <!-- Cabecera de la Etapa / Columna -->
-                            <div class="p-3.5 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-2.5 h-2.5 rounded-full shadow-sm" style="background-color: {stage.color || '#64748b'};"></div>
-                                    <h3 class="text-xs font-bold text-slate-900 dark:text-white tracking-wide truncate max-w-[130px]" title={stage.name}>
-                                        {stage.name}
-                                    </h3>
-                                </div>
-                                <span
-                                    class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-sm"
-                                    style="background-color: {stage.color || '#64748b'}18; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}35;"
-                                >
-                                    {stageTasks.length}
-                                </span>
-                            </div>
-
-                            <!-- Lista de Tareas en esta Etapa -->
-                            <div class="p-3 space-y-3 flex-1 overflow-y-auto max-h-[700px]">
-                                {#if stageTasks.length === 0}
-                                    <div class="py-12 text-center text-[#64748B] dark:text-slate-500 text-xs italic">
-                                        Sin productos en esta columna.
+                <div
+                    use:fitKanbanViewport={{ bottomGap: 20 }}
+                    class="relative w-full min-w-0"
+                >
+                    {@render boardScrollOverlays(isolatedBoardEl, isolatedScrollState)}
+                    <div
+                        bind:this={isolatedBoardEl}
+                        use:kanbanBoardScroll={{ onScrollStateChange: (state) => { isolatedScrollState = state; } }}
+                        class="flex gap-4 overflow-x-auto overflow-y-hidden h-full pb-2 px-1 items-stretch kanban-horizontal-scroll {isolatedScrollState.canScrollLeft || isolatedScrollState.canScrollRight ? 'cursor-grab' : ''}"
+                    >
+                        {#each activeOrderStages as stage (stage.id)}
+                            {@const stageTasks = activeOrderTasks.filter(t => Number(t.current_stage_id ?? getTaskStage(t)?.id) === Number(stage.id))}
+                            <div
+                                class="flex flex-col h-full max-h-full w-80 sm:w-[320px] shrink-0 bg-slate-100/80 dark:bg-[#151D2C]/80 border border-slate-200/80 dark:border-[#26334D] rounded-2xl shadow-sm transition-colors {dragOverStageId === stage.id ? 'ring-2 ring-[#4F46E5] bg-indigo-50/50 dark:bg-[#151D2C]' : ''}"
+                                style="border-top: 4px solid {stage.color || '#64748b'};"
+                                ondragover={(e) => handleTaskDragOver(e, stage.id)}
+                                ondrop={(e) => handleTaskDrop(e, stage.id)}
+                                role="region"
+                                aria-label={`Etapa ${stage.name}`}
+                            >
+                                <!-- Cabecera de la Etapa / Columna -->
+                                <div class="p-3.5 border-b border-slate-200 dark:border-[#26334D] flex items-center justify-between shrink-0">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-2.5 h-2.5 rounded-full shadow-sm" style="background-color: {stage.color || '#64748b'};"></div>
+                                        <h3 class="text-xs font-bold text-slate-900 dark:text-white tracking-wide truncate max-w-[130px]" title={stage.name}>
+                                            {stage.name}
+                                        </h3>
                                     </div>
-                                {:else}
-                                    {#each stageTasks as task (task.id)}
-                                        <div
-                                            class="bg-white dark:bg-[#0B0F17]/90 border border-slate-200/90 dark:border-[#26334D] hover:border-[#4F46E5] dark:hover:border-[#06B6D4] rounded-xl p-3 space-y-2.5 shadow-sm transition-all cursor-pointer group"
-                                            draggable="true"
-                                            ondragstart={(e) => handleTaskDragStart(e, task.id)}
-                                            onclick={() => openTaskDetailModal(task)}
-                                            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openTaskDetailModal(task); }}
-                                            role="button"
-                                            tabindex="0"
-                                            title="Toca para ver la ficha técnica y receta del producto"
-                                        >
-                                            <div class="flex items-start justify-between gap-1.5">
-                                                <h4 class="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-sky-300 transition-colors">
-                                                    {task.item_name_snapshot}
-                                                </h4>
-                                                <span class="font-mono text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded shrink-0">
-                                                    {Math.round(Number(task.quantity))}x
-                                                </span>
-                                            </div>
+                                    <span
+                                        class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-sm"
+                                        style="background-color: {stage.color || '#64748b'}18; color: {stage.color || '#64748b'}; border: 1px solid {stage.color || '#64748b'}35;"
+                                    >
+                                        {stageTasks.length}
+                                    </span>
+                                </div>
 
-                                            <div class="flex items-center justify-between text-[10px] text-[#64748B] dark:text-slate-400">
-                                                <span class="font-mono text-amber-600 dark:text-amber-300 font-medium">⏱ {task.estimated_minutes} min</span>
-                                                {#if task.materials_consumed}
-                                                    <span class="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 font-semibold" title="Materias primas descontadas del inventario">
-                                                        <span>✓</span>
-                                                        <span>BOM Ok</span>
-                                                    </span>
-                                                {/if}
-                                            </div>
+                                <!-- Lista de Tareas en esta Etapa -->
+                                <div
+                                    data-kanban-column-body
+                                    class="p-3 flex-1 overflow-y-auto min-h-0 space-y-3 pr-1 pb-2 kanban-column-scroll"
+                                >
+                                    {#if stageTasks.length === 0}
+                                        <div class="py-12 text-center text-[#64748B] dark:text-slate-500 text-xs italic">
+                                            Sin productos en esta columna.
                                         </div>
-                                    {/each}
-                                {/if}
+                                    {:else}
+                                        {#each stageTasks as task (task.id)}
+                                            <div
+                                                class="bg-white dark:bg-[#0B0F17]/90 border border-slate-200/90 dark:border-[#26334D] hover:border-[#4F46E5] dark:hover:border-[#06B6D4] rounded-xl p-3 space-y-2.5 shadow-sm transition-all cursor-pointer group"
+                                                draggable="true"
+                                                ondragstart={(e) => handleTaskDragStart(e, task.id)}
+                                                ondragend={handleTaskDragEnd}
+                                                onclick={() => openTaskDetailModal(task)}
+                                                onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') openTaskDetailModal(task); }}
+                                                role="button"
+                                                tabindex="0"
+                                                title="Toca para ver la ficha técnica y receta del producto"
+                                            >
+                                                <div class="flex items-start justify-between gap-1.5">
+                                                    <h4 class="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-sky-300 transition-colors">
+                                                        {task.item_name_snapshot}
+                                                    </h4>
+                                                    <span class="font-mono text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded shrink-0">
+                                                        {Math.round(Number(task.quantity))}x
+                                                    </span>
+                                                </div>
+
+                                                <div class="flex items-center justify-between text-[10px] text-[#64748B] dark:text-slate-400">
+                                                    <span class="font-mono text-amber-600 dark:text-amber-300 font-medium">⏱ {task.estimated_minutes} min</span>
+                                                    {#if task.materials_consumed}
+                                                        <span class="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5 font-semibold" title="Materias primas descontadas del inventario">
+                                                            <span>✓</span>
+                                                            <span>BOM Ok</span>
+                                                        </span>
+                                                    {/if}
+                                                </div>
+                                            </div>
+                                        {/each}
+                                    {/if}
+                                </div>
                             </div>
-                        </div>
-                    {/each}
+                        {/each}
+                    </div>
                 </div>
             {/if}
         {/if}
