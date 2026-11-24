@@ -48,6 +48,7 @@ class KanbanController extends Controller
                 'customer',
                 'orderStatus',
                 'payments',
+                'paymentSchedules',
                 'productionTasks.productVariant.product.productType',
                 'productionTasks.productVariant.product.materials.rawMaterial',
                 'productionTasks.productVariant.attributeOptions.attribute',

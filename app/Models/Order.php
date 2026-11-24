@@ -163,6 +163,32 @@ class Order extends Model
     }
 
     /**
+     * Resolve the effective total amount of the order considering item discounts.
+     */
+    public function resolveEffectiveTotal(): float
+    {
+        $tasks = $this->relationLoaded('productionTasks')
+            ? $this->productionTasks
+            : $this->productionTasks()->get(['quantity', 'unit_price', 'discount_percentage']);
+
+        if ($tasks->isNotEmpty()) {
+            $computed = $tasks->reduce(function (float $carry, ProductionTask $task): float {
+                $qty = (float) $task->quantity;
+                $price = (float) $task->unit_price;
+                $disc = max(0.0, min(100.0, (float) ($task->discount_percentage ?? 0)));
+
+                return $carry + ($qty * $price * (1.0 - ($disc / 100.0)));
+            }, 0.0);
+
+            if ($computed > 0) {
+                return round($computed, 2);
+            }
+        }
+
+        return round((float) $this->total_amount, 2);
+    }
+
+    /**
      * Get the payments/advances recorded for this order.
      *
      * @return HasMany<OrderPayment>
@@ -170,6 +196,18 @@ class Order extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(OrderPayment::class)->orderBy('payment_date', 'desc')->orderBy('id', 'desc');
+    }
+
+    /**
+     * Get the scheduled payments for this order sorted by scheduled date ascending.
+     *
+     * @return HasMany<OrderPaymentSchedule>
+     */
+    public function paymentSchedules(): HasMany
+    {
+        return $this->hasMany(OrderPaymentSchedule::class)
+            ->orderBy('scheduled_date', 'asc')
+            ->orderBy('id', 'asc');
     }
 
     /**

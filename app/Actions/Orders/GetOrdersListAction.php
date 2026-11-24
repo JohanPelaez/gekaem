@@ -49,6 +49,9 @@ class GetOrdersListAction
                     $q->whereRaw("{$subQuery} >= orders.total_amount");
                 } elseif ($paymentStatus === 'partial') {
                     $q->whereRaw("{$subQuery} > 0 AND {$subQuery} < orders.total_amount");
+                } elseif ($paymentStatus === 'scheduled') {
+                    $q->whereHas('paymentSchedules', fn ($s) => $s->where('status', 'pending'))
+                        ->whereRaw("{$subQuery} < orders.total_amount");
                 }
             })
             ->when(!empty($deliveryRange), function ($q) use ($deliveryRange): void {
@@ -67,7 +70,7 @@ class GetOrdersListAction
             });
 
         $orders = (clone $query)
-            ->with(['customer', 'orderStatus', 'productionTasks.productVariant.product', 'productionTasks.currentStage', 'payments.creator'])
+            ->with(['customer', 'orderStatus', 'productionTasks.productVariant.product', 'productionTasks.currentStage', 'payments.creator', 'paymentSchedules'])
             ->withCount([
                 'tasks',
                 'tasks as completed_tasks_count' => fn ($q) => $q->whereHas('currentStage', fn ($s) => $s->where('stage_category', 'done')),
@@ -77,7 +80,7 @@ class GetOrdersListAction
             ->withQueryString();
 
         $calendarOrders = (clone $query)
-            ->with(['customer:id,name,phone', 'productionTasks.currentStage:id,name,color,stage_category', 'payments'])
+            ->with(['customer:id,name,phone', 'productionTasks.currentStage:id,name,color,stage_category', 'payments', 'paymentSchedules'])
             ->orderBy('committed_delivery_at')
             ->get();
 

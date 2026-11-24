@@ -5,9 +5,10 @@
     import ViewToggle from '../../Components/ViewToggle.svelte';
     import CurrencyInput from '../../Components/CurrencyInput.svelte';
     import OrderFormModal from '../../Components/OrderFormModal.svelte';
+    import OrderPaymentsManager from '../../Components/OrderPaymentsManager.svelte';
     import CalendarView from './CalendarView.svelte';
     import { canViewPrices } from '../../Utils/permissions.js';
-    import { csrfFetch } from '../../Utils/csrfFetch.js';
+    import { getPaymentScheduleAlert } from '../../Utils/paymentScheduleAlerts.js';
 
     let {
         orders,
@@ -253,19 +254,9 @@
         showCreateModal = true;
     }
 
-    // Modal de Abonos
+    // Modal de Abonos y Cobros Programados
     let showPaymentModal = $state(false);
     let selectedOrderForPayment = $state(null);
-    let paymentProcessing = $state(false);
-
-    // Formulario de Abono
-    let paymentForm = $state({
-        amount: '',
-        payment_date: '',
-        payment_method: 'transfer',
-        notes: '',
-        voucher: null,
-    });
 
     let searchTimeout;
     function handleSearchInput() {
@@ -320,42 +311,20 @@
         expandedRows = next;
     }
 
-    function onPaymentVoucherChange(e) {
-        const file = e.target.files?.[0] ?? null;
-        paymentForm.voucher = file;
-    }
-
     function openPaymentModal(order) {
         selectedOrderForPayment = order;
-        paymentForm.amount = order.pending_balance > 0 ? Number(order.pending_balance) : '';
-        paymentForm.payment_date = new Date().toISOString().slice(0, 10);
-        paymentForm.payment_method = 'transfer';
-        paymentForm.notes = '';
-        paymentForm.voucher = null;
         showPaymentModal = true;
     }
 
-    function submitPayment(e) {
-        e.preventDefault();
-        if (!selectedOrderForPayment) return;
-
-        const formData = new FormData();
-        formData.append('amount', String(paymentForm.amount));
-        formData.append('payment_date', paymentForm.payment_date);
-        formData.append('payment_method', paymentForm.payment_method);
-        formData.append('notes', paymentForm.notes ?? '');
-        if (paymentForm.voucher) {
-            formData.append('voucher', paymentForm.voucher);
+    function handleOrderPaymentsUpdated({ payments: updatedPayments, paymentSchedules: updatedSchedules }) {
+        if (selectedOrderForPayment) {
+            selectedOrderForPayment = {
+                ...selectedOrderForPayment,
+                payments: updatedPayments,
+                payment_schedules: updatedSchedules,
+            };
         }
-
-        router.post(`/orders/${selectedOrderForPayment.id}/payments`, formData, {
-            preserveScroll: true,
-            onStart: () => { paymentProcessing = true; },
-            onFinish: () => { paymentProcessing = false; },
-            onSuccess: () => {
-                showPaymentModal = false;
-            },
-        });
+        router.reload({ preserveScroll: true });
     }
 
     function deletePayment(payment) {
@@ -643,6 +612,7 @@
                             <option value="unpaid">Sin Abono</option>
                             <option value="partial">Abono Parcial</option>
                             <option value="paid">Pagado Total</option>
+                            <option value="scheduled">📅 Con Cobros Programados / Vencidos</option>
                         </select>
                     </div>
                 {/if}
@@ -770,11 +740,26 @@
                                         📅 {formatDate(order.committed_delivery_at || order.predicted_delivery_at)}
                                     </td>
                                     {#if hasFinancialAccess}
+                                        {@const scheduleAlert = getPaymentScheduleAlert(order)}
                                         <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white text-xs whitespace-nowrap">
                                             {formatCurrency(order.total_amount)}
                                         </td>
                                         <td class="py-2.5 px-3 text-right font-mono font-bold text-xs whitespace-nowrap {order.pending_balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">
-                                            {order.pending_balance > 0 ? formatCurrency(order.pending_balance) : '✓ Pagado'}
+                                            <div class="inline-flex items-center justify-end gap-1.5">
+                                                <span>{order.pending_balance > 0 ? formatCurrency(order.pending_balance) : '✓ Pagado'}</span>
+                                                {#if scheduleAlert}
+                                                    <button
+                                                        type="button"
+                                                        onclick={() => openPaymentModal(order)}
+                                                        title={`${scheduleAlert.label} · ${scheduleAlert.formattedDate} · ${formatCurrency(scheduleAlert.amount)}${scheduleAlert.notes ? ` (${scheduleAlert.notes})` : ''}${scheduleAlert.extraCount > 0 ? ` (+${scheduleAlert.extraCount} más)` : ''}`}
+                                                        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-sans font-bold border transition-opacity hover:opacity-85 {scheduleAlert.badgeClass}"
+                                                    >
+                                                        <span class="w-1.5 h-1.5 rounded-full shrink-0 {scheduleAlert.dotClass}"></span>
+                                                        <span>{scheduleAlert.compactLabel}</span>
+                                                        <span class="font-mono">{formatCurrency(scheduleAlert.amount)}</span>
+                                                    </button>
+                                                {/if}
+                                            </div>
                                         </td>
                                     {/if}
                                     <td class="py-2.5 px-3 text-center whitespace-nowrap">
@@ -1132,6 +1117,40 @@
                             </div>
                         </div>
 
+                        <!-- Banner Semáforo de Cobro Programado (SOLO CON PERMISOS FINANCIEROS) -->
+                        {#if hasFinancialAccess}
+                            {@const cardScheduleAlert = getPaymentScheduleAlert(order)}
+                            {#if cardScheduleAlert}
+                                <button
+                                    type="button"
+                                    onclick={() => openPaymentModal(order)}
+                                    class="w-full text-left px-3.5 py-2.5 rounded-2xl border flex flex-wrap items-center justify-between gap-2 transition-all hover:shadow-sm {cardScheduleAlert.badgeClass}"
+                                >
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <span class="w-2.5 h-2.5 rounded-full shrink-0 {cardScheduleAlert.dotClass}"></span>
+                                        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+                                            <span class="font-bold">{cardScheduleAlert.label}</span>
+                                            <span class="opacity-75 font-mono text-[11px]">· {cardScheduleAlert.formattedDate}</span>
+                                            {#if cardScheduleAlert.notes}
+                                                <span class="opacity-80 text-[11px] truncate max-w-xs">· "{cardScheduleAlert.notes}"</span>
+                                            {/if}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <span class="font-mono font-extrabold text-xs">
+                                            {formatCurrency(cardScheduleAlert.amount)}
+                                        </span>
+                                        {#if cardScheduleAlert.extraCount > 0}
+                                            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/60 dark:bg-slate-900/50 border border-current/20">
+                                                +{cardScheduleAlert.extraCount} más
+                                            </span>
+                                        {/if}
+                                        <span class="text-[11px] font-semibold underline underline-offset-2">Gestionar →</span>
+                                    </div>
+                                </button>
+                            {/if}
+                        {/if}
+
                         <!-- Desglose de Productos / Tareas del Pedido -->
                         {#if order.production_tasks && order.production_tasks.length > 0}
                             <div class="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 items-center">
@@ -1230,10 +1249,10 @@
     }}
 />
 
-<!-- MODAL REGISTRAR ABONO Y VER HISTORIAL DE PAGOS (SOLO VISIBLE CON PERMISOS) -->
+<!-- MODAL REGISTRAR ABONO, COBROS PROGRAMADOS Y VER HISTORIAL DE PAGOS (SOLO VISIBLE CON PERMISOS) -->
 {#if showPaymentModal && selectedOrderForPayment && hasFinancialAccess}
     <div class="fixed inset-0 z-50 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+        <div class="bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-[#26334D] rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
             <div class="flex items-center justify-between border-b border-slate-200 dark:border-[#26334D] pb-3">
                 <div>
                     <div class="flex items-center gap-2">
@@ -1241,7 +1260,7 @@
                             #{selectedOrderForPayment.order_number}
                         </span>
                         <h3 class="text-base font-bold text-slate-900 dark:text-white">
-                            Gestión de Abonos
+                            Gestión de Abonos y Cobros Programados
                         </h3>
                     </div>
                     <p class="text-xs text-[#64748B] dark:text-slate-400 mt-0.5">
@@ -1251,155 +1270,14 @@
                 <button type="button" onclick={() => showPaymentModal = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-base">✕</button>
             </div>
 
-            <!-- Resumen Financiero -->
-            <div class="grid grid-cols-3 gap-2.5 p-3.5 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] text-center">
-                <div>
-                    <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block">Total Pedido</span>
-                    <span class="font-mono font-bold text-slate-900 dark:text-white text-sm">
-                        {formatCurrency(selectedOrderForPayment.total_amount)}
-                    </span>
-                </div>
-                <div>
-                    <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block">Abonado</span>
-                    <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                        {formatCurrency(selectedOrderForPayment.paid_amount)}
-                    </span>
-                </div>
-                <div>
-                    <span class="text-[10px] text-[#64748B] dark:text-slate-400 uppercase font-bold block">Saldo Pendiente</span>
-                    <span class="font-mono font-bold text-amber-600 dark:text-amber-300 text-sm">
-                        {formatCurrency(selectedOrderForPayment.pending_balance)}
-                    </span>
-                </div>
-            </div>
-
-            <!-- FORMULARIO DE NUEVO ABONO (SI HAY SALDO PENDIENTE) -->
-            {#if Number(selectedOrderForPayment.pending_balance) > 0}
-                <form onsubmit={submitPayment} class="space-y-3.5 text-xs p-4 bg-slate-50/70 dark:bg-[#0B0F17]/60 rounded-2xl border border-emerald-500/30">
-                    <span class="font-bold text-slate-900 dark:text-white text-xs block">Registrar Nuevo Abono</span>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label for="pay-amount" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Monto del Abono ($) *</label>
-                            <CurrencyInput bind:value={paymentForm.amount} id="pay-amount" required />
-                        </div>
-
-                        <div>
-                            <label for="pay-date" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Fecha de Pago *</label>
-                            <input
-                                id="pay-date"
-                                type="date"
-                                bind:value={paymentForm.payment_date}
-                                required
-                                class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:border-[#4F46E5]"
-                            />
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label for="pay-method" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Método de Pago *</label>
-                            <select
-                                id="pay-method"
-                                bind:value={paymentForm.payment_method}
-                                class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
-                            >
-                                <option value="transfer">Transferencia / Nequi / Daviplata</option>
-                                <option value="cash">Efectivo</option>
-                                <option value="card">Tarjeta</option>
-                                <option value="other">Otro medio</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label for="pay-notes" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Notas / Referencia</label>
-                            <input
-                                id="pay-notes"
-                                type="text"
-                                bind:value={paymentForm.notes}
-                                placeholder="Ej. Aprobación #1234..."
-                                class="w-full bg-white dark:bg-[#0B0F17] border border-slate-200 dark:border-[#26334D] rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-[#4F46E5]"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label for="pay-voucher" class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Comprobante de Pago (Foto o PDF, máx 5MB)</label>
-                        <input
-                            id="pay-voucher"
-                            type="file"
-                            accept="image/*,.pdf"
-                            onchange={onPaymentVoucherChange}
-                            class="w-full text-slate-500 dark:text-slate-400 text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-700"
-                        />
-                    </div>
-
-                    <div class="flex items-center justify-end gap-2 pt-1">
-                        <button
-                            type="submit"
-                            disabled={paymentProcessing}
-                            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs shadow-lg shadow-emerald-600/20 disabled:opacity-50"
-                        >
-                            {paymentProcessing ? 'Guardando Abono...' : 'Guardar Abono'}
-                        </button>
-                    </div>
-                </form>
-            {/if}
-
-            <!-- HISTORIAL DE ABONOS REGISTRADOS -->
-            <div class="space-y-3 pt-2">
-                <span class="font-bold text-slate-900 dark:text-white text-xs block">Historial de Pagos Realizados</span>
-
-                {#if !selectedOrderForPayment.payments || selectedOrderForPayment.payments.length === 0}
-                    <div class="p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-slate-500 text-xs">
-                        Este pedido aún no tiene abonos registrados.
-                    </div>
-                {:else}
-                    <div class="space-y-2">
-                        {#each selectedOrderForPayment.payments as payment}
-                            <div class="p-3 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] flex items-center justify-between">
-                                <div class="space-y-0.5">
-                                    <div class="flex items-center gap-2">
-                                        <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                                            {formatCurrency(payment.amount)}
-                                        </span>
-                                        <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                            {payment.payment_method}
-                                        </span>
-                                    </div>
-                                    <div class="text-[11px] text-[#64748B] dark:text-slate-400 flex items-center gap-2 font-mono">
-                                        <span>📅 {payment.payment_date}</span>
-                                        {#if payment.notes}
-                                            <span class="text-slate-500 truncate max-w-xs">• "{payment.notes}"</span>
-                                        {/if}
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center gap-2">
-                                    {#if payment.voucher_path}
-                                        <a
-                                            href={`/storage/${payment.voucher_path}`}
-                                            target="_blank"
-                                            class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 text-xs font-semibold border border-slate-200 dark:border-slate-700 flex items-center gap-1 transition-colors"
-                                        >
-                                            <span>📎</span>
-                                            <span>Ver Recibo</span>
-                                        </a>
-                                    {/if}
-                                    <button
-                                        type="button"
-                                        onclick={() => deletePayment(payment)}
-                                        class="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                                        title="Eliminar abono"
-                                    >
-                                        🗑
-                                    </button>
-                                </div>
-                            </div>
-                        {/each}
-                    </div>
-                {/if}
-            </div>
+            <OrderPaymentsManager
+                orderId={selectedOrderForPayment.id}
+                orderTotal={Number(selectedOrderForPayment.total_amount || 0)}
+                payments={selectedOrderForPayment.payments || []}
+                paymentSchedules={selectedOrderForPayment.payment_schedules || selectedOrderForPayment.paymentSchedules || []}
+                allowVoucher={true}
+                onUpdated={handleOrderPaymentsUpdated}
+            />
 
             <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] flex justify-end">
                 <button

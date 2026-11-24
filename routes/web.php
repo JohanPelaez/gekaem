@@ -9,6 +9,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\KanbanController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderPaymentController;
+use App\Http\Controllers\OrderPaymentScheduleController;
 use App\Http\Controllers\OrderStatusController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -92,6 +93,9 @@ Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function ():
             Route::post('/predict', [OrderController::class, 'predict'])->name('predict');
             Route::patch('/{order}/deliver', [OrderController::class, 'markDelivered'])->name('deliver');
             Route::post('/{order}/payments', [OrderPaymentController::class, 'store'])->name('payments.store');
+            Route::post('/{order}/payment-schedules', [OrderPaymentScheduleController::class, 'store'])->name('payment-schedules.store');
+            Route::post('/{order}/payment-schedules/{schedule}/mark-paid', [OrderPaymentScheduleController::class, 'markPaid'])->name('payment-schedules.mark-paid');
+            Route::delete('/{order}/payment-schedules/{schedule}', [OrderPaymentScheduleController::class, 'destroy'])->name('payment-schedules.destroy');
             Route::delete('/{order}', [OrderController::class, 'destroy'])->name('destroy');
         });
 

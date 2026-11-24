@@ -6,6 +6,7 @@
     import QuickCreateModal from './QuickCreateModal.svelte';
     import OrderDateSelector from './OrderDateSelector.svelte';
     import ProductFormModal from './ProductFormModal.svelte';
+    import OrderPaymentsManager from './OrderPaymentsManager.svelte';
 
     /**
      * Componente reutilizable para creación y edición de pedidos (Sprint 6 & 7).
@@ -73,14 +74,9 @@
         voucher: null,
     });
 
-    // Gestión de abonos adentro del modal en modo edición
+    // Gestión de abonos y cobros programados adentro del modal en modo edición
     let localPayments = $state([]);
-    let newPaymentAmount = $state('');
-    let newPaymentMethod = $state('transfer');
-    let newPaymentNotes = $state('');
-    let paymentActionLoading = $state(false);
-    let paymentErrorMessage = $state('');
-    let paymentIdToDelete = $state(null);
+    let localPaymentSchedules = $state([]);
 
     let prevIsOpen = false;
     let prevEditingOrder = null;
@@ -96,7 +92,6 @@
 
             untrack(() => {
                 formErrorMessage = '';
-                paymentIdToDelete = null;
 
                 if ((isEditing || currentOrder?.id) && currentOrder) {
                     orderForm.id = currentOrder.id;
@@ -117,9 +112,7 @@
                     orderForm.committed_delivery_at = dateStr ? `${dateStr}T${timeStr}` : '';
 
                     localPayments = [...(currentOrder.payments || [])];
-                    newPaymentAmount = '';
-                    newPaymentNotes = '';
-                    paymentErrorMessage = '';
+                    localPaymentSchedules = [...(currentOrder.payment_schedules || currentOrder.paymentSchedules || [])];
 
                     // C. Mostrar TODOS los Productos al Editar Pedido
                     const tasks = currentOrder.production_tasks || currentOrder.productionTasks || currentOrder.tasks || [];
@@ -181,9 +174,7 @@
                     orderForm.notes = '';
                     orderForm.items = [];
                     localPayments = [];
-                    newPaymentAmount = '';
-                    newPaymentNotes = '';
-                    paymentErrorMessage = '';
+                    localPaymentSchedules = [];
                     orderForm.has_initial_deposit = false;
                     orderForm.initial_deposit = '';
                     orderForm.payment_method = 'transfer';
@@ -311,92 +302,14 @@
         return Math.max(0, totalAmount - deposit);
     });
 
-    let totalPaidInModal = $derived.by(() => {
-        return localPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
-    });
-
-    let pendingBalanceInModal = $derived.by(() => {
-        return Math.max(0, totalAmount - totalPaidInModal);
-    });
-
-    async function handleAddPaymentInModal() {
-        const orderId = editingOrder?.id || orderForm.id;
-        if (!orderId) return;
-        const amountNum = Number(newPaymentAmount);
-        if (!amountNum || amountNum <= 0) {
-            paymentErrorMessage = 'Ingresa un monto válido mayor a 0.';
-            return;
+    function handlePaymentsManagerUpdated({ payments: updatedPayments, paymentSchedules: updatedSchedules }) {
+        localPayments = [...(updatedPayments || [])];
+        localPaymentSchedules = [...(updatedSchedules || [])];
+        if (editingOrder) {
+            editingOrder.payments = localPayments;
+            editingOrder.payment_schedules = localPaymentSchedules;
         }
-        if (amountNum > pendingBalanceInModal) {
-            paymentErrorMessage = `El monto no puede superar el saldo pendiente (${formatCurrency(pendingBalanceInModal)}).`;
-            return;
-        }
-        paymentActionLoading = true;
-        paymentErrorMessage = '';
-        try {
-            const res = await csrfFetch(`/orders/${orderId}/payments`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    amount: amountNum,
-                    payment_method: newPaymentMethod,
-                    notes: newPaymentNotes.trim() || null,
-                    payment_date: new Date().toISOString().slice(0, 10),
-                }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                paymentErrorMessage = data.message || 'Error al registrar el abono.';
-                return;
-            }
-            if (data.payments) {
-                localPayments = data.payments;
-            } else if (data.payment) {
-                localPayments = [data.payment, ...localPayments];
-            }
-            newPaymentAmount = '';
-            newPaymentNotes = '';
-            if (editingOrder) {
-                editingOrder.payments = localPayments;
-            }
-            onSuccess();
-        } catch (err) {
-            paymentErrorMessage = err?.message || 'Error de conexión.';
-        } finally {
-            paymentActionLoading = false;
-        }
-    }
-
-    function requestDeletePaymentInModal(paymentId) {
-        paymentIdToDelete = paymentId;
-    }
-
-    async function confirmDeletePaymentInModal(paymentId) {
-        paymentActionLoading = true;
-        paymentErrorMessage = '';
-        try {
-            const res = await csrfFetch(`/payments/${paymentId}`, {
-                method: 'DELETE',
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                paymentErrorMessage = data.message || 'Error al anular el abono.';
-                return;
-            }
-            localPayments = localPayments.filter((p) => p.id !== paymentId);
-            if (editingOrder) {
-                editingOrder.payments = localPayments;
-            }
-            paymentIdToDelete = null;
-            onSuccess();
-        } catch (err) {
-            paymentErrorMessage = err?.message || 'Error de conexión.';
-        } finally {
-            paymentActionLoading = false;
-        }
-    }
-
-    function cancelDeletePaymentInModal() {
-        paymentIdToDelete = null;
+        onSuccess();
     }
 
     function formatCurrency(val) {
@@ -873,152 +786,28 @@
                     </div>
                 {/if}
 
-                <!-- SECCIÓN DE GESTIÓN DE ABONOS (MODO EDICIÓN CON ACCESO FINANCIERO) -->
+                <!-- SECCIÓN DE GESTIÓN DE ABONOS Y COBROS PROGRAMADOS (MODO EDICIÓN CON ACCESO FINANCIERO) -->
                 {#if hasFinancialAccess && (editingOrder?.id || orderForm.id)}
                     <div class="pt-3 border-t border-slate-200 dark:border-[#26334D] space-y-3">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div>
-                                <h4 class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
-                                    <span>💳</span>
-                                    <span>Abonos del Pedido</span>
-                                </h4>
-                                <p class="text-[11px] text-[#64748B] dark:text-slate-400">
-                                    Visualiza los pagos recibidos y registra nuevos abonos directamente sin salir.
-                                </p>
-                            </div>
-                            <div class="flex items-center gap-2 text-xs flex-wrap">
-                                <span class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px]">
-                                    Total Pedido: <strong class="text-slate-900 dark:text-white">{formatCurrency(totalAmount)}</strong>
-                                </span>
-                                <span class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[11px]">
-                                    Total Abonado: <strong class="text-emerald-600 dark:text-emerald-400">{formatCurrency(totalPaidInModal)}</strong>
-                                </span>
-                                <span class="px-2.5 py-1 rounded-xl font-mono text-[11px] {pendingBalanceInModal > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'}">
-                                    Saldo Pendiente: <strong>{formatCurrency(pendingBalanceInModal)}</strong>
-                                </span>
-                            </div>
+                        <div>
+                            <h4 class="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                                <span>💳</span>
+                                <span>Abonos del Pedido y Cobros Programados</span>
+                            </h4>
+                            <p class="text-[11px] text-[#64748B] dark:text-slate-400">
+                                Registra pagos recibidos o programa fechas futuras de cobro respetando el total con descuentos.
+                            </p>
                         </div>
 
-                        <!-- Lista de abonos actuales -->
-                        <div class="p-3.5 bg-slate-50 dark:bg-[#0B0F17] rounded-2xl border border-slate-200 dark:border-[#26334D] space-y-2.5">
-                            {#if localPayments.length === 0}
-                                <div class="py-2 text-center text-slate-400 text-xs italic">
-                                    No hay abonos registrados para este pedido aún.
-                                </div>
-                            {:else}
-                                <div class="space-y-1.5 max-h-48 overflow-y-auto">
-                                    {#each localPayments as payment (payment.id)}
-                                        <div class="p-2.5 rounded-xl bg-white dark:bg-[#151D2C] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
-                                            <div class="flex items-center gap-2.5">
-                                                <span class="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
-                                                    $
-                                                </span>
-                                                <div>
-                                                    <div class="font-bold text-slate-900 dark:text-white font-mono">
-                                                        {formatCurrency(payment.amount)}
-                                                    </div>
-                                                    <div class="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                                                        <span>{formatDate(payment.payment_date)}</span>
-                                                        <span>•</span>
-                                                        <span class="capitalize">{payment.payment_method === 'transfer' ? 'Transferencia' : payment.payment_method}</span>
-                                                        {#if payment.notes}
-                                                            <span>•</span>
-                                                            <span class="truncate max-w-[150px]" title={payment.notes}>{payment.notes}</span>
-                                                        {/if}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {#if paymentIdToDelete === payment.id}
-                                                <div class="flex items-center gap-1.5 shrink-0">
-                                                    <span class="text-[10px] text-rose-500 font-semibold">¿Anular?</span>
-                                                    <button
-                                                        type="button"
-                                                        onclick={() => confirmDeletePaymentInModal(payment.id)}
-                                                        disabled={paymentActionLoading}
-                                                        class="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition"
-                                                    >
-                                                        Sí
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onclick={cancelDeletePaymentInModal}
-                                                        disabled={paymentActionLoading}
-                                                        class="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-semibold transition"
-                                                    >
-                                                        No
-                                                    </button>
-                                                </div>
-                                            {:else}
-                                                <button
-                                                    type="button"
-                                                    onclick={() => requestDeletePaymentInModal(payment.id)}
-                                                    disabled={paymentActionLoading}
-                                                    class="px-2 py-1 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[11px] font-semibold border border-rose-200 dark:border-rose-900/40 transition-colors"
-                                                    title="Eliminar este abono si hubo error"
-                                                >
-                                                    🗑️ Eliminar
-                                                </button>
-                                            {/if}
-                                        </div>
-                                    {/each}
-                                </div>
-                            {/if}
-
-                            <!-- Mini-formulario para agregar abono -->
-                            {#if pendingBalanceInModal > 0}
-                                <div class="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
-                                    <span class="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                                        + Registrar Nuevo Abono
-                                    </span>
-                                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
-                                        <div class="sm:col-span-4">
-                                            <label for="new-pay-amount" class="text-[10px] text-slate-500 block mb-0.5">Monto ($)</label>
-                                            <CurrencyInput
-                                                id="new-pay-amount"
-                                                bind:value={newPaymentAmount}
-                                                placeholder="0"
-                                            />
-                                        </div>
-                                        <div class="sm:col-span-3">
-                                            <label for="new-pay-method" class="text-[10px] text-slate-500 block mb-0.5">Método</label>
-                                            <select
-                                                id="new-pay-method"
-                                                bind:value={newPaymentMethod}
-                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-[#4F46E5]"
-                                            >
-                                                <option value="transfer">Transferencia</option>
-                                                <option value="cash">Efectivo</option>
-                                                <option value="card">Tarjeta</option>
-                                                <option value="other">Otro</option>
-                                            </select>
-                                        </div>
-                                        <div class="sm:col-span-3">
-                                            <label for="new-pay-notes" class="text-[10px] text-slate-500 block mb-0.5">Nota / Ref.</label>
-                                            <input
-                                                id="new-pay-notes"
-                                                type="text"
-                                                bind:value={newPaymentNotes}
-                                                placeholder="Opcional..."
-                                                class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5]"
-                                            />
-                                        </div>
-                                        <div class="sm:col-span-2">
-                                            <button
-                                                type="button"
-                                                onclick={handleAddPaymentInModal}
-                                                disabled={paymentActionLoading || !newPaymentAmount || Number(newPaymentAmount) <= 0}
-                                                class="w-full px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-                                            >
-                                                {paymentActionLoading ? '...' : '+ Agregar Abono'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    {#if paymentErrorMessage}
-                                        <p class="text-[11px] text-rose-500 font-semibold">{paymentErrorMessage}</p>
-                                    {/if}
-                                </div>
-                            {/if}
-                        </div>
+                        <OrderPaymentsManager
+                            orderId={editingOrder?.id || orderForm.id}
+                            orderTotal={totalAmount}
+                            payments={localPayments}
+                            paymentSchedules={localPaymentSchedules}
+                            allowVoucher={false}
+                            compact={true}
+                            onUpdated={handlePaymentsManagerUpdated}
+                        />
                     </div>
                 {/if}
 

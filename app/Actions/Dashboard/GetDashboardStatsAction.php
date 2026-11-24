@@ -43,6 +43,7 @@ class GetDashboardStatsAction
                 'productionTasks.currentStage',
                 'orderStatus',
                 'payments.creator',
+                'paymentSchedules',
             ])
             ->withCount([
                 'tasks',
