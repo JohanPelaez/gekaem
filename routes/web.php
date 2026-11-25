@@ -25,6 +25,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MaterialRequestController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Middleware\EnsureNotWorker;
+use App\Http\Middleware\EnsureSingleActiveSession;
 use App\Http\Middleware\EnsureSubscriptionActive;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -56,8 +57,13 @@ Route::get('/', fn () => Inertia::render('Welcome', [
     'plansCatalog' => config('plans'),
 ]))->name('home');
 
+// Verificación ligera de sesión única activa
+Route::middleware(['auth', EnsureSingleActiveSession::class])->group(function (): void {
+    Route::get('/session/verify', fn () => response()->json(['valid' => true]))->name('session.verify');
+});
+
 // Rutas protegidas de la aplicación
-Route::middleware(['auth', EnsureSubscriptionActive::class])->group(function (): void {
+Route::middleware(['auth', EnsureSingleActiveSession::class, EnsureSubscriptionActive::class])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Módulo 5: Tablero Kanban (US = Pedidos, Tareas = Productos)

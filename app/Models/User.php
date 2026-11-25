@@ -12,7 +12,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Http\Request;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -40,6 +44,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'active_session_token',
     ];
 
     /**
@@ -51,6 +56,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_login_at' => 'datetime',
             'password' => 'hashed',
             'is_super_admin' => 'boolean',
             'current_tenant_id' => 'integer',
@@ -192,6 +198,56 @@ class User extends Authenticatable
     public function materialRequests(): HasMany
     {
         return $this->hasMany(MaterialRequest::class);
+    }
+
+    /**
+     * Start a single active session for this user, invalidating any previous session.
+     *
+     * @return array{token: string, replaced_previous: bool}
+     */
+    public function startSingleSession(Request $request, bool $remembered = false): array
+    {
+        $replacedPrevious = !empty($this->active_session_token);
+        $token = (string) Str::uuid();
+
+        $attributes = [
+            'active_session_token' => $token,
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+            'last_login_agent' => Str::limit((string) $request->userAgent(), 250, ''),
+        ];
+
+        if (!$remembered) {
+            $attributes['remember_token'] = Str::random(60);
+        }
+
+        $this->forceFill($attributes)->save();
+
+        $request->session()->put('active_session_token', $token);
+
+        if (config('session.driver') === 'database' && Schema::hasTable('sessions')) {
+            DB::table('sessions')
+                ->where('user_id', $this->id)
+                ->where('id', '!=', $request->session()->getId())
+                ->delete();
+        }
+
+        return [
+            'token' => $token,
+            'replaced_previous' => $replacedPrevious,
+        ];
+    }
+
+    /**
+     * Clear the active session token in DB only if it belongs to the current request session.
+     */
+    public function clearSingleSessionIfCurrent(Request $request): void
+    {
+        $sessionToken = $request->session()->get('active_session_token');
+
+        if ($sessionToken !== null && $sessionToken === $this->active_session_token) {
+            $this->forceFill(['active_session_token' => null])->save();
+        }
     }
 
     /**

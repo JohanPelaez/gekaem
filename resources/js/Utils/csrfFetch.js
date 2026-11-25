@@ -20,9 +20,18 @@ export async function csrfFetch(url, options = {}) {
         headers['X-CSRF-TOKEN'] = metaToken;
     }
 
-    return fetch(url, {
+    const res = await fetch(url, {
         ...options,
         headers,
         credentials: 'same-origin',
     });
+
+    if (res.status === 401) {
+        const data = await res.clone().json().catch(() => null);
+        if (data?.session_replaced === true && typeof window !== 'undefined') {
+            window.location.href = data.redirect || '/login?reason=session_replaced';
+        }
+    }
+
+    return res;
 }

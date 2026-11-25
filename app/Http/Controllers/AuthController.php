@@ -17,7 +17,7 @@ class AuthController extends Controller
     /**
      * Show the login view.
      */
-    public function showLogin(): Response|RedirectResponse
+    public function showLogin(Request $request): Response|RedirectResponse
     {
         if (Auth::check()) {
             return redirect()->route('kanban.index');
@@ -26,6 +26,8 @@ class AuthController extends Controller
         return Inertia::render('Auth/Login', [
             'canDemoLogin' => app()->isLocal(),
             'status' => session('status'),
+            'warning' => session('warning'),
+            'reason' => $request->query('reason'),
         ]);
     }
 
@@ -51,6 +53,8 @@ class AuthController extends Controller
 
         /** @var User $user */
         $user = Auth::user();
+        $sessionInfo = $user->startSingleSession($request, $remember);
+
         $tenant = $user->currentTenant();
         if ($tenant !== null) {
             session(['tenant_id' => $tenant->id]);
@@ -61,8 +65,13 @@ class AuthController extends Controller
         }
 
         $defaultRoute = $user->isSuperAdmin() ? route('admin.index') : route('kanban.index');
+        $response = redirect()->intended($defaultRoute);
 
-        return redirect()->intended($defaultRoute);
+        if ($sessionInfo['replaced_previous']) {
+            $response->with('info', 'Se cerró automáticamente la sesión que tenías abierta en otro equipo.');
+        }
+
+        return $response;
     }
 
     /**
@@ -95,6 +104,7 @@ class AuthController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $sessionInfo = $user->startSingleSession($request, false);
 
         $tenant = $user->currentTenant();
         if ($tenant !== null) {
@@ -105,7 +115,13 @@ class AuthController extends Controller
             }
         }
 
-        return redirect()->route($user->isSuperAdmin() ? 'admin.index' : 'kanban.index');
+        $response = redirect()->route($user->isSuperAdmin() ? 'admin.index' : 'kanban.index');
+
+        if ($sessionInfo['replaced_previous']) {
+            $response->with('info', 'Se cerró automáticamente la sesión que tenías abierta en otro equipo.');
+        }
+
+        return $response;
     }
 
     /**
@@ -113,6 +129,10 @@ class AuthController extends Controller
      */
     public function logout(Request $request): RedirectResponse
     {
+        /** @var User|null $user */
+        $user = $request->user();
+        $user?->clearSingleSessionIfCurrent($request);
+
         Auth::logout();
 
         $request->session()->invalidate();

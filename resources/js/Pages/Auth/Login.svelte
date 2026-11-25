@@ -1,11 +1,20 @@
 <script>
-    import { router, Link } from '@inertiajs/svelte';
+    import { page, router, Link } from '@inertiajs/svelte';
     import BrandLogo from '../../Components/BrandLogo.svelte';
 
-    let { canDemoLogin = false, status = null, errors = {} } = $props();
+    let { canDemoLogin = false, status = null, warning = null, reason = null, errors = {} } = $props();
 
     let processing = $state(false);
     let demoProcessing = $state(false);
+
+    let isSessionReplaced = $derived.by(() => {
+        if (reason === 'session_replaced') return true;
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('reason') === 'session_replaced') return true;
+        }
+        return String(page.url || '').includes('reason=session_replaced');
+    });
 
     let form = $state({
         email: '',
@@ -67,6 +76,28 @@
                     Gestor Inteligente de Pedidos y Producción Make-to-Order
                 </p>
             </div>
+
+            {#if isSessionReplaced}
+                <div
+                    role="alert"
+                    class="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/35 border border-amber-300 dark:border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs space-y-1 shadow-xs"
+                >
+                    <p class="font-bold text-amber-950 dark:text-amber-100 flex items-center gap-1.5">
+                        <span>🔒 Sesión cerrada por inicio en otro equipo</span>
+                    </p>
+                    <p class="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200/90">
+                        Se inició sesión con este mismo usuario desde otro dispositivo o navegador. Por seguridad y control de licencias, solo se permite un equipo activo a la vez por usuario.
+                    </p>
+                </div>
+            {:else if warning}
+                <div
+                    role="alert"
+                    class="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-xs font-medium flex items-start gap-2.5"
+                >
+                    <span class="shrink-0 mt-0.5">⚠</span>
+                    <span>{warning}</span>
+                </div>
+            {/if}
 
             {#if status}
                 <div class="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium flex items-start gap-2.5">

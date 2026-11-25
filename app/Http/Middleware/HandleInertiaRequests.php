@@ -103,6 +103,7 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                'info' => fn () => $request->session()->get('info'),
                 'trashed' => fn () => (bool) $request->session()->get('trashed', false),
                 'limit_reached_addon' => fn () => $request->session()->get('limit_reached_addon'),
             ],

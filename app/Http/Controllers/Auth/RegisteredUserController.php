@@ -43,6 +43,7 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        $user->startSingleSession($request, false);
         $request->session()->put('tenant_id', $tenant->id);
 
         return redirect()->route('dashboard')->with('success', '¡Bienvenido a gipPyme! Tu taller ha sido configurado con éxito.');

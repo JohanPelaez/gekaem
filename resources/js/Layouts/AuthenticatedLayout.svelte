@@ -47,10 +47,11 @@
     $effect(() => {
         const successMsg = flash?.success;
         const errorMsg = flash?.error;
+        const infoMsg = flash?.info;
         const _epoch = flashEpoch;
         const _url = currentUrl;
 
-        if (successMsg || errorMsg) {
+        if (successMsg || errorMsg || infoMsg) {
             flashDismissed = false;
         }
     });
@@ -59,14 +60,16 @@
     $effect(() => {
         const successMsg = flash?.success;
         const errorMsg = flash?.error;
+        const infoMsg = flash?.info;
         const _epoch = flashEpoch;
 
-        if (flashDismissed || flashHovered || (!successMsg && !errorMsg)) {
+        if (flashDismissed || flashHovered || (!successMsg && !errorMsg && !infoMsg)) {
             return;
         }
 
         const hasAction =
             Boolean(errorMsg) ||
+            Boolean(infoMsg) ||
             Boolean(flash?.trashed) ||
             String(successMsg || '').includes('Papelera de Reciclaje') ||
             String(successMsg || '').includes('Historial');
@@ -77,6 +80,76 @@
         }, durationMs);
 
         return () => clearTimeout(timer);
+    });
+
+    // Verificación pasiva ligera de sesión única activa (focus, visibilitychange e intervalo de 45s)
+    $effect(() => {
+        if (typeof window === 'undefined' || !auth?.user?.id) return;
+
+        let lastCheckedAt = 0;
+        let inFlight = false;
+        let redirecting = false;
+
+        async function verifyActiveSession(force = false) {
+            if (redirecting || inFlight) return;
+            if (document.visibilityState !== 'visible') return;
+
+            const now = Date.now();
+            if (!force && now - lastCheckedAt < 10000) {
+                return;
+            }
+
+            lastCheckedAt = now;
+            inFlight = true;
+
+            try {
+                const res = await fetch('/session/verify', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                });
+
+                if (res.status === 401) {
+                    const data = await res.json().catch(() => null);
+                    if (data?.session_replaced === true) {
+                        redirecting = true;
+                        window.location.href = data.redirect || '/login?reason=session_replaced';
+                    }
+                }
+            } catch {
+                // Silenciar errores transitorios de red en verificación pasiva
+            } finally {
+                inFlight = false;
+            }
+        }
+
+        const handleFocus = () => {
+            verifyActiveSession(false);
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                verifyActiveSession(false);
+            }
+        };
+
+        window.addEventListener('focus', handleFocus);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                verifyActiveSession(true);
+            }
+        }, 45000);
+
+        return () => {
+            window.removeEventListener('focus', handleFocus);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.clearInterval(intervalId);
+        };
     });
 
     // Inicializar y sincronizar tema Claro / Oscuro con localStorage (Modo Claro por defecto)
@@ -804,12 +877,33 @@
     </div>
 
     <!-- TOAST FLOTANTE DE NOTIFICACIONES FLASH (Sin layout shift) -->
-    {#if (flash?.success || flash?.error) && !flashDismissed}
+    {#if (flash?.success || flash?.error || flash?.info) && !flashDismissed}
         <div
             class="fixed top-[72px] right-5 z-[80] flex flex-col gap-2 w-[calc(100vw-2.5rem)] max-w-sm pointer-events-none"
             role="status"
             aria-live="polite"
         >
+            {#if flash?.info}
+                <div
+                    role="status"
+                    onmouseenter={() => flashHovered = true}
+                    onmouseleave={() => flashHovered = false}
+                    class="pointer-events-auto shadow-xl rounded-xl border backdrop-blur-sm bg-white/95 dark:bg-[#151D2C]/95 border-amber-200 dark:border-amber-500/35 text-amber-900 dark:text-amber-200 px-3.5 py-3 flex items-start justify-between gap-2.5 text-xs transition-all"
+                >
+                    <div class="flex items-start gap-2.5 min-w-0">
+                        <span class="w-5 h-5 mt-0.5 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-[11px] shrink-0 shadow-xs">i</span>
+                        <p class="font-semibold leading-snug break-words">{flash.info}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onclick={() => { flashDismissed = true; flashHovered = false; }}
+                        class="text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white font-bold text-sm leading-none px-1 py-0.5 rounded-md transition-colors shrink-0 cursor-pointer"
+                        aria-label="Cerrar notificación"
+                    >
+                        ×
+                    </button>
+                </div>
+            {/if}
             {#if flash?.success}
                 <div
                     role="status"
